@@ -7,9 +7,7 @@ namespace rvn {
 /*-------------------------------------------------------*/
 
 template <class T, class... Args>
-std::unique_ptr<T> make_unique(Args &&...){
-    // static_assert(false);
-};
+std::unique_ptr<T> make_unique(Args &&...);
 
 // To be used when only one construct function exists
 template <typename Ctor, typename Dtor>
@@ -34,8 +32,8 @@ class unique_handler1 {
       If return is QUIC_FAILED then throw exception
     */
     template <typename... Args>
-    BOOLEAN construct(Args... args) {
-        return QUIC_FAILED(open(args..., &handler));
+    QUIC_STATUS construct(Args... args) {
+        return open(args..., &handler);
     }
 
     ~unique_handler1() noexcept {
@@ -70,18 +68,18 @@ class unique_handler2 {
         stop_func = stop_;
     }
 
-    /*Don't take universal reference as this is C.
+    /*Don't take universal reference as this is C interface.
       Everything is copied
 
       If return is QUIC_FAILED then throw exception
     */
     template <typename... Args>
-    BOOLEAN open_handler(Args... args) {
-        return QUIC_FAILED(open_func(args..., &handler));
+    QUIC_STATUS open_handler(Args... args) {
+        return open_func(args..., &handler);
     }
 
     template <typename... Args>
-    BOOLEAN start_handler(Args... args) {
+    QUIC_STATUS start_handler(Args... args) {
         QUIC_STATUS status;
         status = start_func(handler, args...);
         if (QUIC_FAILED(status)) close_func(handler);
@@ -124,11 +122,11 @@ class unique_registration
           decltype(QUIC_API_TABLE::RegistrationClose)> {
    public:
     unique_registration(
-        QUIC_API_TABLE *tbl_,
+        const QUIC_API_TABLE *tbl_,
         const QUIC_REGISTRATION_CONFIG *RegConfig)
         : unique_handler1(tbl_->RegistrationOpen,
                           tbl_->RegistrationClose) {
-        if (construct(RegConfig))
+        if (QUIC_FAILED(construct(RegConfig)))
             throw std::runtime_error(
                 "RegistrationHandlerConstructionFailure");
     };
