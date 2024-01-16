@@ -9,6 +9,16 @@ namespace rvn {
 template <class T, class... Args>
 std::unique_ptr<T> make_unique(Args &&...);
 
+template <typename... Args>
+QUIC_STATUS NoOpSuccess(Args... args) {
+    return QUIC_STATUS_SUCCESS;
+}
+
+template <typename... Args>
+void NoOpVoid(Args... args) {
+    return;
+};
+
 // To be used when only one construct function exists
 template <typename Ctor, typename Dtor>
 class unique_handler1 {
@@ -45,7 +55,7 @@ class unique_handler1 {
 
 // To be used when only one construct function exists
 template <typename Open, typename Close, typename Start,
-          typename Stop>
+          typename Stop = decltype(&NoOpVoid<HQUIC>)>
 class unique_handler2 {
     // Pointer to QUIC_HANDLER owned by unique_handler2
     HQUIC handler;
@@ -59,7 +69,7 @@ class unique_handler2 {
 
    protected:
     unique_handler2(Open open_, Close close_, Start start_,
-                    Stop stop_) noexcept
+                    Stop stop_ = &NoOpVoid<HQUIC>) noexcept
         : handler(NULL) {
         open_func = open_;
         close_func = close_;
@@ -169,6 +179,47 @@ class unique_listener
                               startParams.AlpnBufferCount,
                               startParams.LocalAddress)))
             throw std::runtime_error("ListenerStartFailure");
+    };
+};
+/*-------------------------------------------------------*/
+
+/*-------------MsQuic->Config open and load--------------*/
+class unique_configuration
+    : public unique_handler2<
+          decltype(QUIC_API_TABLE::ConfigurationOpen),
+          decltype(QUIC_API_TABLE::ConfigurationClose),
+          decltype(QUIC_API_TABLE::ConfigurationLoadCredential)
+          /*No need to unload configuration*/> {
+    struct ConfigurationOpenParams {
+        HQUIC registration;
+        const QUIC_BUFFER *const AlpnBuffers;
+        uint32_t AlpnBufferCount = 1;
+        const QUIC_SETTINGS *Settings;
+        uint32_t SettingsSize;
+        void *Context;
+    };
+
+    struct ConfigurationStartParams {
+        const QUIC_CREDENTIAL_CONFIG *CredConfig;
+    };
+
+   public:
+    unique_configuration(const QUIC_API_TABLE *tbl_,
+                         ConfigurationOpenParams openParams,
+                         ConfigurationStartParams startParams)
+        : unique_handler2(tbl_->ConfigurationOpen,
+                          tbl_->ConfigurationClose,
+                          tbl_->ConfigurationLoadCredential) {
+        if (QUIC_FAILED(open_handler(
+                openParams.registration, openParams.AlpnBuffers,
+                openParams.AlpnBufferCount, openParams.Settings,
+                openParams.SettingsSize, openParams.Context)))
+            throw std::runtime_error("ConfigurationOpenFailure");
+
+        // Start handler loads credentials into configuration
+        if (QUIC_FAILED(start_handler(startParams.CredConfig)))
+            throw std::runtime_error(
+                "ConfigurationLoadCredentialsFailure");
     };
 };
 /*-------------------------------------------------------*/
