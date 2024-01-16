@@ -95,8 +95,9 @@ class unique_handler2 {
 };
 
 /*-----------------QUIC_API_TABLE------------------------*/
-auto QUIC_API_TABLE_deleter =
-    [](const QUIC_API_TABLE *tbl) { MsQuicClose(tbl); };
+auto QUIC_API_TABLE_deleter = [](const QUIC_API_TABLE *tbl) {
+    MsQuicClose(tbl);
+};
 
 using QUIC_API_TABLE_uptr_t =
     std::unique_ptr<const QUIC_API_TABLE,
@@ -105,8 +106,7 @@ using QUIC_API_TABLE_uptr_t =
 class unique_QUIC_API_TABLE : public QUIC_API_TABLE_uptr_t {
    public:
     unique_QUIC_API_TABLE(const QUIC_API_TABLE *tbl)
-        : QUIC_API_TABLE_uptr_t(tbl,
-                                QUIC_API_TABLE_deleter) {}
+        : QUIC_API_TABLE_uptr_t(tbl, QUIC_API_TABLE_deleter) {}
 };
 
 unique_QUIC_API_TABLE make_unique() {
@@ -129,6 +129,46 @@ class unique_registration
         if (QUIC_FAILED(construct(RegConfig)))
             throw std::runtime_error(
                 "RegistrationHandlerConstructionFailure");
+    };
+};
+/*-------------------------------------------------------*/
+
+/*------------MsQuic->ListenerOpen and Start-------------*/
+class unique_listener
+    : public unique_handler2<
+          decltype(QUIC_API_TABLE::ListenerOpen),
+          decltype(QUIC_API_TABLE::ListenerClose),
+          decltype(QUIC_API_TABLE::ListenerStart),
+          decltype(QUIC_API_TABLE::ListenerStop)> {
+    struct ListenerOpenParams {
+        HQUIC registration;
+        QUIC_LISTENER_CALLBACK_HANDLER listenerCb;
+        void *context = NULL;
+    };
+
+    struct ListenerStartParams {
+        const QUIC_BUFFER *const AlpnBuffers;
+        uint32_t AlpnBufferCount = 1;
+        const QUIC_ADDR *LocalAddress;
+    };
+
+   public:
+    unique_listener(const QUIC_API_TABLE *tbl_,
+                    ListenerOpenParams openParams,
+                    ListenerStartParams startParams)
+        : unique_handler2(
+              tbl_->ListenerOpen, tbl_->ListenerClose,
+              tbl_->ListenerStart, tbl_->ListenerStop) {
+        if (QUIC_FAILED(open_handler(openParams.registration,
+                                     openParams.listenerCb,
+                                     openParams.context)))
+            throw std::runtime_error("ListenerOpenFailure");
+
+        if (QUIC_FAILED(
+                start_handler(startParams.AlpnBuffers,
+                              startParams.AlpnBufferCount,
+                              startParams.LocalAddress)))
+            throw std::runtime_error("ListenerStartFailure");
     };
 };
 /*-------------------------------------------------------*/
