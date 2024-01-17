@@ -17,13 +17,17 @@ set(MSQUIC_LINK_LIBRARY ${MSQUIC_INSTALL_DIR}/lib/libmsquic.so.2.3.0)
 
 # Setting Raven variables
 set(RAVEN_SRC_DIR "raven/src")
+set(RAVEN_INCLUDE_DIR "raven/includes")
 
 # Main executable
-set(SOURCE ${RAVEN_SRC_DIR}/wrappers.cpp ${RAVEN_SRC_DIR}/main.cpp)
-add_executable(main raven/src/wrappers.cpp)
+set(SOURCE ${RAVEN_SRC_DIR}/wrappers.cpp ${RAVEN_SRC_DIR}/server.cpp)
+add_executable(main ${SOURCE})
 add_compile_options(main PRIVATE -Wall -Wextra)
+# Linking and including MSQUIC library
 target_include_directories(main PUBLIC ${MSQUIC_INCLUDE_DIR})
 target_link_libraries(main PUBLIC ${MSQUIC_LINK_LIBRARY})
+# Including Includes library
+target_include_directories(main PRIVATE ${RAVEN_INCLUDE_DIR})
 
 # Add playground server
 add_executable(Server server.cpp)
