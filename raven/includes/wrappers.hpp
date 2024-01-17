@@ -6,12 +6,12 @@
 namespace rvn::detail {
 
 template <typename... Args>
-QUIC_STATUS NoOpSuccess(Args... args) {
+QUIC_STATUS NoOpSuccess(Args...) {
     return QUIC_STATUS_SUCCESS;
 }
 
 template <typename... Args>
-void NoOpVoid(Args... args) {
+void NoOpVoid(Args...) {
     return;
 };
 template <typename Ctor, typename Dtor>
@@ -170,7 +170,9 @@ std::unique_ptr<T> make_unique(Args &&...);
 
 static inline unique_QUIC_API_TABLE make_unique() {
     const QUIC_API_TABLE *tbl;
-    MsQuicOpen2(&tbl);
+    QUIC_STATUS status = MsQuicOpen2(&tbl);
+    if (QUIC_FAILED(status))
+        throw std::runtime_error("MsQuicOpenError");
     return unique_QUIC_API_TABLE(tbl);
 }
 
