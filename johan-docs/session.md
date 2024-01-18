@@ -1,7 +1,7 @@
 # Session Initialization
 Only one bidirectional stream => control stream => Client initiated
 Control messages sent only on control stream
-Objects (sent on unidirectional stream) not send on control stream
+Objects (sent on unidirectional stream) do not send on control stream
 Both lead to session closed as `protocol violation`
 
 Close any other bi directional streams

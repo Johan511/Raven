@@ -39,7 +39,7 @@ class unique_handler1 {
         close = close_;
     }
 
-    ~unique_handler1() noexcept { destroy(); }
+    unique_handler1() : handler(NULL){};
 
     unique_handler1(const unique_handler1 &) = delete;
     unique_handler1 &operator=(const unique_handler1 &) = delete;
@@ -55,6 +55,18 @@ class unique_handler1 {
         rhs.handler = NULL;
     }
 
+    unique_handler1 &operator=(unique_handler1 &&rhs) {
+        reset();
+        // take ownership
+        handler = rhs.handler;
+        open = rhs.open;
+        close = rhs.close;
+
+        // RHS releases ownership
+        rhs.handler = NULL;
+        return *this;
+    }
+
     /*Don't take universal reference as this is C.
       Everything is copied
 
@@ -65,7 +77,9 @@ class unique_handler1 {
         return open(args..., &handler);
     }
 
+   public:
     HQUIC get() const { return handler; }
+    ~unique_handler1() noexcept { destroy(); }
 };
 
 // To be used when only one construct function exists
@@ -104,8 +118,7 @@ class unique_handler2 {
         start_func = start_;
         stop_func = stop_;
     }
-
-    ~unique_handler2() noexcept { destroy(); }
+    unique_handler2() : handler(NULL){};
 
     unique_handler2(const unique_handler2 &) = delete;
     unique_handler2 &operator=(const unique_handler2 &) = delete;
@@ -122,6 +135,21 @@ class unique_handler2 {
 
         // RHS releases ownership
         rhs.handler = NULL;
+    }
+
+    unique_handler2& operator=(unique_handler2 &&rhs) {
+        reset();
+        // take ownership
+        handler = rhs.handler;
+        open_func = rhs.open_func;
+        close_func = rhs.close_func;
+
+        start_func = rhs.start_func;
+        stop_func = rhs.stop_func;
+
+        // RHS releases ownership
+        rhs.handler = NULL;
+        return *this;
     }
 
     /*Don't take universal reference as this is C interface.
@@ -142,7 +170,9 @@ class unique_handler2 {
         return status;
     }
 
+   public:
     HQUIC get() const { return handler; }
+    ~unique_handler2() noexcept { destroy(); }
 };
 
 };  // namespace rvn::detail
@@ -165,10 +195,7 @@ class unique_QUIC_API_TABLE : public QUIC_API_TABLE_uptr_t {
 
 /* rvn::make_unique should not be called on
    non specialised template */
-template <class T, class... Args>
-std::unique_ptr<T> make_unique(Args &&...);
-
-static inline unique_QUIC_API_TABLE make_unique() {
+static inline unique_QUIC_API_TABLE make_unique_quic_table() {
     const QUIC_API_TABLE *tbl;
     QUIC_STATUS status = MsQuicOpen2(&tbl);
     if (QUIC_FAILED(status))
@@ -185,6 +212,7 @@ class unique_registration
     unique_registration(
         const QUIC_API_TABLE *tbl_,
         const QUIC_REGISTRATION_CONFIG *RegConfig);
+    unique_registration();
 };
 
 /*------------MsQuic->ListenerOpen and Start-------------*/
@@ -194,6 +222,7 @@ class unique_listener
           decltype(QUIC_API_TABLE::ListenerClose),
           decltype(QUIC_API_TABLE::ListenerStart),
           decltype(QUIC_API_TABLE::ListenerStop)> {
+   public:
     struct ListenerOpenParams {
         HQUIC registration;
         QUIC_LISTENER_CALLBACK_HANDLER listenerCb;
@@ -205,10 +234,10 @@ class unique_listener
         const QUIC_ADDR *LocalAddress;
     };
 
-   public:
     unique_listener(const QUIC_API_TABLE *tbl_,
                     ListenerOpenParams openParams,
                     ListenerStartParams startParams);
+    unique_listener();
 };
 
 /*-------------MsQuic->Config open and load--------------*/
@@ -218,6 +247,7 @@ class unique_configuration
           decltype(QUIC_API_TABLE::ConfigurationClose),
           decltype(QUIC_API_TABLE::ConfigurationLoadCredential)
           /*No need to unload configuration*/> {
+   public:
     struct ConfigurationOpenParams {
         HQUIC registration;
         const QUIC_BUFFER *const AlpnBuffers;
@@ -231,10 +261,10 @@ class unique_configuration
         const QUIC_CREDENTIAL_CONFIG *CredConfig;
     };
 
-   public:
     unique_configuration(const QUIC_API_TABLE *tbl_,
                          ConfigurationOpenParams openParams,
                          ConfigurationStartParams startParams);
+    unique_configuration();
 };
 
 };  // namespace rvn
