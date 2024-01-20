@@ -1,3 +1,5 @@
+#include <msquic.h>
+
 #include <utility>
 
 namespace rvn::utilities {
@@ -7,4 +9,5 @@ constexpr typename std::underlying_type<E>::type to_underlying(
     return static_cast<typename std::underlying_type<E>::type>(
         e);
 }
+
 }  // namespace rvn::utilities

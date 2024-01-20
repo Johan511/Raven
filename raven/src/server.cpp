@@ -1,5 +1,6 @@
 #include <msquic.h>
 
+#include <functional>
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
@@ -17,9 +18,7 @@ class MOQT {
         : tbl(std::move(tbl_)),
           reg(std::move(reg_)),
           configuration(std::move(configuration_)),
-          listener(std::move(listener_)) {
-        return;
-    }
+          listener(std::move(listener_)) {}
 };
 
 class MOQTFactory {
@@ -47,7 +46,7 @@ class MOQTFactory {
     /*const*/ QUIC_SETTINGS* Settings;
     uint32_t SettingsSize;  // set along with Settings
 
-    /*const*/ QUIC_CREDENTIAL_CONFIG* configCred;
+    /*const*/ QUIC_CREDENTIAL_CONFIG* CredConfig;
 
     std::uint8_t secondaryCounter;
 
@@ -59,9 +58,30 @@ class MOQTFactory {
         AlpnBufferCount,
         LocalAddress,
         Settings,
-        configCred,
+        CredConfig,
         secondaryCounter
     };
+
+    // ISSUE : listener cb needs tbl object
+    std::function<QUIC_STATUS(HQUIC, void*,
+                              QUIC_LISTENER_EVENT*)> const
+        default_listener_cb = [&](HQUIC Listener, void* Context,
+                                  QUIC_LISTENER_EVENT* Event) {
+            QUIC_STATUS Status = QUIC_STATUS_NOT_SUPPORTED;
+            switch (Event->Type) {
+                case QUIC_LISTENER_EVENT_NEW_CONNECTION:
+                    tbl->SetCallbackHandler(
+                        Event->NEW_CONNECTION.Connection,
+                        (void*)ServerConnectionCallback, NULL);
+                    Status = tbl->ConnectionSetConfiguration(
+                        Event->NEW_CONNECTION.Connection,
+                        Configuration);
+                    break;
+                default:
+                    break;
+            }
+            return Status;
+        };
 
    public:
     MOQTFactory() : tbl(rvn::make_unique_quic_table()) {
@@ -153,15 +173,29 @@ class MOQTFactory {
         return *this;
     }
 
-    MOQTFactory& set_configCred(
-        /*const*/ QUIC_CREDENTIAL_CONFIG* configCred_) {
-        configCred = configCred_;
+    MOQTFactory& set_CredConfig(
+        /*const*/ QUIC_CREDENTIAL_CONFIG* CredConfig_) {
+        CredConfig = CredConfig_;
 
         auto idx = rvn::utilities::to_underlying(
-            SecondaryIndices::configCred);
+            SecondaryIndices::CredConfig);
 
         secondaryCounter |= (1 << idx);
 
         return *this;
+    }
+
+    std::unique_ptr<MOQT> get() {
+        return std::make_unique<MOQT>(
+            std::move(tbl),
+            rvn::unique_registration(tbl.get(), regConfig),
+            rvn::unique_configuration(
+                tbl.get(),
+                {reg.get(), AlpnBuffers, AlpnBufferCount,
+                 Settings, SettingsSize, context},
+                {CredConfig}),
+            rvn::unique_listener(
+                tbl.get(), {reg.get(), listenerCb, context},
+                {AlpnBuffers, AlpnBufferCount, LocalAddress}));
     }
 };
