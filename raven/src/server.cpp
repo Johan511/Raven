@@ -5,23 +5,9 @@
 #include <wrappers.hpp>
 
 class MOQT {
-    rvn::unique_QUIC_API_TABLE tbl;
-    rvn::unique_registration reg;
-    rvn::unique_configuration configuration;
-    rvn::unique_listener listener;
+    using listener_cb_lamda_t = std::function<QUIC_STATUS(
+        HQUIC, void*, QUIC_LISTENER_EVENT*)>;
 
-   public:
-    MOQT(rvn::unique_QUIC_API_TABLE&& tbl_,
-         rvn::unique_registration&& reg_,
-         rvn::unique_configuration&& configuration_,
-         rvn::unique_listener&& listener_)
-        : tbl(std::move(tbl_)),
-          reg(std::move(reg_)),
-          configuration(std::move(configuration_)),
-          listener(std::move(listener_)) {}
-};
-
-class MOQTFactory {
     // primary variables => build into MOQT object
     rvn::unique_QUIC_API_TABLE tbl;
     rvn::unique_registration reg;
@@ -31,66 +17,71 @@ class MOQTFactory {
     std::uint8_t primaryCounter;
 
     // secondary variables => build into primary
-    /*const*/ QUIC_REGISTRATION_CONFIG* regConfig;
+    QUIC_REGISTRATION_CONFIG* regConfig;
 
-    QUIC_LISTENER_CALLBACK_HANDLER listenerCb;
+    listener_cb_lamda_t listener_cb_lamda;
 
-    void* context;
-
-    /*const*/ QUIC_BUFFER* /*const*/ AlpnBuffers;
+    QUIC_BUFFER* AlpnBuffers;
 
     uint32_t AlpnBufferCount;
 
-    /*const*/ QUIC_ADDR* LocalAddress;
+    QUIC_ADDR* LocalAddress;
 
-    /*const*/ QUIC_SETTINGS* Settings;
+    QUIC_SETTINGS* Settings;
     uint32_t SettingsSize;  // set along with Settings
 
-    /*const*/ QUIC_CREDENTIAL_CONFIG* CredConfig;
+    QUIC_CREDENTIAL_CONFIG* CredConfig;
 
-    std::uint8_t secondaryCounter;
+    std::uint64_t secondaryCounter;
 
     enum class SecondaryIndices {
         regConfig,
         listenerCb,
-        context,
         AlpnBuffers,
         AlpnBufferCount,
         LocalAddress,
         Settings,
         CredConfig,
-        secondaryCounter
     };
 
-    // ISSUE : listener cb needs tbl object
-    std::function<QUIC_STATUS(HQUIC, void*,
-                              QUIC_LISTENER_EVENT*)> const
-        default_listener_cb = [&](HQUIC Listener, void* Context,
-                                  QUIC_LISTENER_EVENT* Event) {
-            QUIC_STATUS Status = QUIC_STATUS_NOT_SUPPORTED;
-            switch (Event->Type) {
-                case QUIC_LISTENER_EVENT_NEW_CONNECTION:
-                    tbl->SetCallbackHandler(
-                        Event->NEW_CONNECTION.Connection,
-                        (void*)ServerConnectionCallback, NULL);
-                    Status = tbl->ConnectionSetConfiguration(
-                        Event->NEW_CONNECTION.Connection,
-                        Configuration);
-                    break;
-                default:
-                    break;
-            }
-            return Status;
-        };
+    static std::uint64_t sec_index_to_val(SecondaryIndices idx) {
+        auto intVal = rvn::utilities::to_underlying(idx);
+
+        return (1 << intVal);
+    }
+
+    std::uint64_t full_sec_counter_value() {
+        std::uint64_t value = 0;
+
+        value |= sec_index_to_val(SecondaryIndices::regConfig);
+        value |= sec_index_to_val(SecondaryIndices::listenerCb);
+        value |= sec_index_to_val(SecondaryIndices::AlpnBuffers);
+        value |=
+            sec_index_to_val(SecondaryIndices::AlpnBufferCount);
+        value |=
+            sec_index_to_val(SecondaryIndices::LocalAddress);
+        value |= sec_index_to_val(SecondaryIndices::Settings);
+        value |= sec_index_to_val(SecondaryIndices::CredConfig);
+
+        return value;
+    }
+
+    // need to be able to get function pointor of this
+    // function hence can not be member function
+    static QUIC_STATUS listener_cb_wrapper(
+        HQUIC reg, void* context, QUIC_LISTENER_EVENT* event) {
+        MOQT* thisObject = static_cast<MOQT*>(context);
+        return thisObject->listener_cb_lamda(reg, context,
+                                             event);
+    }
 
    public:
-    MOQTFactory() : tbl(rvn::make_unique_quic_table()) {
+    MOQT() : tbl(rvn::make_unique_quic_table()) {
         primaryCounter = 0;
         secondaryCounter = 0;
     }
 
-    MOQTFactory& set_regConfig(
-        /*const*/ QUIC_REGISTRATION_CONFIG* regConfig_) {
+    MOQT& set_regConfig(QUIC_REGISTRATION_CONFIG* regConfig_) {
         regConfig = regConfig_;
 
         auto idx = rvn::utilities::to_underlying(
@@ -101,9 +92,8 @@ class MOQTFactory {
         return *this;
     }
 
-    MOQTFactory& set_listenerCb(
-        QUIC_LISTENER_CALLBACK_HANDLER listenerCb_) {
-        listenerCb = listenerCb_;
+    MOQT& set_listenerCb(listener_cb_lamda_t listenerCb_) {
+        listener_cb_lamda = listenerCb_;
 
         auto idx = rvn::utilities::to_underlying(
             SecondaryIndices::listenerCb);
@@ -113,20 +103,8 @@ class MOQTFactory {
         return *this;
     }
 
-    MOQTFactory& set_context(void* context_) {
-        context = context_;
-
-        auto idx = rvn::utilities::to_underlying(
-            SecondaryIndices::context);
-
-        secondaryCounter |= (1 << idx);
-
-        return *this;
-    }
-
-    // check /*const*/ corectness here
-    MOQTFactory& set_AlpnBuffers(
-        /*const*/ QUIC_BUFFER* /*const*/ AlpnBuffers_) {
+    // check  corectness here
+    MOQT& set_AlpnBuffers(QUIC_BUFFER* AlpnBuffers_) {
         AlpnBuffers = AlpnBuffers_;
 
         auto idx = rvn::utilities::to_underlying(
@@ -137,7 +115,7 @@ class MOQTFactory {
         return *this;
     }
 
-    MOQTFactory& set_AlpnBufferCount(uint32_t AlpnBufferCount_) {
+    MOQT& set_AlpnBufferCount(uint32_t AlpnBufferCount_) {
         AlpnBufferCount = AlpnBufferCount_;
 
         auto idx = rvn::utilities::to_underlying(
@@ -148,7 +126,7 @@ class MOQTFactory {
         return *this;
     }
 
-    MOQTFactory& set_LocalAddress(QUIC_ADDR* LocalAddress_) {
+    MOQT& set_LocalAddress(QUIC_ADDR* LocalAddress_) {
         LocalAddress = LocalAddress_;
 
         auto idx = rvn::utilities::to_underlying(
@@ -160,8 +138,8 @@ class MOQTFactory {
     }
 
     // sets settings and setting size
-    MOQTFactory& set_Settings(/*const*/ QUIC_SETTINGS* Settings_,
-                              uint32_t SettingsSize_) {
+    MOQT& set_Settings(QUIC_SETTINGS* Settings_,
+                       uint32_t SettingsSize_) {
         Settings = Settings_;
         SettingsSize = SettingsSize_;
 
@@ -173,8 +151,7 @@ class MOQTFactory {
         return *this;
     }
 
-    MOQTFactory& set_CredConfig(
-        /*const*/ QUIC_CREDENTIAL_CONFIG* CredConfig_) {
+    MOQT& set_CredConfig(QUIC_CREDENTIAL_CONFIG* CredConfig_) {
         CredConfig = CredConfig_;
 
         auto idx = rvn::utilities::to_underlying(
@@ -185,17 +162,17 @@ class MOQTFactory {
         return *this;
     }
 
-    std::unique_ptr<MOQT> get() {
-        return std::make_unique<MOQT>(
-            std::move(tbl),
-            rvn::unique_registration(tbl.get(), regConfig),
-            rvn::unique_configuration(
-                tbl.get(),
-                {reg.get(), AlpnBuffers, AlpnBufferCount,
-                 Settings, SettingsSize, context},
-                {CredConfig}),
-            rvn::unique_listener(
-                tbl.get(), {reg.get(), listenerCb, context},
-                {AlpnBuffers, AlpnBufferCount, LocalAddress}));
+    void start_listener() {
+        assert(secondaryCounter == full_sec_counter_value());
+        reg = rvn::unique_registration(tbl.get(), regConfig);
+        configuration = rvn::unique_configuration(
+            tbl.get(),
+            {reg.get(), AlpnBuffers, AlpnBufferCount, Settings,
+             SettingsSize, this},
+            {CredConfig});
+        listener = rvn::unique_listener(
+            tbl.get(),
+            {reg.get(), MOQT::listener_cb_wrapper, this},
+            {AlpnBuffers, AlpnBufferCount, LocalAddress});
     }
 };
