@@ -4,8 +4,17 @@
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
+struct StreamContext {
+    MOQT* moqtObject;
+    HQUIC connection;
+    StreamContext(MOQT* moqtObject_, HQUIC connection_)
+        : moqtObject(moqtObject_), connection(connection_){};
+};
+
 class MOQT {
     using listener_cb_lamda_t = std::function<QUIC_STATUS(
+        HQUIC, void*, QUIC_LISTENER_EVENT*)>;
+    using stream_cb_lamda_t = std::function<QUIC_STATUS(
         HQUIC, void*, QUIC_LISTENER_EVENT*)>;
 
     // primary variables => build into MOQT object
@@ -20,6 +29,10 @@ class MOQT {
     QUIC_REGISTRATION_CONFIG* regConfig;
 
     listener_cb_lamda_t listener_cb_lamda;
+
+    stream_cb_lamda_t control_stream_cb_lamda;
+
+    stream_cb_lamda_t data_stream_cb_lamda;
 
     QUIC_BUFFER* AlpnBuffers;
 
@@ -50,7 +63,7 @@ class MOQT {
         return (1 << intVal);
     }
 
-    std::uint64_t full_sec_counter_value() {
+    constexpr std::uint64_t full_sec_counter_value() {
         std::uint64_t value = 0;
 
         value |= sec_index_to_val(SecondaryIndices::regConfig);
@@ -73,6 +86,20 @@ class MOQT {
         MOQT* thisObject = static_cast<MOQT*>(context);
         return thisObject->listener_cb_lamda(reg, context,
                                              event);
+    }
+
+    static QUIC_STATUS control_stream_cb_wrapper(
+        HQUIC stream, void* context, QUIC_STREAM_EVENT* event) {
+        MOQT* thisObject = static_cast<StreamContext*>(context);
+        return thisObject->control_stream_cb_lamda(
+            stream, context, event);
+    }
+
+    static QUIC_STATUS data_stream_cb_wrapper(
+        HQUIC stream, void* context, QUIC_STREAM_EVENT* event) {
+        MOQT* thisObject = static_cast<StreamContext*>(context);
+        return thisObject->data_stream_cb_lamda(stream, context,
+                                                event);
     }
 
    public:
@@ -175,4 +202,111 @@ class MOQT {
             {reg.get(), MOQT::listener_cb_wrapper, this},
             {AlpnBuffers, AlpnBufferCount, LocalAddress});
     }
+};
+
+auto DataStreamCallBack = [](HQUIC Stream, void* Context,
+                             QUIC_STREAM_EVENT* Event) {
+    switch (Event->Type) {
+        case QUIC_STREAM_EVENT_SEND_COMPLETE:
+            free(Event->SEND_COMPLETE.ClientContext);
+            break;
+        case QUIC_STREAM_EVENT_RECEIVE:
+            break;
+        case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
+            break;
+        case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
+            MsQuic->StreamShutdown(
+                Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
+            break;
+        case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+            MsQuic->StreamClose(Stream);
+            break;
+        default:
+            break;
+    }
+    return QUIC_STATUS_SUCCESS;
+};
+
+auto ControlStreamCallback = [](HQUIC Stream, void* Context,
+                                QUIC_STREAM_EVENT* Event) {
+    switch (Event->Type) {
+        case QUIC_STREAM_EVENT_SEND_COMPLETE:
+            free(Event->SEND_COMPLETE.ClientContext);
+            break;
+        case QUIC_STREAM_EVENT_RECEIVE:
+            // verify subscriber
+            StreamContext* context =
+                static_cast<StreamContext*>(Context);
+            HQUIC dataStream = NULL;
+            MsQuic->StreamOpen(
+                context->connection,
+                QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
+                (void*)MOQT::data_stream_cb_wrapper, Context,
+                &dataStream);
+
+            // TODO : check flags
+            MsQuic->StreamStart(dataStream,
+                                QUIC_STREAM_START_FLAG_NONE);
+            break;
+        case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
+            ServerSend(Stream);
+            break;
+        case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
+            MsQuic->StreamShutdown(
+                Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
+            break;
+        case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+            /*Should also shutdown remaining streams
+              because it releases ownership of Context
+             */
+            free(Context);
+            MsQuic->StreamClose(Stream);
+            break;
+        default:
+            break;
+    }
+    return QUIC_STATUS_SUCCESS;
+};
+
+auto ServerConnectionCallback = [](HQUIC Connection,
+                                   void* Context,
+                                   QUIC_CONNECTION_EVENT*
+                                       Event) {
+    switch (Event->Type) {
+        case QUIC_CONNECTION_EVENT_CONNECTED:
+            MsQuic->ConnectionSendResumptionTicket(
+                Connection, QUIC_SEND_RESUMPTION_FLAG_NONE, 0,
+                NULL);
+            break;
+        case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
+            if (Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status ==
+                QUIC_STATUS_CONNECTION_IDLE) {
+            } else {
+            }
+            break;
+        case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER:
+            break;
+        case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
+            MsQuic->ConnectionClose(Connection);
+            break;
+        case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED:
+            /*
+               Should receive bidirectional stream from user and
+               then start transport of media
+            */
+
+            StreamContext* StreamContext = new StreamContext(
+                static_cast<MOQT*>(Context), Connection);
+
+            MsQuic->SetCallbackHandler(
+                Event->PEER_STREAM_STARTED.Stream,
+                (void*)MOQT::control_stream_cb_wrapper,
+                StreamContext);
+            break;
+        case QUIC_CONNECTION_EVENT_RESUMED:
+            break;
+        default:
+            break;
+    }
+    return QUIC_STATUS_SUCCESS;
 };
