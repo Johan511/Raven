@@ -37,6 +37,24 @@ unique_listener::unique_listener(const QUIC_API_TABLE *tbl_,
         throw std::runtime_error("ListenerStartFailure");
 };
 
+/*------------MsQuic->ConnectionOpen and Start-------------*/
+unique_connection::unique_connection(
+    const QUIC_API_TABLE *tbl_, ConnectionOpenParams openParams,
+    ConnectionStartParams startParams)
+    : unique_handler2(
+          tbl_->ConnectionOpen, tbl_->ConnectionClose,
+          tbl_->ConnectionStart, tbl_->ConnectionStop) {
+    if (QUIC_FAILED(open_handler(openParams.registration,
+                                 openParams.ConnectionCb,
+                                 openParams.context)))
+        throw std::runtime_error("ConnectionOpenFailure");
+
+    if (QUIC_FAILED(start_handler(
+            startParams.Configuration, startParams.Family,
+            startParams.ServerName, startParams.ServerPort)))
+        throw std::runtime_error("ConnectionStartFailure");
+};
+
 /*-------------MsQuic->Config open and load--------------*/
 
 unique_configuration::unique_configuration(

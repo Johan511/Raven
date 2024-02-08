@@ -868,22 +868,3 @@ Error:
 
   return (int)Status;
 }
-// #define CAMLno_tsan
-// #define CAML_TSAN_ANNOTATE_HAPPENS_BEFORE(addr)
-// #define CAML_TSAN_ANNOTATE_HAPPENS_AFTER(addr)
-
-// #if defined(WITH_THREAD_SANITIZER)
-// #  undef CAMLno_tsan
-// #  undef CAML_TSAN_ANNOTATE_HAPPENS_BEFORE
-// #  undef CAML_TSAN_ANNOTATE_HAPPENS_AFTER
-
-// #  define CAMLno_tsan CAMLreally_no_tsan
-
-// #  define CAML_TSAN_ANNOTATE_HAPPENS_BEFORE(addr)                                \
-//   AnnotateHappensBefore(__FILE__, __LINE__, (void *)(addr));
-// #  define CAML_TSAN_ANNOTATE_HAPPENS_AFTER(addr)                                 \
-//   AnnotateHappensAfter(__FILE__, __LINE__, (void *)(addr));
-
-// extern void AnnotateHappensBefore(const char *f, int l, void *addr);
-// extern void AnnotateHappensAfter(const char *f, int l, void *addr);
-// #endif

@@ -137,7 +137,7 @@ class unique_handler2 {
         rhs.handler = NULL;
     }
 
-    unique_handler2& operator=(unique_handler2 &&rhs) {
+    unique_handler2 &operator=(unique_handler2 &&rhs) {
         reset();
         // take ownership
         handler = rhs.handler;
@@ -238,6 +238,31 @@ class unique_listener
                     ListenerOpenParams openParams,
                     ListenerStartParams startParams);
     unique_listener();
+};
+
+/*------------MsQuic->ConnectionOpen and Start-------------*/
+class unique_connection
+    : public detail::unique_handler2<
+          decltype(QUIC_API_TABLE::ConnectionOpen),
+          decltype(QUIC_API_TABLE::ConnectionClose),
+          decltype(QUIC_API_TABLE::ConnectionStart),
+          decltype(QUIC_API_TABLE::ConnectionStop)> {
+   public:
+    struct ConnectionOpenParams {
+        HQUIC registration;
+        QUIC_CONNECTION_CALLBACK_HANDLER connectionCb;
+        void *context = NULL;
+    };
+    struct ConnectionStartParams {
+        const QUIC_BUFFER *const AlpnBuffers;
+        uint32_t AlpnBufferCount = 1;
+        const QUIC_ADDR *LocalAddress;
+    };
+
+    unique_connection(const QUIC_API_TABLE *tbl_,
+                    ConnectionOpenParams openParams,
+                    ConnectionStartParams startParams);
+    unique_connection();
 };
 
 /*-------------MsQuic->Config open and load--------------*/
