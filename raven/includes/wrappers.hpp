@@ -1,3 +1,5 @@
+#pragma once
+
 #include <msquic.h>
 
 #include <memory>
@@ -245,8 +247,8 @@ class unique_connection
     : public detail::unique_handler2<
           decltype(QUIC_API_TABLE::ConnectionOpen),
           decltype(QUIC_API_TABLE::ConnectionClose),
-          decltype(QUIC_API_TABLE::ConnectionStart),
-          decltype(QUIC_API_TABLE::ConnectionStop)> {
+          decltype(QUIC_API_TABLE::ConnectionStart)
+          /*There is no ConnectionStop*/> {
    public:
     struct ConnectionOpenParams {
         HQUIC registration;
@@ -254,14 +256,15 @@ class unique_connection
         void *context = NULL;
     };
     struct ConnectionStartParams {
-        const QUIC_BUFFER *const AlpnBuffers;
-        uint32_t AlpnBufferCount = 1;
-        const QUIC_ADDR *LocalAddress;
+        HQUIC Configuration;
+        QUIC_ADDRESS_FAMILY Family;
+        const char *ServerName;
+        uint16_t ServerPort;
     };
 
     unique_connection(const QUIC_API_TABLE *tbl_,
-                    ConnectionOpenParams openParams,
-                    ConnectionStartParams startParams);
+                      ConnectionOpenParams openParams,
+                      ConnectionStartParams startParams);
     unique_connection();
 };
 

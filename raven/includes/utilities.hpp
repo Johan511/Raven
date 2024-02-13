@@ -1,3 +1,5 @@
+#pragma once
+
 #include <msquic.h>
 
 #include <utility>
