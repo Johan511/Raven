@@ -3,6 +3,7 @@
 #include <msquic.h>
 
 #include <cstdint>
+#include <utilities.hpp>
 #include <wrappers.hpp>
 
 struct StreamContext {
@@ -13,11 +14,27 @@ struct StreamContext {
 };
 
 class MOQT {
-    using cb_lamda_t = std::function<QUIC_STATUS(
+   protected:
+    /*stream and listener cb differ by last argument
+     * (quic event type)*/
+    using listener_cb_lamda_t = std::function<QUIC_STATUS(
         HQUIC, void*, QUIC_LISTENER_EVENT*)>;
 
-    static std::uint64_t sec_index_to_val(SecondaryIndices idx) {
-        auto intVal = rvn::utilities::to_underlying(idx);
+    using stream_cb_lamda_t = std::function<QUIC_STATUS(
+        HQUIC, void*, QUIC_STREAM_EVENT*)>;
+
+    enum class SecondaryIndices {
+        regConfig,
+        listenerCb,
+        AlpnBuffers,
+        AlpnBufferCount,
+        Settings,
+        CredConfig,
+    };
+
+    static constexpr std::uint64_t sec_index_to_val(
+        SecondaryIndices idx) {
+        auto intVal = rvn::utils::to_underlying(idx);
 
         return (1 << intVal);
     }
@@ -33,16 +50,18 @@ class MOQT {
 
     static QUIC_STATUS control_stream_cb_wrapper(
         HQUIC stream, void* context, QUIC_STREAM_EVENT* event) {
-        MOQT* thisObject = static_cast<StreamContext*>(context);
-        return thisObject->control_stream_cb_lamda(
+        StreamContext* thisObject =
+            static_cast<StreamContext*>(context);
+        return thisObject->moqtObject->control_stream_cb_lamda(
             stream, context, event);
     }
 
     static QUIC_STATUS data_stream_cb_wrapper(
         HQUIC stream, void* context, QUIC_STREAM_EVENT* event) {
-        MOQT* thisObject = static_cast<StreamContext*>(context);
-        return thisObject->data_stream_cb_lamda(stream, context,
-                                                event);
+        StreamContext* thisObject =
+            static_cast<StreamContext*>(context);
+        return thisObject->moqtObject->data_stream_cb_lamda(
+            stream, context, event);
     }
 
     rvn::unique_QUIC_API_TABLE tbl;
@@ -53,11 +72,11 @@ class MOQT {
     QUIC_REGISTRATION_CONFIG* regConfig;
 
     // placeholder for connection_cb in case of Client
-    cb_lamda_t listener_cb_lamda;
+    listener_cb_lamda_t listener_cb_lamda;
 
-    cb_lamda_t control_stream_cb_lamda;
+    stream_cb_lamda_t control_stream_cb_lamda;
 
-    cb_lamda_t data_stream_cb_lamda;
+    stream_cb_lamda_t data_stream_cb_lamda;
 
     QUIC_BUFFER* AlpnBuffers;
 
@@ -70,16 +89,23 @@ class MOQT {
 
     std::uint64_t secondaryCounter;
 
-    enum class SecondaryIndices {
-        regConfig,
-        listenerCb,
-        AlpnBuffers,
-        AlpnBufferCount,
-        Settings,
-        CredConfig,
-    };
+    /* constexpr functions are inline and need to be defined in
+     * header*/
+    constexpr std::uint64_t full_sec_counter_value() {
+        std::uint64_t value = 0;
 
-    constexpr std::uint64_t full_sec_counter_value();
+        value |= sec_index_to_val(SecondaryIndices::regConfig);
+        value |= sec_index_to_val(SecondaryIndices::listenerCb);
+        value |= sec_index_to_val(SecondaryIndices::AlpnBuffers);
+        value |=
+            sec_index_to_val(SecondaryIndices::AlpnBufferCount);
+        value |= sec_index_to_val(SecondaryIndices::Settings);
+        value |= sec_index_to_val(SecondaryIndices::CredConfig);
+
+        return value;
+    }
+
+    MOQT();
 
    public:
     MOQT& set_regConfig(QUIC_REGISTRATION_CONFIG* regConfig_);
@@ -95,9 +121,6 @@ class MOQT {
                        uint32_t SettingsSize_);
 
     MOQT& set_CredConfig(QUIC_CREDENTIAL_CONFIG* CredConfig_);
-
-   protected:
-    MOQT() : tbl(rvn::make_unique_quic_table());
 };
 
 class MOQTServer : public MOQT {

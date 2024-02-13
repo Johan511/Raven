@@ -183,16 +183,26 @@ namespace rvn {
 
 /*-----------------QUIC_API_TABLE------------------------*/
 
-static inline auto QUIC_API_TABLE_deleter =
-    [](const QUIC_API_TABLE *tbl) { MsQuicClose(tbl); };
+/*QUIC_API_TABLE_deleter has to be a function and not lambda due
+ * to [-Wsubobject-linkage] warning. This is because the lambda
+ * has a different type in each subunit anad hence the class
+ * unique_QUIC_API_TABLE will also have different data type
+ * members in each subunit. This is not allowed in C++ due to ODR
+ * (https://www.reddit.com/r/cpp_questions/comments/8im3h4/comment/dyt5u68/)
+ */
+static inline void QUIC_API_TABLE_deleter(
+    const QUIC_API_TABLE *tbl) {
+    MsQuicClose(tbl);
+};
 
 using QUIC_API_TABLE_uptr_t =
     std::unique_ptr<const QUIC_API_TABLE,
-                    decltype(QUIC_API_TABLE_deleter)>;
+                    decltype(&QUIC_API_TABLE_deleter)>;
 
 class unique_QUIC_API_TABLE : public QUIC_API_TABLE_uptr_t {
    public:
-    unique_QUIC_API_TABLE(const QUIC_API_TABLE *tbl);
+    unique_QUIC_API_TABLE(const QUIC_API_TABLE *tbl)
+        : QUIC_API_TABLE_uptr_t(tbl, &QUIC_API_TABLE_deleter) {}
 };
 
 /* rvn::make_unique should not be called on
