@@ -1,10 +1,14 @@
 #include <msquic.h>
 
 #include <iostream>
+#include <memory>
 #include <moqt.hpp>
 
 auto DataStreamCallBack = [](HQUIC Stream, void* Context,
                              QUIC_STREAM_EVENT* Event) {
+    const QUIC_API_TABLE* MsQuic =
+        static_cast<StreamContext*>(Context)
+            ->moqtObject->get_tbl();
     switch (Event->Type) {
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
             free(Event->SEND_COMPLETE.ClientContext);
@@ -26,70 +30,39 @@ auto DataStreamCallBack = [](HQUIC Stream, void* Context,
     return QUIC_STATUS_SUCCESS;
 };
 
-void ServerSend(HQUIC Stream) {
-    void* SendBufferRaw =
-        malloc(sizeof(QUIC_BUFFER) + SendBufferLength);
-    if (SendBufferRaw == NULL) {
-        printf("SendBuffer allocation failed!\n");
-        MsQuic->StreamShutdown(
-            Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
-        return;
-    }
-    QUIC_BUFFER* SendBuffer = (QUIC_BUFFER*)SendBufferRaw;
-    SendBuffer->Buffer =
-        (uint8_t*)SendBufferRaw + sizeof(QUIC_BUFFER);
-    SendBuffer->Length = SendBufferLength;
-
-    SendBuffer->Buffer[0] = 'H';
-    SendBuffer->Buffer[1] = 'H';
-    SendBuffer->Buffer[2] = 'N';
-    SendBuffer->Buffer[3] = '\0';
-
-    printf("[strm][%p] Sending data...\n", Stream);
-
-    //
-    // Sends the buffer over the stream. Note the FIN flag is
-    // passed along with the buffer. This indicates this is the
-    // last buffer on the stream and the the stream is shut down
-    // (in the send direction) immediately after.
-    //
-    QUIC_STATUS Status;
-    if (QUIC_FAILED(Status = MsQuic->StreamSend(
-                        Stream, SendBuffer, 1,
-                        QUIC_SEND_FLAG_FIN, SendBuffer))) {
-        printf("StreamSend failed, 0x%x!\n", Status);
-        free(SendBufferRaw);
-        MsQuic->StreamShutdown(
-            Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
-    }
-}
-
 auto ControlStreamCallback = [](HQUIC Stream, void* Context,
                                 QUIC_STREAM_EVENT* Event) {
+    const QUIC_API_TABLE* MsQuic =
+        static_cast<StreamContext*>(Context)
+            ->moqtObject->get_tbl();
+
+    /* can not define them in switch case because crosses
+     * initialization and C++ does not like it because it has to
+     * call destructors */
+    StreamContext* context = NULL;
+    HQUIC dataStream = NULL;
     switch (Event->Type) {
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
             free(Event->SEND_COMPLETE.ClientContext);
             break;
         case QUIC_STREAM_EVENT_RECEIVE:
             // verify subscriber
-            StreamContext* context =
-                static_cast<StreamContext*>(Context);
-            HQUIC dataStream = NULL;
             MsQuic->StreamOpen(
                 context->connection,
                 QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
-                (void*)MOQT::data_stream_cb_wrapper, Context,
+                &MOQT::data_stream_cb_wrapper, Context,
                 &dataStream);
 
             // TODO : check flags
             MsQuic->StreamStart(dataStream,
                                 QUIC_STREAM_START_FLAG_NONE);
 
-            MsQuic->StreamSend(dataStream, SendBuffer, 1,
-                               QUIC_SEND_FLAG_FIN,
-                               SendBuffer) break;
+            // MsQuic->StreamSend(dataStream, SendBuffer, 1,
+            //                    QUIC_SEND_FLAG_FIN,
+            //                    SendBuffer);
+            break;
         case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
-            ServerSend(Stream);
+            // ServerSend(Stream);
             break;
         case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
             MsQuic->StreamShutdown(
@@ -112,6 +85,11 @@ auto ServerConnectionCallback = [](HQUIC Connection,
                                    void* Context,
                                    QUIC_CONNECTION_EVENT*
                                        Event) {
+    const QUIC_API_TABLE* MsQuic =
+        static_cast<MOQT*>(Context)->get_tbl();
+
+    StreamContext* streamContext = NULL;
+
     switch (Event->Type) {
         case QUIC_CONNECTION_EVENT_CONNECTED:
             MsQuic->ConnectionSendResumptionTicket(
@@ -135,13 +113,13 @@ auto ServerConnectionCallback = [](HQUIC Connection,
                then start transport of media
             */
 
-            StreamContext* StreamContext = new StreamContext(
+            streamContext = new StreamContext(
                 static_cast<MOQT*>(Context), Connection);
 
             MsQuic->SetCallbackHandler(
                 Event->PEER_STREAM_STARTED.Stream,
                 (void*)MOQT::control_stream_cb_wrapper,
-                StreamContext);
+                streamContext);
             break;
         case QUIC_CONNECTION_EVENT_RESUMED:
             break;
@@ -151,4 +129,8 @@ auto ServerConnectionCallback = [](HQUIC Connection,
     return QUIC_STATUS_SUCCESS;
 };
 
-int main() {}
+int main() {
+    std::unique_ptr<MOQTServer> moqtServer =
+        std::make_unique<MOQTServer>();
+    moqtServer->start_listener();
+}

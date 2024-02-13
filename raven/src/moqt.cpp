@@ -1,12 +1,11 @@
 #include <moqt.hpp>
-
-constexpr std::uint64_t MOQT::full_sec_counter_value() 
+#include <utilities.hpp>
 
 MOQT& MOQT::set_regConfig(QUIC_REGISTRATION_CONFIG* regConfig_) {
     regConfig = regConfig_;
 
-    auto idx = rvn::utilities::to_underlying(
-        SecondaryIndices::regConfig);
+    auto idx =
+        rvn::utils::to_underlying(SecondaryIndices::regConfig);
 
     secondaryCounter |= (1 << idx);
 
@@ -16,8 +15,8 @@ MOQT& MOQT::set_regConfig(QUIC_REGISTRATION_CONFIG* regConfig_) {
 MOQT& MOQT::set_listenerCb(listener_cb_lamda_t listenerCb_) {
     listener_cb_lamda = listenerCb_;
 
-    auto idx = rvn::utilities::to_underlying(
-        SecondaryIndices::listenerCb);
+    auto idx =
+        rvn::utils::to_underlying(SecondaryIndices::listenerCb);
 
     secondaryCounter |= (1 << idx);
 
@@ -28,8 +27,8 @@ MOQT& MOQT::set_listenerCb(listener_cb_lamda_t listenerCb_) {
 MOQT& MOQT::set_AlpnBuffers(QUIC_BUFFER* AlpnBuffers_) {
     AlpnBuffers = AlpnBuffers_;
 
-    auto idx = rvn::utilities::to_underlying(
-        SecondaryIndices::AlpnBuffers);
+    auto idx =
+        rvn::utils::to_underlying(SecondaryIndices::AlpnBuffers);
 
     secondaryCounter |= (1 << idx);
 
@@ -39,7 +38,7 @@ MOQT& MOQT::set_AlpnBuffers(QUIC_BUFFER* AlpnBuffers_) {
 MOQT& MOQT::set_AlpnBufferCount(uint32_t AlpnBufferCount_) {
     AlpnBufferCount = AlpnBufferCount_;
 
-    auto idx = rvn::utilities::to_underlying(
+    auto idx = rvn::utils::to_underlying(
         SecondaryIndices::AlpnBufferCount);
 
     secondaryCounter |= (1 << idx);
@@ -53,19 +52,19 @@ MOQT& MOQT::set_Settings(QUIC_SETTINGS* Settings_,
     Settings = Settings_;
     SettingsSize = SettingsSize_;
 
-    auto idx = rvn::utilities::to_underlying(
-        SecondaryIndices::Settings);
+    auto idx =
+        rvn::utils::to_underlying(SecondaryIndices::Settings);
 
     secondaryCounter |= (1 << idx);
 
     return *this;
 }
 
-MOQT& set_CredConfig(QUIC_CREDENTIAL_CONFIG* CredConfig_) {
+MOQT& MOQT::set_CredConfig(QUIC_CREDENTIAL_CONFIG* CredConfig_) {
     CredConfig = CredConfig_;
 
-    auto idx = rvn::utilities::to_underlying(
-        SecondaryIndices::CredConfig);
+    auto idx =
+        rvn::utils::to_underlying(SecondaryIndices::CredConfig);
 
     secondaryCounter |= (1 << idx);
 
@@ -75,3 +74,5 @@ MOQT& set_CredConfig(QUIC_CREDENTIAL_CONFIG* CredConfig_) {
 MOQT::MOQT() : tbl(rvn::make_unique_quic_table()) {
     secondaryCounter = 0;
 }
+
+const QUIC_API_TABLE* MOQT::get_tbl() { return tbl.get(); }
