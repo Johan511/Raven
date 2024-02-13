@@ -3,6 +3,7 @@
 #include <msquic.h>
 
 #include <cstdint>
+#include <functional>
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
@@ -19,6 +20,8 @@ class MOQT {
      * (quic event type)*/
     using listener_cb_lamda_t = std::function<QUIC_STATUS(
         HQUIC, void*, QUIC_LISTENER_EVENT*)>;
+    using connection_cb_lamda_t = std::function<QUIC_STATUS(
+        HQUIC, void*, QUIC_CONNECTION_EVENT*)>;
 
     using stream_cb_lamda_t = std::function<QUIC_STATUS(
         HQUIC, void*, QUIC_STREAM_EVENT*)>;
@@ -48,22 +51,6 @@ class MOQT {
                                              event);
     }
 
-    static QUIC_STATUS control_stream_cb_wrapper(
-        HQUIC stream, void* context, QUIC_STREAM_EVENT* event) {
-        StreamContext* thisObject =
-            static_cast<StreamContext*>(context);
-        return thisObject->moqtObject->control_stream_cb_lamda(
-            stream, context, event);
-    }
-
-    static QUIC_STATUS data_stream_cb_wrapper(
-        HQUIC stream, void* context, QUIC_STREAM_EVENT* event) {
-        StreamContext* thisObject =
-            static_cast<StreamContext*>(context);
-        return thisObject->moqtObject->data_stream_cb_lamda(
-            stream, context, event);
-    }
-
     rvn::unique_QUIC_API_TABLE tbl;
     rvn::unique_registration reg;
     rvn::unique_configuration configuration;
@@ -71,8 +58,9 @@ class MOQT {
     // secondary variables => build into primary
     QUIC_REGISTRATION_CONFIG* regConfig;
 
-    // placeholder for connection_cb in case of Client
+    // Server will use listener and client will use connection
     listener_cb_lamda_t listener_cb_lamda;
+    connection_cb_lamda_t connection_cb_lamda;
 
     stream_cb_lamda_t control_stream_cb_lamda;
 
@@ -108,6 +96,29 @@ class MOQT {
     MOQT();
 
    public:
+    static QUIC_STATUS connection_cb_wrapper(
+        HQUIC reg, void* context, QUIC_CONNECTION_EVENT* event) {
+        MOQT* thisObject = static_cast<MOQT*>(context);
+        return thisObject->connection_cb_lamda(reg, context,
+                                               event);
+    }
+
+    static QUIC_STATUS control_stream_cb_wrapper(
+        HQUIC stream, void* context, QUIC_STREAM_EVENT* event) {
+        StreamContext* thisObject =
+            static_cast<StreamContext*>(context);
+        return thisObject->moqtObject->control_stream_cb_lamda(
+            stream, context, event);
+    }
+
+    static QUIC_STATUS data_stream_cb_wrapper(
+        HQUIC stream, void* context, QUIC_STREAM_EVENT* event) {
+        StreamContext* thisObject =
+            static_cast<StreamContext*>(context);
+        return thisObject->moqtObject->data_stream_cb_lamda(
+            stream, context, event);
+    }
+
     MOQT& set_regConfig(QUIC_REGISTRATION_CONFIG* regConfig_);
     MOQT& set_listenerCb(listener_cb_lamda_t listenerCb_);
 
@@ -121,6 +132,8 @@ class MOQT {
                        uint32_t SettingsSize_);
 
     MOQT& set_CredConfig(QUIC_CREDENTIAL_CONFIG* CredConfig_);
+
+    const QUIC_API_TABLE* get_tbl();
 };
 
 class MOQTServer : public MOQT {

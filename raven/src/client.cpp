@@ -1,6 +1,7 @@
 #include <msquic.h>
 
 #include <functional>
+#include <moqt.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
