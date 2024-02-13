@@ -41,11 +41,11 @@ unique_listener::unique_listener(const QUIC_API_TABLE *tbl_,
 unique_connection::unique_connection(
     const QUIC_API_TABLE *tbl_, ConnectionOpenParams openParams,
     ConnectionStartParams startParams)
-    : unique_handler2(
-          tbl_->ConnectionOpen, tbl_->ConnectionClose,
-          tbl_->ConnectionStart, tbl_->ConnectionStop) {
+    : unique_handler2(tbl_->ConnectionOpen,
+                      tbl_->ConnectionClose,
+                      tbl_->ConnectionStart) {
     if (QUIC_FAILED(open_handler(openParams.registration,
-                                 openParams.ConnectionCb,
+                                 openParams.connectionCb,
                                  openParams.context)))
         throw std::runtime_error("ConnectionOpenFailure");
 

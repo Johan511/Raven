@@ -1,57 +1,114 @@
-#include <iostream>
 #include <msquic.h>
 
-const QUIC_REGISTRATION_CONFIG RegConfig = {"quicsample",
-                                            QUIC_EXECUTION_PROFILE_LOW_LATENCY};
-const QUIC_API_TABLE *MsQuic;
+#include <iostream>
+#include <moqt.hpp>
 
-const uint16_t UdpPort = 4567;
+auto DataStreamCallBack = [](HQUIC Stream, void* Context,
+                             QUIC_STREAM_EVENT* Event) {
+    switch (Event->Type) {
+        case QUIC_STREAM_EVENT_SEND_COMPLETE:
+            free(Event->SEND_COMPLETE.ClientContext);
+            break;
+        case QUIC_STREAM_EVENT_RECEIVE:
+            break;
+        case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
+            break;
+        case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
+            MsQuic->StreamShutdown(
+                Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
+            break;
+        case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+            MsQuic->StreamClose(Stream);
+            break;
+        default:
+            break;
+    }
+    return QUIC_STATUS_SUCCESS;
+};
 
-HQUIC Registration;
+auto ControlStreamCallback = [](HQUIC Stream, void* Context,
+                                QUIC_STREAM_EVENT* Event) {
+    switch (Event->Type) {
+        case QUIC_STREAM_EVENT_SEND_COMPLETE:
+            free(Event->SEND_COMPLETE.ClientContext);
+            break;
+        case QUIC_STREAM_EVENT_RECEIVE:
+            // verify subscriber
+            StreamContext* context =
+                static_cast<StreamContext*>(Context);
+            HQUIC dataStream = NULL;
+            MsQuic->StreamOpen(
+                context->connection,
+                QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
+                (void*)MOQT::data_stream_cb_wrapper, Context,
+                &dataStream);
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
-    _Function_class_(QUIC_LISTENER_CALLBACK) QUIC_STATUS QUIC_API
-    ServerListenerCallback(_In_ HQUIC Listener, _In_opt_ void *Context,
-                           _Inout_ QUIC_LISTENER_EVENT *Event) {
-  UNREFERENCED_PARAMETER(Listener);
-  UNREFERENCED_PARAMETER(Context);
-  QUIC_STATUS Status = QUIC_STATUS_NOT_SUPPORTED;
-  switch (Event->Type) {
-  case QUIC_LISTENER_EVENT_NEW_CONNECTION:
-    //
-    // A new connection is being attempted by a client. For the handshake to
-    // proceed, the server must provide a configuration for QUIC to use. The
-    // app MUST set the callback handler before returning.
-    //
-    MsQuic->SetCallbackHandler(Event->NEW_CONNECTION.Connection,
-                               (void *)ServerConnectionCallback, NULL);
-    Status = MsQuic->ConnectionSetConfiguration(
-        Event->NEW_CONNECTION.Connection, Configuration);
-    break;
-  default:
-    break;
-  }
-  return Status;
-}
+            // TODO : check flags
+            MsQuic->StreamStart(dataStream,
+                                QUIC_STREAM_START_FLAG_NONE);
 
-const QUIC_BUFFER Alpn = {sizeof("Raven") - 1, (uint8_t *)"Raven"};
+            MsQuic->StreamSend(dataStream, SendBuffer, 1,
+                               QUIC_SEND_FLAG_FIN,
+                               SendBuffer) break;
+        case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
+            ServerSend(Stream);
+            break;
+        case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
+            MsQuic->StreamShutdown(
+                Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
+            break;
+        case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+            /*Should also shutdown remaining streams
+              because it releases ownership of Context
+             */
+            free(Context);
+            MsQuic->StreamClose(Stream);
+            break;
+        default:
+            break;
+    }
+    return QUIC_STATUS_SUCCESS;
+};
 
-int main() {
-  MsQuicOpen2(&MsQuic);
-  MsQuic->RegistrationOpen(&RegConfig, &Registration);
+auto ServerConnectionCallback = [](HQUIC Connection,
+                                   void* Context,
+                                   QUIC_CONNECTION_EVENT*
+                                       Event) {
+    switch (Event->Type) {
+        case QUIC_CONNECTION_EVENT_CONNECTED:
+            MsQuic->ConnectionSendResumptionTicket(
+                Connection, QUIC_SEND_RESUMPTION_FLAG_NONE, 0,
+                NULL);
+            break;
+        case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
+            if (Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status ==
+                QUIC_STATUS_CONNECTION_IDLE) {
+            } else {
+            }
+            break;
+        case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER:
+            break;
+        case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
+            MsQuic->ConnectionClose(Connection);
+            break;
+        case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED:
+            /*
+               Should receive bidirectional stream from user and
+               then start transport of media
+            */
 
-  QUIC_STATUS Status;
-  HQUIC Listener = NULL;
+            StreamContext* StreamContext = new StreamContext(
+                static_cast<MOQT*>(Context), Connection);
 
-  QUIC_ADDR Address = {0};
-  QuicAddrSetFamily(&Address, QUIC_ADDRESS_FAMILY_UNSPEC);
-  QuicAddrSetPort(&Address, UdpPort);
-
-  MsQuic->ListenerOpen(Registration, ServerListenerCallback, NULL, &Listener);
-
-  MsQuic->ListenerStart(Listener, &Alpn, 1, &Address);
-
-  getchar();
-
-  return 0;
-}
+            MsQuic->SetCallbackHandler(
+                Event->PEER_STREAM_STARTED.Stream,
+                (void*)MOQT::control_stream_cb_wrapper,
+                StreamContext);
+            break;
+        case QUIC_CONNECTION_EVENT_RESUMED:
+            break;
+        default:
+            break;
+    }
+    return QUIC_STATUS_SUCCESS;
+};

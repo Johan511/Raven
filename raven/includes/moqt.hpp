@@ -1,7 +1,12 @@
+#pragma once
+
 #include <msquic.h>
 
+#include <cstdint>
+#include <wrappers.hpp>
+
 struct StreamContext {
-    MOQT* moqtObject;
+    class MOQT* moqtObject;
     HQUIC connection;
     StreamContext(MOQT* moqtObject_, HQUIC connection_)
         : moqtObject(moqtObject_), connection(connection_){};
@@ -93,4 +98,24 @@ class MOQT {
 
    protected:
     MOQT() : tbl(rvn::make_unique_quic_table());
+};
+
+class MOQTServer : public MOQT {
+    rvn::unique_listener listener;
+
+   public:
+    MOQTServer();
+
+    void start_listener(QUIC_ADDR* LocalAddress);
+};
+
+class MOQTClient : public MOQT {
+    rvn::unique_connection connection;
+
+   public:
+    MOQTClient();
+
+    void start_connection(QUIC_ADDRESS_FAMILY Family,
+                          const char* ServerName,
+                          uint16_t ServerPort);
 };
