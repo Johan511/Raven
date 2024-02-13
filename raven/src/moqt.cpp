@@ -1,17 +1,6 @@
 #include <moqt.hpp>
 
-constexpr std::uint64_t MOQT::full_sec_counter_value() {
-    std::uint64_t value = 0;
-
-    value |= sec_index_to_val(SecondaryIndices::regConfig);
-    value |= sec_index_to_val(SecondaryIndices::listenerCb);
-    value |= sec_index_to_val(SecondaryIndices::AlpnBuffers);
-    value |= sec_index_to_val(SecondaryIndices::AlpnBufferCount);
-    value |= sec_index_to_val(SecondaryIndices::Settings);
-    value |= sec_index_to_val(SecondaryIndices::CredConfig);
-
-    return value;
-}
+constexpr std::uint64_t MOQT::full_sec_counter_value() 
 
 MOQT& MOQT::set_regConfig(QUIC_REGISTRATION_CONFIG* regConfig_) {
     regConfig = regConfig_;

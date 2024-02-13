@@ -4,9 +4,9 @@ namespace rvn {
 
 /*-----------------QUIC_API_TABLE------------------------*/
 
-unique_QUIC_API_TABLE::unique_QUIC_API_TABLE(
-    const QUIC_API_TABLE *tbl)
-    : QUIC_API_TABLE_uptr_t(tbl, QUIC_API_TABLE_deleter) {}
+// unique_QUIC_API_TABLE::unique_QUIC_API_TABLE(
+//     const QUIC_API_TABLE *tbl)
+//     : QUIC_API_TABLE_uptr_t(tbl, QUIC_API_TABLE_deleter) {}
 
 /*----------------MsQuic->RegistrationOpen---------------*/
 
