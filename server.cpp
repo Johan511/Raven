@@ -26,6 +26,44 @@ auto DataStreamCallBack = [](HQUIC Stream, void* Context,
     return QUIC_STATUS_SUCCESS;
 };
 
+void ServerSend(HQUIC Stream) {
+    void* SendBufferRaw =
+        malloc(sizeof(QUIC_BUFFER) + SendBufferLength);
+    if (SendBufferRaw == NULL) {
+        printf("SendBuffer allocation failed!\n");
+        MsQuic->StreamShutdown(
+            Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
+        return;
+    }
+    QUIC_BUFFER* SendBuffer = (QUIC_BUFFER*)SendBufferRaw;
+    SendBuffer->Buffer =
+        (uint8_t*)SendBufferRaw + sizeof(QUIC_BUFFER);
+    SendBuffer->Length = SendBufferLength;
+
+    SendBuffer->Buffer[0] = 'H';
+    SendBuffer->Buffer[1] = 'H';
+    SendBuffer->Buffer[2] = 'N';
+    SendBuffer->Buffer[3] = '\0';
+
+    printf("[strm][%p] Sending data...\n", Stream);
+
+    //
+    // Sends the buffer over the stream. Note the FIN flag is
+    // passed along with the buffer. This indicates this is the
+    // last buffer on the stream and the the stream is shut down
+    // (in the send direction) immediately after.
+    //
+    QUIC_STATUS Status;
+    if (QUIC_FAILED(Status = MsQuic->StreamSend(
+                        Stream, SendBuffer, 1,
+                        QUIC_SEND_FLAG_FIN, SendBuffer))) {
+        printf("StreamSend failed, 0x%x!\n", Status);
+        free(SendBufferRaw);
+        MsQuic->StreamShutdown(
+            Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
+    }
+}
+
 auto ControlStreamCallback = [](HQUIC Stream, void* Context,
                                 QUIC_STREAM_EVENT* Event) {
     switch (Event->Type) {
@@ -112,3 +150,5 @@ auto ServerConnectionCallback = [](HQUIC Connection,
     }
     return QUIC_STATUS_SUCCESS;
 };
+
+int main() {}
