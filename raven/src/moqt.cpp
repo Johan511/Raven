@@ -1,6 +1,7 @@
 #include <moqt.hpp>
 #include <utilities.hpp>
 
+namespace rvn {
 MOQT& MOQT::set_regConfig(QUIC_REGISTRATION_CONFIG* regConfig_) {
     regConfig = regConfig_;
 
@@ -76,3 +77,4 @@ MOQT::MOQT() : tbl(rvn::make_unique_quic_table()) {
 }
 
 const QUIC_API_TABLE* MOQT::get_tbl() { return tbl.get(); }
+}  // namespace rvn

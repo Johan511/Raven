@@ -7,6 +7,8 @@
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
+namespace rvn {
+
 struct StreamContext {
     class MOQT* moqtObject;
     HQUIC connection;
@@ -155,3 +157,4 @@ class MOQTClient : public MOQT {
                           const char* ServerName,
                           uint16_t ServerPort);
 };
+}  // namespace rvn

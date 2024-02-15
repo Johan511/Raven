@@ -5,6 +5,8 @@
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
+namespace rvn {
+
 MOQTServer::MOQTServer() : MOQT(){};
 
 void MOQTServer::start_listener(QUIC_ADDR* LocalAddress) {
@@ -19,3 +21,4 @@ void MOQTServer::start_listener(QUIC_ADDR* LocalAddress) {
         tbl.get(), {reg.get(), MOQT::listener_cb_wrapper, this},
         {AlpnBuffers, AlpnBufferCount, LocalAddress});
 }
+}  // namespace rvn
