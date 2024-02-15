@@ -24,6 +24,18 @@ MOQT& MOQT::set_listenerCb(listener_cb_lamda_t listenerCb_) {
     return *this;
 }
 
+MOQT& MOQT::set_connectionCb(
+    connection_cb_lamda_t connectionCb_) {
+    connection_cb_lamda = connectionCb_;
+
+    auto idx = rvn::utils::to_underlying(
+        SecondaryIndices::connectionCb);
+
+    secondaryCounter |= (1 << idx);
+
+    return *this;
+}
+
 // TOOD : check const corectness here
 MOQT& MOQT::set_AlpnBuffers(QUIC_BUFFER* AlpnBuffers_) {
     AlpnBuffers = AlpnBuffers_;
