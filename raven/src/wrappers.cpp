@@ -20,6 +20,8 @@ unique_registration::unique_registration(
             "RegistrationHandlerConstructionFailure");
 };
 
+unique_registration::unique_registration() : unique_handler1() {}
+
 /*------------MsQuic->ListenerOpen and Start-------------*/
 unique_listener::unique_listener(const QUIC_API_TABLE *tbl_,
                                  ListenerOpenParams openParams,
@@ -36,6 +38,8 @@ unique_listener::unique_listener(const QUIC_API_TABLE *tbl_,
                                   startParams.LocalAddress)))
         throw std::runtime_error("ListenerStartFailure");
 };
+
+unique_listener::unique_listener() : unique_handler2() {}
 
 /*------------MsQuic->ConnectionOpen and Start-------------*/
 unique_connection::unique_connection(
@@ -54,6 +58,8 @@ unique_connection::unique_connection(
             startParams.ServerName, startParams.ServerPort)))
         throw std::runtime_error("ConnectionStartFailure");
 };
+
+unique_connection::unique_connection() : unique_handler2() {}
 
 /*-------------MsQuic->Config open and load--------------*/
 
@@ -75,5 +81,9 @@ unique_configuration::unique_configuration(
         throw std::runtime_error(
             "ConfigurationLoadCredentialsFailure");
 };
+
+unique_configuration::unique_configuration()
+    : unique_handler2() {}
+
 /*-------------------------------------------------------*/
 };  // namespace rvn

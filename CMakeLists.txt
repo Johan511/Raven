@@ -31,8 +31,8 @@ set(RAVEN_SRC "")
 get_all_files_in_directory(${RAVEN_SRC_DIR} RAVEN_SRC)
 
 # Building Raven shared library linked with msquic -----------------------------
-add_library(raven SHARED ${RAVEN_SRC})
-add_compile_options(raven PRIVATE -Wall -Wextra)
+add_library(raven STATIC ${RAVEN_SRC})
+target_compile_options(raven PRIVATE -Wall -Wextra)
 target_include_directories(raven PUBLIC ${RAVEN_INCLUDE_DIR} ${MSQUIC_INCLUDE_DIR})
 # MSQUIC include directories should not leak to users of Raven
 # They should be able to use their own msquic library includes
@@ -41,15 +41,15 @@ target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY})
 # -------------------------------------------------------------------------------
 
 # Add playground server
-add_executable(Server server.cpp)
-add_compile_options(Server PRIVATE -Wall -Wextra)
-target_include_directories(Server PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(Server PUBLIC ${MSQUIC_INCLUDE_DIR})
-target_link_libraries(Server PUBLIC Raven)
+add_executable(server server.cpp)
+target_compile_options(server PRIVATE -Wall -Wextra)
+target_include_directories(server PUBLIC ${RAVEN_INCLUDE_DIR})
+target_include_directories(server PUBLIC ${MSQUIC_INCLUDE_DIR})
+target_link_libraries(server PUBLIC raven)
 
 # Add playground client
-add_executable(Client client.cpp)
-add_compile_options(Client PRIVATE -Wall -Wextra)
-target_include_directories(Client PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(Client PUBLIC ${MSQUIC_INCLUDE_DIR})
-target_link_libraries(Client PUBLIC Raven)
+add_executable(client client.cpp)
+target_compile_options(client PRIVATE -Wall -Wextra)
+target_include_directories(client PUBLIC ${RAVEN_INCLUDE_DIR})
+target_include_directories(client PUBLIC ${MSQUIC_INCLUDE_DIR})
+target_link_libraries(client PUBLIC raven)

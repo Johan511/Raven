@@ -5,6 +5,7 @@
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
+namespace rvn {
 MOQTClient::MOQTClient() : MOQT(){};
 
 void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family,
@@ -22,3 +23,4 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family,
         {reg.get(), MOQT::connection_cb_wrapper, this},
         {configuration.get(), Family, ServerName, ServerPort});
 }
+}  // namespace rvn

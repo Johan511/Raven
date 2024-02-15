@@ -4,6 +4,8 @@
 #include <memory>
 #include <moqt.hpp>
 
+using namespace rvn;
+
 auto DataStreamCallBack = [](HQUIC Stream, void* Context,
                              QUIC_STREAM_EVENT* Event) {
     const QUIC_API_TABLE* MsQuic =
@@ -37,7 +39,8 @@ auto ControlStreamCallback = [](HQUIC Stream, void* Context,
             ->moqtObject->get_tbl();
 
     /* can not define them in switch case because crosses
-     * initialization and C++ does not like it because it has to
+     * initialization and C++ does not like it because it has
+     to
      * call destructors */
     StreamContext* context = NULL;
     HQUIC dataStream = NULL;
@@ -109,8 +112,8 @@ auto ServerConnectionCallback = [](HQUIC Connection,
             break;
         case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED:
             /*
-               Should receive bidirectional stream from user and
-               then start transport of media
+               Should receive bidirectional stream from user
+               and then start transport of media
             */
 
             streamContext = new StreamContext(
@@ -132,5 +135,11 @@ auto ServerConnectionCallback = [](HQUIC Connection,
 int main() {
     std::unique_ptr<MOQTServer> moqtServer =
         std::make_unique<MOQTServer>();
-    moqtServer->start_listener();
+
+    QUIC_ADDR Address = {0};
+    QuicAddrSetFamily(&Address, QUIC_ADDRESS_FAMILY_UNSPEC);
+    const uint16_t UdpPort = 4567;
+    QuicAddrSetPort(&Address, UdpPort);
+
+    moqtServer->start_listener(&Address);
 }
