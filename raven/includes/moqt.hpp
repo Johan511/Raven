@@ -17,7 +17,7 @@ struct StreamContext {
 };
 
 class MOQT {
-   protected:
+   public:
     /*stream and listener cb differ by last argument
      * (quic event type)*/
     using listener_cb_lamda_t = std::function<QUIC_STATUS(
@@ -31,6 +31,7 @@ class MOQT {
     enum class SecondaryIndices {
         regConfig,
         listenerCb,
+        connectionCb,
         AlpnBuffers,
         AlpnBufferCount,
         Settings,
@@ -46,12 +47,6 @@ class MOQT {
 
     // need to be able to get function pointor of this
     // function hence can not be member function
-    static QUIC_STATUS listener_cb_wrapper(
-        HQUIC reg, void* context, QUIC_LISTENER_EVENT* event) {
-        MOQT* thisObject = static_cast<MOQT*>(context);
-        return thisObject->listener_cb_lamda(reg, context,
-                                             event);
-    }
 
     rvn::unique_QUIC_API_TABLE tbl;
     rvn::unique_registration reg;
@@ -86,6 +81,8 @@ class MOQT {
 
         value |= sec_index_to_val(SecondaryIndices::regConfig);
         value |= sec_index_to_val(SecondaryIndices::listenerCb);
+        value |=
+            sec_index_to_val(SecondaryIndices::connectionCb);
         value |= sec_index_to_val(SecondaryIndices::AlpnBuffers);
         value |=
             sec_index_to_val(SecondaryIndices::AlpnBufferCount);
@@ -95,9 +92,13 @@ class MOQT {
         return value;
     }
 
-    MOQT();
+    static QUIC_STATUS listener_cb_wrapper(
+        HQUIC reg, void* context, QUIC_LISTENER_EVENT* event) {
+        MOQT* thisObject = static_cast<MOQT*>(context);
+        return thisObject->listener_cb_lamda(reg, context,
+                                             event);
+    }
 
-   public:
     static QUIC_STATUS connection_cb_wrapper(
         HQUIC reg, void* context, QUIC_CONNECTION_EVENT* event) {
         MOQT* thisObject = static_cast<MOQT*>(context);
@@ -123,6 +124,7 @@ class MOQT {
 
     MOQT& set_regConfig(QUIC_REGISTRATION_CONFIG* regConfig_);
     MOQT& set_listenerCb(listener_cb_lamda_t listenerCb_);
+    MOQT& set_connectionCb(connection_cb_lamda_t connectionCb_);
 
     // check  corectness here
     MOQT& set_AlpnBuffers(QUIC_BUFFER* AlpnBuffers_);
@@ -136,6 +138,9 @@ class MOQT {
     MOQT& set_CredConfig(QUIC_CREDENTIAL_CONFIG* CredConfig_);
 
     const QUIC_API_TABLE* get_tbl();
+
+   protected:
+    MOQT();
 };
 
 class MOQTServer : public MOQT {

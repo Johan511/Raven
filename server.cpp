@@ -1,5 +1,6 @@
 #include <msquic.h>
 
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <moqt.hpp>
@@ -132,11 +133,61 @@ auto ServerConnectionCallback = [](HQUIC Connection,
     return QUIC_STATUS_SUCCESS;
 };
 
+QUIC_STATUS ServerListenerCallback(HQUIC Listener, void* Context,
+                                   QUIC_LISTENER_EVENT* Event) {
+    const QUIC_API_TABLE* MsQuic =
+        static_cast<MOQT*>(Context)->get_tbl();
+
+    auto moqtObject = static_cast<MOQT*>(Context);
+
+    QUIC_STATUS Status = QUIC_STATUS_NOT_SUPPORTED;
+    switch (Event->Type) {
+        case QUIC_LISTENER_EVENT_NEW_CONNECTION:
+            MsQuic->SetCallbackHandler(
+                Event->NEW_CONNECTION.Connection,
+                (void*)(moqtObject->connection_cb_wrapper),
+                NULL);
+            Status = MsQuic->ConnectionSetConfiguration(
+                Event->NEW_CONNECTION.Connection,
+                moqtObject->configuration.get());
+            break;
+        default:
+            break;
+    }
+    return Status;
+}
+
 int main() {
     std::unique_ptr<MOQTServer> moqtServer =
         std::make_unique<MOQTServer>();
 
-    QUIC_ADDR Address = {0};
+    QUIC_REGISTRATION_CONFIG RegConfig = {
+        "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY};
+    moqtServer->set_regConfig(&RegConfig);
+
+    moqtServer->set_listenerCb(ServerListenerCallback);
+
+    QUIC_BUFFER AlpnBuffer = {sizeof("sample") - 1,
+                              (uint8_t*)"sample"};
+    moqtServer->set_AlpnBuffers(&AlpnBuffer);
+
+    moqtServer->set_AlpnBufferCount(1);
+
+    const uint64_t IdleTimeoutMs = 1000;
+    QUIC_SETTINGS Settings;
+    std::memset(&Settings, 0, sizeof(Settings));
+    Settings.IdleTimeoutMs = IdleTimeoutMs;
+    Settings.IsSet.IdleTimeoutMs = TRUE;
+    Settings.ServerResumptionLevel =
+        QUIC_SERVER_RESUME_AND_ZERORTT;
+    Settings.IsSet.ServerResumptionLevel = TRUE;
+    Settings.PeerBidiStreamCount = 1;
+    Settings.IsSet.PeerBidiStreamCount = TRUE;
+
+    moqtServer->set_Settings(&Settings, sizeof(Settings));
+
+    QUIC_ADDR Address;
+    std::memset(&Address, 0, sizeof(Address));
     QuicAddrSetFamily(&Address, QUIC_ADDRESS_FAMILY_UNSPEC);
     const uint16_t UdpPort = 4567;
     QuicAddrSetPort(&Address, UdpPort);
