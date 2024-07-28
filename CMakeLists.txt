@@ -21,7 +21,7 @@ endif()
 # Setting MSQUIC related variables
 set(MSQUIC_INSTALL_DIR "/home/hhn/makes/msquic/install")
 set(MSQUIC_INCLUDE_DIR ${MSQUIC_INSTALL_DIR}/include)
-set(MSQUIC_LINK_LIBRARY ${MSQUIC_INSTALL_DIR}/lib/libmsquic.so.2.3.0)
+set(MSQUIC_LINK_LIBRARY ${MSQUIC_INSTALL_DIR}/lib/libmsquic.so.2.4.0)
 
 # Setting Raven variables
 set(RAVEN_SRC_DIR "raven/src")
