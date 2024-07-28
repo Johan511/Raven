@@ -157,6 +157,35 @@ QUIC_STATUS ServerListenerCallback(HQUIC Listener, void* Context,
     return Status;
 }
 
+typedef struct QUIC_CREDENTIAL_CONFIG_HELPER {
+    QUIC_CREDENTIAL_CONFIG CredConfig;
+    union {
+        QUIC_CERTIFICATE_HASH CertHash;
+        QUIC_CERTIFICATE_HASH_STORE CertHashStore;
+        QUIC_CERTIFICATE_FILE CertFile;
+        QUIC_CERTIFICATE_FILE_PROTECTED CertFileProtected;
+    };
+} QUIC_CREDENTIAL_CONFIG_HELPER;
+
+QUIC_CREDENTIAL_CONFIG* get_cred_config() {
+    const char* CertFile = "server.cert";
+    const char* KeyFile = "server.key";
+    QUIC_CREDENTIAL_CONFIG_HELPER* Config =
+        (QUIC_CREDENTIAL_CONFIG_HELPER*)malloc(
+            sizeof(QUIC_CREDENTIAL_CONFIG_HELPER));
+
+    memset(Config, 0, sizeof(QUIC_CREDENTIAL_CONFIG_HELPER));
+
+    Config->CredConfig.Flags = QUIC_CREDENTIAL_FLAG_NONE;
+    Config->CertFile.CertificateFile = (char*)CertFile;
+    Config->CertFile.PrivateKeyFile = (char*)KeyFile;
+    Config->CredConfig.Type =
+        QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
+    Config->CredConfig.CertificateFile = &Config->CertFile;
+
+    return &(Config->CredConfig);
+}
+
 int main() {
     std::unique_ptr<MOQTServer> moqtServer =
         std::make_unique<MOQTServer>();
@@ -166,6 +195,7 @@ int main() {
     moqtServer->set_regConfig(&RegConfig);
 
     moqtServer->set_listenerCb(ServerListenerCallback);
+    moqtServer->set_connectionCb(ServerConnectionCallback);
 
     QUIC_BUFFER AlpnBuffer = {sizeof("sample") - 1,
                               (uint8_t*)"sample"};
@@ -185,6 +215,7 @@ int main() {
     Settings.IsSet.PeerBidiStreamCount = TRUE;
 
     moqtServer->set_Settings(&Settings, sizeof(Settings));
+    moqtServer->set_CredConfig(get_cred_config());
 
     QUIC_ADDR Address;
     std::memset(&Address, 0, sizeof(Address));
@@ -193,4 +224,9 @@ int main() {
     QuicAddrSetPort(&Address, UdpPort);
 
     moqtServer->start_listener(&Address);
+
+    {
+        char c;
+        while (1) std::cin >> c;
+    }
 }
