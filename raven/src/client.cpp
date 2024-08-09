@@ -6,12 +6,16 @@
 #include <wrappers.hpp>
 
 namespace rvn {
-MOQTClient::MOQTClient() : MOQT(){};
+MOQTClient::MOQTClient() : MOQT() {};
 
 void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family,
                                   const char* ServerName,
                                   uint16_t ServerPort) {
-    assert(secondaryCounter == full_sec_counter_value());
+    rvn::utils::ASSERT_LOG_THROW(
+        secondaryCounter == full_sec_counter_value(),
+        "secondaryCounter ", secondaryCounter,
+        " full_sec_counter_value() ", full_sec_counter_value());
+        
     reg = rvn::unique_registration(tbl.get(), regConfig);
     configuration = rvn::unique_configuration(
         tbl.get(),

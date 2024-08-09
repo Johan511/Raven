@@ -14,6 +14,7 @@ void MOQTServer::start_listener(QUIC_ADDR* LocalAddress) {
         secondaryCounter == full_sec_counter_value(),
         "secondaryCounter ", secondaryCounter,
         " full_sec_counter_value() ", full_sec_counter_value());
+
     reg = rvn::unique_registration(tbl.get(), regConfig);
     configuration = rvn::unique_configuration(
         tbl.get(),
