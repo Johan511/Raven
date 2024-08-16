@@ -656,29 +656,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL) _Function_class_(QUIC_CONNECTION_CALLBACK) Q
             // safely cleaned up.
             //
             printf("[conn][%p] All done\n", Connection);
-            if (!Event->SHUTDOWN_COMPLETE.AppCloseIn #include<msquic.h>
-#include <cstring>
-#include <iostream>
-#include <memory>
-#include <moqt.hpp>
-
-                 using namespace rvn;
-                const char *Target = "127.0.0.1"; const uint16_t UdpPort = 4567;
-
-                int main() {
-                    std::unique_ptr<MOQTClient> moqtServer = std::make_unique<MOQTClient>();
-
-                    QUIC_REGISTRATION_CONFIG RegConfig = {"quicsample",
-                                                          QUIC_EXECUTION_PROFILE_LOW_LATENCY};
-                    moqtServer->set_regConfig(&RegConfig);
-
-                    moqtServer->start_connection(QUIC_ADDRESS_FAMILY_UNSPEC, Target, UdpPort);
-
-                    {
-                        char c;
-                        while (1) std::cin >> c;
-                    }
-                } Progress) {
+            if (!Event->SHUTDOWN_COMPLETE.AppCloseInProgress) {
                 MsQuic->ConnectionClose(Connection);
             }
             break;
