@@ -4,129 +4,152 @@
 #include <iostream>
 #include <memory>
 #include <moqt.hpp>
+#include <contexts.hpp>
 
 using namespace rvn;
 
-auto DataStreamCallBack = [](HQUIC Stream, void* Context, QUIC_STREAM_EVENT* Event) {
-    const QUIC_API_TABLE* MsQuic = static_cast<StreamContext*>(Context)->moqtObject->get_tbl();
+// Data Stream Open Flags = QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL
+// Data Stream Start flags = QUIC_STREAM_START_FLAG_FAIL_BLOCKED |
+// QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL
+auto DataStreamCallBack = [](HQUIC Stream, void *Context, QUIC_STREAM_EVENT *Event) {
+    const QUIC_API_TABLE *MsQuic = static_cast<StreamContext *>(Context)->moqtObject->get_tbl();
     switch (Event->Type) {
-        case QUIC_STREAM_EVENT_SEND_COMPLETE:
-            free(Event->SEND_COMPLETE.ClientContext);
-            break;
-        case QUIC_STREAM_EVENT_RECEIVE:
-            break;
-        case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
-            break;
-        case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
-            MsQuic->StreamShutdown(Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
-            break;
-        case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
-            MsQuic->StreamClose(Stream);
-            break;
-        default:
-            break;
+    case QUIC_STREAM_EVENT_SEND_COMPLETE:
+        free(Event->SEND_COMPLETE.ClientContext);
+        break;
+    case QUIC_STREAM_EVENT_RECEIVE:
+        break;
+    case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
+        break;
+    case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
+        MsQuic->StreamShutdown(Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
+        break;
+    case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+        MsQuic->StreamClose(Stream);
+        break;
+    default:
+        break;
     }
     return QUIC_STATUS_SUCCESS;
 };
 
-auto ControlStreamCallback = [](HQUIC Stream, void* Context, QUIC_STREAM_EVENT* Event) {
-    const QUIC_API_TABLE* MsQuic = static_cast<StreamContext*>(Context)->moqtObject->get_tbl();
+// Control Stream Open Flags = QUIC_STREAM_OPEN_FLAG_NONE | QUIC_STREAM_OPEN_FLAG_0_RTT
+// Control Stream Start flags = QUIC_STREAM_START_FLAG_PRIORITY_WORK
+auto ControlStreamCallback = [](HQUIC ControlStream, void *Context, QUIC_STREAM_EVENT *Event) {
+    StreamContext *streamContext = static_cast<StreamContext *>(Context);
+    HQUIC connection = streamContext->connection;
+    MOQT *moqtObject = streamContext->moqtObject;
+    const QUIC_API_TABLE *MsQuic = streamContext->moqtObject->get_tbl();
 
-    /* can not define them in switch case because crosses
-     * initialization and C++ does not like it because it has
-     to
-     * call destructors */
-    StreamContext* context = NULL;
-    HQUIC dataStream = NULL;
     switch (Event->Type) {
-        case QUIC_STREAM_EVENT_SEND_COMPLETE:
-            free(Event->SEND_COMPLETE.ClientContext);
-            break;
-        case QUIC_STREAM_EVENT_RECEIVE:
-            // verify subscriber
-            MsQuic->StreamOpen(context->connection, QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
-                               &MOQT::data_stream_cb_wrapper, Context, &dataStream);
+    case QUIC_STREAM_EVENT_START_COMPLETE: {
+        // called when attempting to setup stream connection
+        LOGE("Server should never start BiDirectionalControlStream");
+        break;
+    }
+    case QUIC_STREAM_EVENT_RECEIVE: {
+        // Received Control Message
+        // auto receiveInformation = Event->RECEIVE;
+        ConnectionState &connectionState = moqtObject->connectionStateMap[connection];
+        moqtObject->interpret_control_message(connectionState, &(Event->RECEIVE));
+        break;
+    }
+    case QUIC_STREAM_EVENT_SEND_COMPLETE: {
+        // Buffer has been sent
+        // auto [quicBuffers, numBuffers] =
+        // get_sent_buffers(Event->SEND_COMPLETE.ClientContext);
+        // destroy_buffers(quicBuffers, numBuffers);
+        break;
+    }
+    case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN: {
+        // set in QuicStreamReceiveComplete
+        // We have delivered all the payload that needs to be delivered. Deliver
+        // the graceful close event now.
+        // tries to shutdown stream and ends up calling
+        // `QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE`
+        break;
+    }
+    case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
+        //
+        break;
+    case QUIC_STREAM_EVENT_PEER_RECEIVE_ABORTED:
 
-            // TODO : check flags
-            MsQuic->StreamStart(dataStream, QUIC_STREAM_START_FLAG_NONE);
+        break;
+    case QUIC_STREAM_EVENT_SEND_SHUTDOWN_COMPLETE:
+        // stream send componenent has been succesfully shut down
+        break;
+    case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+        // stream has been shutdown
+        break;
+    case QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE:
+        // uint64_t idealBufferSize = Event->IDEAL_SEND_BUFFER_SIZE.ByteCount;
+        break;
+    case QUIC_STREAM_EVENT_PEER_ACCEPTED:
 
-            // MsQuic->StreamSend(dataStream, SendBuffer, 1,
-            //                    QUIC_SEND_FLAG_FIN,
-            //                    SendBuffer);
-            break;
-        case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
-            // ServerSend(Stream);
-            break;
-        case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
-            MsQuic->StreamShutdown(Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
-            break;
-        case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
-            /*Should also shutdown remaining streams
-              because it releases ownership of Context
-             */
-            free(Context);
-            MsQuic->StreamClose(Stream);
-            break;
-        default:
-            break;
+        break;
+    case QUIC_STREAM_EVENT_CANCEL_ON_LOSS:
+
+        break;
+    default:
+        break;
     }
     return QUIC_STATUS_SUCCESS;
 };
 
-auto ServerConnectionCallback = [](HQUIC Connection, void* Context, QUIC_CONNECTION_EVENT* Event) {
-    const QUIC_API_TABLE* MsQuic = static_cast<MOQT*>(Context)->get_tbl();
+auto ServerConnectionCallback = [](HQUIC Connection, void *Context, QUIC_CONNECTION_EVENT *Event) {
+    const QUIC_API_TABLE *MsQuic = static_cast<MOQT *>(Context)->get_tbl();
 
-    StreamContext* streamContext = NULL;
+    StreamContext *streamContext = NULL;
 
     switch (Event->Type) {
-        case QUIC_CONNECTION_EVENT_CONNECTED:
-            MsQuic->ConnectionSendResumptionTicket(Connection, QUIC_SEND_RESUMPTION_FLAG_NONE, 0,
-                                                   NULL);
-            break;
-        case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
-            if (Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE) {
-            } else {
-            }
-            break;
-        case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER:
-            break;
-        case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
-            MsQuic->ConnectionClose(Connection);
-            break;
-        case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED:
-            /*
-               Should receive bidirectional stream from user
-               and then start transport of media
-            */
+    case QUIC_CONNECTION_EVENT_CONNECTED:
+        MsQuic->ConnectionSendResumptionTicket(Connection, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, NULL);
+        break;
+    case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
+        if (Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE) {
+        } else {
+        }
+        break;
+    case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER:
+        break;
+    case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
+        MsQuic->ConnectionClose(Connection);
+        break;
+    case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED:
+        /*
+           Should receive bidirectional stream from user
+           and then start transport of media
+        */
 
-            streamContext = new StreamContext(static_cast<MOQT*>(Context), Connection);
+        streamContext = new StreamContext(static_cast<MOQT *>(Context), Connection);
 
-            MsQuic->SetCallbackHandler(Event->PEER_STREAM_STARTED.Stream,
-                                       (void*)MOQT::control_stream_cb_wrapper, streamContext);
-            break;
-        case QUIC_CONNECTION_EVENT_RESUMED:
-            break;
-        default:
-            break;
+        MsQuic->SetCallbackHandler(Event->PEER_STREAM_STARTED.Stream,
+                                   (void *)MOQT::control_stream_cb_wrapper, streamContext);
+        break;
+    case QUIC_CONNECTION_EVENT_RESUMED:
+        break;
+    default:
+        break;
     }
     return QUIC_STATUS_SUCCESS;
 };
 
-QUIC_STATUS ServerListenerCallback(HQUIC, void* Context, QUIC_LISTENER_EVENT* Event) {
-    const QUIC_API_TABLE* MsQuic = static_cast<MOQT*>(Context)->get_tbl();
+QUIC_STATUS
+ServerListenerCallback(HQUIC, void *Context, QUIC_LISTENER_EVENT *Event) {
+    const QUIC_API_TABLE *MsQuic = static_cast<MOQT *>(Context)->get_tbl();
 
-    auto moqtObject = static_cast<MOQT*>(Context);
+    auto moqtObject = static_cast<MOQT *>(Context);
 
     QUIC_STATUS Status = QUIC_STATUS_NOT_SUPPORTED;
     switch (Event->Type) {
-        case QUIC_LISTENER_EVENT_NEW_CONNECTION:
-            MsQuic->SetCallbackHandler(Event->NEW_CONNECTION.Connection,
-                                       (void*)(moqtObject->connection_cb_wrapper), Context);
-            Status = MsQuic->ConnectionSetConfiguration(Event->NEW_CONNECTION.Connection,
-                                                        moqtObject->configuration.get());
-            break;
-        default:
-            break;
+    case QUIC_LISTENER_EVENT_NEW_CONNECTION:
+        MsQuic->SetCallbackHandler(Event->NEW_CONNECTION.Connection,
+                                   (void *)(moqtObject->connection_cb_wrapper), Context);
+        Status = MsQuic->ConnectionSetConfiguration(Event->NEW_CONNECTION.Connection,
+                                                    moqtObject->configuration.get());
+        break;
+    default:
+        break;
     }
     return Status;
 }
@@ -141,17 +164,17 @@ typedef struct QUIC_CREDENTIAL_CONFIG_HELPER {
     };
 } QUIC_CREDENTIAL_CONFIG_HELPER;
 
-QUIC_CREDENTIAL_CONFIG* get_cred_config() {
-    const char* CertFile = "/home/hhn/cs/raven/server.cert";
-    const char* KeyFile = "/home/hhn/cs/raven/server.key";
-    QUIC_CREDENTIAL_CONFIG_HELPER* Config =
-        (QUIC_CREDENTIAL_CONFIG_HELPER*)malloc(sizeof(QUIC_CREDENTIAL_CONFIG_HELPER));
+QUIC_CREDENTIAL_CONFIG *get_cred_config() {
+    const char *CertFile = "/home/hhn/cs/raven/server.cert";
+    const char *KeyFile = "/home/hhn/cs/raven/server.key";
+    QUIC_CREDENTIAL_CONFIG_HELPER *Config =
+        (QUIC_CREDENTIAL_CONFIG_HELPER *)malloc(sizeof(QUIC_CREDENTIAL_CONFIG_HELPER));
 
     memset(Config, 0, sizeof(QUIC_CREDENTIAL_CONFIG_HELPER));
 
     Config->CredConfig.Flags = QUIC_CREDENTIAL_FLAG_NONE;
-    Config->CertFile.CertificateFile = (char*)CertFile;
-    Config->CertFile.PrivateKeyFile = (char*)KeyFile;
+    Config->CertFile.CertificateFile = (char *)CertFile;
+    Config->CertFile.PrivateKeyFile = (char *)KeyFile;
     Config->CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
     Config->CredConfig.CertificateFile = &Config->CertFile;
 
@@ -167,7 +190,7 @@ int main() {
     moqtServer->set_listenerCb(ServerListenerCallback);
     moqtServer->set_connectionCb(ServerConnectionCallback);
 
-    QUIC_BUFFER AlpnBuffer = {sizeof("sample") - 1, (uint8_t*)"sample"};
+    QUIC_BUFFER AlpnBuffer = {sizeof("sample") - 1, (uint8_t *)"sample"};
     moqtServer->set_AlpnBuffers(&AlpnBuffer);
 
     moqtServer->set_AlpnBufferCount(1);
@@ -195,6 +218,7 @@ int main() {
 
     {
         char c;
-        while (1) std::cin >> c;
+        while (1)
+            std::cin >> c;
     }
 }

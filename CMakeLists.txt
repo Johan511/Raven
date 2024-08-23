@@ -11,17 +11,25 @@ endfunction()
 
 
 # General Settings--------------------------------------------------------------
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 # Set compile options as private to not warn about msquic header files
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address")
+else()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 endif()
+
 # -------------------------------------------------------------------------------
 
 # Setting MSQUIC related variables
 set(MSQUIC_INSTALL_DIR "/home/hhn/makes/msquic/install")
 set(MSQUIC_INCLUDE_DIR ${MSQUIC_INSTALL_DIR}/include)
 set(MSQUIC_LINK_LIBRARY ${MSQUIC_INSTALL_DIR}/lib/libmsquic.so.2.4.0)
+
+find_package(Boost COMPONENTS serialization REQUIRED)
+
+message("boost lib: ${Boost_LIBRARIES}")
+message("boost inc:${Boost_INCLUDE_DIR}")
 
 # Setting Raven variables
 set(RAVEN_SRC_DIR "raven/src")
@@ -37,7 +45,9 @@ target_include_directories(raven PUBLIC ${RAVEN_INCLUDE_DIR} ${MSQUIC_INCLUDE_DI
 # MSQUIC include directories should not leak to users of Raven
 # They should be able to use their own msquic library includes
 target_include_directories(raven PRIVATE ${MSQUIC_INCLUDE_DIR}) 
+target_include_directories(raven PRIVATE ${Boost_INCLUDE_DIRS})
 target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY})
+target_link_libraries(raven PUBLIC ${Boost_LIBRARIES})
 # -------------------------------------------------------------------------------
 
 # Add playground server

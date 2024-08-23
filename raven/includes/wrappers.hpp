@@ -1,23 +1,15 @@
 #pragma once
-
+////////////////////////////////////////////
 #include <msquic.h>
-
+////////////////////////////////////////////
 #include <memory>
 #include <stdexcept>
-
+////////////////////////////////////////////
+#include <utilities.hpp>
+////////////////////////////////////////////
 namespace rvn::detail {
 
-template <typename... Args>
-QUIC_STATUS NoOpSuccess(Args...) {
-    return QUIC_STATUS_SUCCESS;
-}
-
-template <typename... Args>
-void NoOpVoid(Args...) {
-    return;
-};
-template <typename Ctor, typename Dtor>
-class unique_handler1 {
+template <typename Ctor, typename Dtor> class unique_handler1 {
     // Pointer to QUIC_HANDLER owned by unique_handler1
     HQUIC handler;
 
@@ -26,7 +18,8 @@ class unique_handler1 {
     Dtor close;
 
     void destroy() {
-        if (handler != NULL) close(handler);
+        if (handler != NULL)
+            close(handler);
     }
 
     void reset() {
@@ -34,14 +27,13 @@ class unique_handler1 {
         handler = NULL;
     }
 
-   protected:
-    unique_handler1(Ctor open_, Dtor close_) noexcept
-        : handler(NULL) {
+  protected:
+    unique_handler1(Ctor open_, Dtor close_) noexcept : handler(NULL) {
         open = open_;
         close = close_;
     }
 
-    unique_handler1() : handler(NULL){};
+    unique_handler1() : handler(NULL) {};
 
     unique_handler1(const unique_handler1 &) = delete;
     unique_handler1 &operator=(const unique_handler1 &) = delete;
@@ -74,19 +66,19 @@ class unique_handler1 {
 
       If return is QUIC_FAILED then throw exception
     */
-    template <typename... Args>
-    QUIC_STATUS construct(Args... args) {
+    template <typename... Args> QUIC_STATUS construct(Args... args) {
         return open(args..., &handler);
     }
 
-   public:
-    HQUIC get() const { return handler; }
+  public:
+    HQUIC
+    get() const { return handler; }
     ~unique_handler1() noexcept { destroy(); }
 };
 
 // To be used when only one construct function exists
 template <typename Open, typename Close, typename Start,
-          typename Stop = decltype(&NoOpVoid<HQUIC>)>
+          typename Stop = decltype(&utils::NoOpVoid<HQUIC>)>
 class unique_handler2 {
     // Pointer to QUIC_HANDLER owned by unique_handler2
     HQUIC handler;
@@ -110,9 +102,9 @@ class unique_handler2 {
         handler = NULL;
     }
 
-   protected:
+  protected:
     unique_handler2(Open open_, Close close_, Start start_,
-                    Stop stop_ = &NoOpVoid<HQUIC>) noexcept
+                    Stop stop_ = &utils::NoOpVoid<HQUIC>) noexcept
         : handler(NULL) {
         open_func = open_;
         close_func = close_;
@@ -120,7 +112,7 @@ class unique_handler2 {
         start_func = start_;
         stop_func = stop_;
     }
-    unique_handler2() : handler(NULL){};
+    unique_handler2() : handler(NULL) {};
 
     unique_handler2(const unique_handler2 &) = delete;
     unique_handler2 &operator=(const unique_handler2 &) = delete;
@@ -159,25 +151,25 @@ class unique_handler2 {
 
       If return is QUIC_FAILED then throw exception
     */
-    template <typename... Args>
-    QUIC_STATUS open_handler(Args... args) {
+    template <typename... Args> QUIC_STATUS open_handler(Args... args) {
         return open_func(args..., &handler);
     }
 
-    template <typename... Args>
-    QUIC_STATUS start_handler(Args... args) {
+    template <typename... Args> QUIC_STATUS start_handler(Args... args) {
         QUIC_STATUS status;
         status = start_func(handler, args...);
-        if (QUIC_FAILED(status)) close_func(handler);
+        if (QUIC_FAILED(status))
+            close_func(handler);
         return status;
     }
 
-   public:
-    HQUIC get() const { return handler; }
+  public:
+    HQUIC
+    get() const { return handler; }
     ~unique_handler2() noexcept { destroy(); }
 };
 
-};  // namespace rvn::detail
+}; // namespace rvn::detail
 
 namespace rvn {
 
@@ -190,17 +182,13 @@ namespace rvn {
  * members in each subunit. This is not allowed in C++ due to ODR
  * (https://www.reddit.com/r/cpp_questions/comments/8im3h4/comment/dyt5u68/)
  */
-static inline void QUIC_API_TABLE_deleter(
-    const QUIC_API_TABLE *tbl) {
-    MsQuicClose(tbl);
-};
+static inline void QUIC_API_TABLE_deleter(const QUIC_API_TABLE *tbl) { MsQuicClose(tbl); };
 
 using QUIC_API_TABLE_uptr_t =
-    std::unique_ptr<const QUIC_API_TABLE,
-                    decltype(&QUIC_API_TABLE_deleter)>;
+    std::unique_ptr<const QUIC_API_TABLE, decltype(&QUIC_API_TABLE_deleter)>;
 
 class unique_QUIC_API_TABLE : public QUIC_API_TABLE_uptr_t {
-   public:
+  public:
     unique_QUIC_API_TABLE(const QUIC_API_TABLE *tbl)
         : QUIC_API_TABLE_uptr_t(tbl, &QUIC_API_TABLE_deleter) {}
 };
@@ -217,24 +205,19 @@ static inline unique_QUIC_API_TABLE make_unique_quic_table() {
 
 /*----------------MsQuic->RegistrationOpen---------------*/
 class unique_registration
-    : public detail::unique_handler1<
-          decltype(QUIC_API_TABLE::RegistrationOpen),
-          decltype(QUIC_API_TABLE::RegistrationClose)> {
-   public:
-    unique_registration(
-        const QUIC_API_TABLE *tbl_,
-        const QUIC_REGISTRATION_CONFIG *RegConfig);
+    : public detail::unique_handler1<decltype(QUIC_API_TABLE::RegistrationOpen),
+                                     decltype(QUIC_API_TABLE::RegistrationClose)> {
+  public:
+    unique_registration(const QUIC_API_TABLE *tbl_, const QUIC_REGISTRATION_CONFIG *RegConfig);
     unique_registration();
 };
 
 /*------------MsQuic->ListenerOpen and Start-------------*/
 class unique_listener
     : public detail::unique_handler2<
-          decltype(QUIC_API_TABLE::ListenerOpen),
-          decltype(QUIC_API_TABLE::ListenerClose),
-          decltype(QUIC_API_TABLE::ListenerStart),
-          decltype(QUIC_API_TABLE::ListenerStop)> {
-   public:
+          decltype(QUIC_API_TABLE::ListenerOpen), decltype(QUIC_API_TABLE::ListenerClose),
+          decltype(QUIC_API_TABLE::ListenerStart), decltype(QUIC_API_TABLE::ListenerStop)> {
+  public:
     struct ListenerOpenParams {
         HQUIC registration;
         QUIC_LISTENER_CALLBACK_HANDLER listenerCb;
@@ -246,20 +229,17 @@ class unique_listener
         const QUIC_ADDR *LocalAddress;
     };
 
-    unique_listener(const QUIC_API_TABLE *tbl_,
-                    ListenerOpenParams openParams,
+    unique_listener(const QUIC_API_TABLE *tbl_, ListenerOpenParams openParams,
                     ListenerStartParams startParams);
     unique_listener();
 };
 
 /*------------MsQuic->ConnectionOpen and Start-------------*/
-class unique_connection
-    : public detail::unique_handler2<
-          decltype(QUIC_API_TABLE::ConnectionOpen),
-          decltype(QUIC_API_TABLE::ConnectionClose),
-          decltype(QUIC_API_TABLE::ConnectionStart)
-          /*There is no ConnectionStop*/> {
-   public:
+class unique_connection : public detail::unique_handler2<decltype(QUIC_API_TABLE::ConnectionOpen),
+                                                         decltype(QUIC_API_TABLE::ConnectionClose),
+                                                         decltype(QUIC_API_TABLE::ConnectionStart)
+                                                         /*There is no ConnectionStop*/> {
+  public:
     struct ConnectionOpenParams {
         HQUIC registration;
         QUIC_CONNECTION_CALLBACK_HANDLER connectionCb;
@@ -272,20 +252,18 @@ class unique_connection
         uint16_t ServerPort;
     };
 
-    unique_connection(const QUIC_API_TABLE *tbl_,
-                      ConnectionOpenParams openParams,
+    unique_connection(const QUIC_API_TABLE *tbl_, ConnectionOpenParams openParams,
                       ConnectionStartParams startParams);
     unique_connection();
 };
 
 /*-------------MsQuic->Config open and load--------------*/
 class unique_configuration
-    : public detail::unique_handler2<
-          decltype(QUIC_API_TABLE::ConfigurationOpen),
-          decltype(QUIC_API_TABLE::ConfigurationClose),
-          decltype(QUIC_API_TABLE::ConfigurationLoadCredential)
-          /*No need to unload configuration*/> {
-   public:
+    : public detail::unique_handler2<decltype(QUIC_API_TABLE::ConfigurationOpen),
+                                     decltype(QUIC_API_TABLE::ConfigurationClose),
+                                     decltype(QUIC_API_TABLE::ConfigurationLoadCredential)
+                                     /*No need to unload configuration*/> {
+  public:
     struct ConfigurationOpenParams {
         HQUIC registration;
         const QUIC_BUFFER *const AlpnBuffers;
@@ -299,10 +277,9 @@ class unique_configuration
         const QUIC_CREDENTIAL_CONFIG *CredConfig;
     };
 
-    unique_configuration(const QUIC_API_TABLE *tbl_,
-                         ConfigurationOpenParams openParams,
+    unique_configuration(const QUIC_API_TABLE *tbl_, ConfigurationOpenParams openParams,
                          ConfigurationStartParams startParams);
     unique_configuration();
 };
 
-};  // namespace rvn
+}; // namespace rvn
