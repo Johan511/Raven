@@ -11,6 +11,7 @@
 #include <variant>
 ////////////////////////////////////////////
 
+namespace rvn::messages {
 // (b) type which is encoded as a variable-length integer followed by that many bytes of data.
 using BinaryBufferData = std::string;
 using iType = std::uint64_t; // variable size integer, check QUIC RFC
@@ -41,7 +42,6 @@ enum class MoQtMessageType {
 
 struct ControlMessageHeader {
     MoQtMessageType messageType;
-    template <class Archive> void serialize(Archive &ar, const unsigned int) { ar & messageType; }
 };
 
 ///////////////////////////// Parameters ///////////////////////////////
@@ -451,3 +451,4 @@ struct TrackStatusMessage {
     iType lastGroupId;
     iType lastObjectId;
 };
+} // namespace rvn::messages

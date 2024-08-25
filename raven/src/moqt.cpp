@@ -79,19 +79,22 @@ void MOQT::interpret_control_message(ConnectionState &connectionState,
     QUIC_BUFFER secondBuffer = receiveInformation->Buffers[1];
 
     // TODO : implement serialization
-    ControlMessageHeader header = serialization::deserialize<ControlMessageHeader>(firstBuffer);
+    messages::ControlMessageHeader header =
+        serialization::deserialize<messages::ControlMessageHeader>(firstBuffer);
 
     /* TODO, split into client and server interpret functions helps reduce the number of branches
      * NOTE: This is the message received, which means that the client will interpret the server's
      * message and vice verse
      * CLIENT_SETUP is received by server and SERVER_SETUP is received by client
      */
+
+    using messages::MoQtMessageType;
     switch (header.messageType) {
     case MoQtMessageType::CLIENT_SETUP: {
         // CLIENT sends to SERVER
 
-        ClientSetupMessage clientSetupMessage =
-            serialization::deserialize<ClientSetupMessage>(secondBuffer);
+        messages::ClientSetupMessage clientSetupMessage =
+            serialization::deserialize<messages::ClientSetupMessage>(secondBuffer);
         auto &supportedVersions = clientSetupMessage.supportedVersions;
         auto matchingVersionIter =
             std::find(supportedVersions.begin(), supportedVersions.end(), version);
@@ -110,8 +113,8 @@ void MOQT::interpret_control_message(ConnectionState &connectionState,
     }
     case MoQtMessageType::SERVER_SETUP: {
         // SERVER sends to CLIENT
-        ServerSetupMessage serverSetupMessage =
-            serialization::deserialize<ServerSetupMessage>(secondBuffer);
+        messages::ServerSetupMessage serverSetupMessage =
+            serialization::deserialize<messages::ServerSetupMessage>(secondBuffer);
         utils::ASSERT_LOG_THROW(connectionState.path.size() == 0,
                                 "Server must now use the path parameter");
         utils::ASSERT_LOG_THROW(serverSetupMessage.parameters.size() > 0,
@@ -124,12 +127,13 @@ void MOQT::interpret_control_message(ConnectionState &connectionState,
         // SERVER sends to CLIENT
         /*
          * The server MUST terminate the session with a Protocol Violation (Section 3.5) if it
-         * receives a GOAWAY message. The client MUST terminate the session with a Protocol Violation
-         * (Section 3.5) if it receives multiple GOAWAY messages.
-        */
-        GoAwayMessage goAwayMessage = serialization::deserialize<GoAwayMessage>(secondBuffer);
+         * receives a GOAWAY message. The client MUST terminate the session with a Protocol
+         * Violation (Section 3.5) if it receives multiple GOAWAY messages.
+         */
+        messages::GoAwayMessage goAwayMessage =
+            serialization::deserialize<messages::GoAwayMessage>(secondBuffer);
         if (goAwayMessage.newSessionURI.size() > 0) {
-            connectionState.path = std::move(goAwayMessage.newSessionURI);
+            connectionState.path = std::move(goAwayMessage.newSessionURI);  
         }
 
         // client should use the new session URI from now

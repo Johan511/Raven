@@ -1,0 +1,37 @@
+syntax="proto3";
+
+enum Role {
+    Publisher = 0x00;
+    Subscriber = 0x01;
+    PubSub = 0x02;
+};
+
+message RoleParameter {
+    Role role = 1;
+};
+
+message PathParameter {
+    string path = 1;
+};
+
+message ClientSetupMessage {
+    message ParamT {
+        RoleParameter role = 1;
+        PathParameter path = 2;
+    };
+
+    uint64 numSupportedVersions = 1;
+    repeated uint64 supportedVersions = 2 [packed = true];
+    repeated uint64 numberOfParameters = 3 [packed = true];
+    repeated ParamT parameters = 4;
+};
+
+message ServerSetupMessage {
+    message ParamT {
+        RoleParameter role = 1;
+    };
+
+    uint64 selectedVersion = 1;
+    uint64 numberOfParameters = 2;
+    repeated ParamT parameters = 3;
+};

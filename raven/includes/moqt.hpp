@@ -19,7 +19,7 @@ namespace rvn {
 // context used when data is send on stream
 
 class MOQT {
-    MOQTVersionT version;
+    messages::MOQTVersionT version;
   public:
     using listener_cb_lamda_t = std::function<QUIC_STATUS(HQUIC, void *, QUIC_LISTENER_EVENT *)>;
     using connection_cb_lamda_t =

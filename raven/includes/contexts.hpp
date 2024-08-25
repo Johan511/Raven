@@ -61,7 +61,7 @@ struct ConnectionState {
     std::optional<StreamState> controlStream{};
     std::vector<StreamState> dataStreams{};
     std::string path;
-    Role peerRole;
+    messages::Role peerRole;
 };
 
 } // namespace rvn
