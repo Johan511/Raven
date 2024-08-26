@@ -50,8 +50,8 @@ target_compile_options(raven PRIVATE -Wall -Wextra)
 # MSQUIC include directories should not leak to users of Raven
 # They should be able to use their own msquic library includes
 target_include_directories(raven PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(raven PRIVATE ${MSQUIC_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${PROTOBUF_MESSAGES_INCLUDE_DIR}) 
-target_link_libraries(raven PRIVATE ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES} protobuf_messages)
+target_include_directories(raven PUBLIC ${MSQUIC_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${PROTOBUF_MESSAGES_INCLUDE_DIR}) 
+target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES} protobuf_messages)
 # -------------------------------------------------------------------------------
 
 # Add playground server

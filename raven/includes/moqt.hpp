@@ -7,9 +7,9 @@
 #include <unordered_map>
 ////////////////////////////////////////////
 #include <contexts.hpp>
+#include <messages.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
-#include <messages.hpp>
 ////////////////////////////////////////////
 
 #define DEFAULT_BUFFER_CAPACITY 1024
@@ -20,6 +20,7 @@ namespace rvn {
 
 class MOQT {
     messages::MOQTVersionT version;
+
   public:
     using listener_cb_lamda_t = std::function<QUIC_STATUS(HQUIC, void *, QUIC_LISTENER_EVENT *)>;
     using connection_cb_lamda_t =
@@ -163,6 +164,9 @@ class MOQT {
 
   protected:
     MOQT();
+
+  public:
+    ~MOQT() { google::protobuf::ShutdownProtobufLibrary(); }
 };
 
 class MOQTServer : public MOQT {
