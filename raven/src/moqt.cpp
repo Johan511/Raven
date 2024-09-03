@@ -1,7 +1,10 @@
-#include <messages.hpp>
+#include <boost/iostreams/device/array.hpp>
+#include <boost/iostreams/stream.hpp>
 #include <moqt.hpp>
+#include <protobuf_messages.hpp>
 #include <serialization.hpp>
 #include <utilities.hpp>
+
 namespace rvn {
 MOQT &MOQT::set_regConfig(QUIC_REGISTRATION_CONFIG *regConfig_) {
     regConfig = regConfig_;
@@ -62,113 +65,11 @@ MOQT &MOQT::set_dataStreamCb(stream_cb_lamda_t dataStreamCb_) {
     return *this;
 }
 
-MOQT::MOQT() : tbl(rvn::make_unique_quic_table()) { secondaryCounter = 0; }
+MOQT::MOQT() : tbl(rvn::make_unique_quic_table()) {
+    secondaryCounter = 0;
+    version = 0;
+}
 
 const QUIC_API_TABLE *MOQT::get_tbl() { return tbl.get(); }
-
-void MOQT::interpret_control_message(ConnectionState &connectionState,
-                                     const auto *receiveInformation) {
-    if (!connectionState.controlStream.has_value())
-        LOGE("Trying to interpret control message without control stream");
-
-    // we will assume 2 buffers =>
-    // first buffer contains headers related to control message such as type
-    // second buffer contains the control message itself
-
-    QUIC_BUFFER firstBuffer = receiveInformation->Buffers[0];
-    QUIC_BUFFER secondBuffer = receiveInformation->Buffers[1];
-
-    // TODO : implement serialization
-    messages::ControlMessageHeader header =
-        serialization::deserialize<messages::ControlMessageHeader>(firstBuffer);
-
-    /* TODO, split into client and server interpret functions helps reduce the number of branches
-     * NOTE: This is the message received, which means that the client will interpret the server's
-     * message and vice verse
-     * CLIENT_SETUP is received by server and SERVER_SETUP is received by client
-     */
-
-    using messages::MoQtMessageType;
-    switch (header.messageType) {
-    case MoQtMessageType::CLIENT_SETUP: {
-        // CLIENT sends to SERVER
-
-        messages::ClientSetupMessage clientSetupMessage =
-            serialization::deserialize<messages::ClientSetupMessage>(secondBuffer);
-        auto &supportedVersions = clientSetupMessage.supportedVersions;
-        auto matchingVersionIter =
-            std::find(supportedVersions.begin(), supportedVersions.end(), version);
-
-        if (matchingVersionIter == supportedVersions.end()) {
-            // destroy connection
-            // connectionState.destroy_connection();
-            return;
-        }
-
-        std::size_t iterIdx = std::distance(supportedVersions.begin(), matchingVersionIter);
-        auto &params = clientSetupMessage.parameters[iterIdx];
-        connectionState.path = std::move(params.path.path);
-        connectionState.peerRole = params.role.role;
-        break;
-    }
-    case MoQtMessageType::SERVER_SETUP: {
-        // SERVER sends to CLIENT
-        messages::ServerSetupMessage serverSetupMessage =
-            serialization::deserialize<messages::ServerSetupMessage>(secondBuffer);
-        utils::ASSERT_LOG_THROW(connectionState.path.size() == 0,
-                                "Server must now use the path parameter");
-        utils::ASSERT_LOG_THROW(serverSetupMessage.parameters.size() > 0,
-                                "SERVER_SETUP sent no parameters, requires atleast role parameter");
-        connectionState.peerRole = serverSetupMessage.parameters[0].role.role;
-
-        break;
-    }
-    case MoQtMessageType::GOAWAY: {
-        // SERVER sends to CLIENT
-        /*
-         * The server MUST terminate the session with a Protocol Violation (Section 3.5) if it
-         * receives a GOAWAY message. The client MUST terminate the session with a Protocol
-         * Violation (Section 3.5) if it receives multiple GOAWAY messages.
-         */
-        messages::GoAwayMessage goAwayMessage =
-            serialization::deserialize<messages::GoAwayMessage>(secondBuffer);
-        if (goAwayMessage.newSessionURI.size() > 0) {
-            connectionState.path = std::move(goAwayMessage.newSessionURI);  
-        }
-
-        // client should use the new session URI from now
-    }
-    default:
-        LOGE("Unknown control message type");
-    }
-}
-
-void MOQT::interpret_data_message(ConnectionState &connectionState, HQUIC dataStream,
-                                  const auto *receiveInformation) {
-    if (!connectionState.controlStream.has_value())
-        LOGE("Trying to interpret control message without control stream");
-
-    // we will assume 2 buffers =>
-    // first buffer contains headers related to control message such as type
-    // second buffer contains the control message itself
-
-    QUIC_BUFFER firstBuffer = receiveInformation->Buffers[0];
-    QUIC_BUFFER secondBuffer = receiveInformation->Buffers[1];
-
-    // TODO : implement serialization
-    // ControlMessageHeader header = serialize_message_header(firstBuffer);
-
-    // switch (header.MessageType) {
-    // case MoQtMessageType::CLIENT_SETUP: {
-
-    //     break;
-    // }
-    // case MoQtMessageType::SERVER_SETUP: {
-    //     break;
-    // }
-    // default:
-    //     LOGE("Unknown control message type");
-    // }
-}
 
 } // namespace rvn

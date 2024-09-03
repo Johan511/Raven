@@ -37,6 +37,7 @@ function(move_files FILES DESTINATION_DIR)
 endfunction()
 # -------------------------------------------------------------------------------
 
+# Compile .proto files to .pb.cc and .pb.h
 find_program(PROTOC_PATH
     NAMES protoc
     HINTS /usr/bin /usr/local/bin /home/hhn/makes/protobuf/install/bin
@@ -50,13 +51,10 @@ else()
 endif()
 
 set(PROTOBUF_INSTALL_DIR "/home/hhn/makes/protobuf/install")
-set(Protobuf_USE_STATIC_LIBS ON)
-
-find_package(protobuf CONFIG REQUIRED PATHS ${PROTOBUF_INSTALL_DIR})
 
 get_all_proto_files(${CMAKE_CURRENT_SOURCE_DIR} PROTO_FILES)
-
 MESSAGE("PROTO FILES: ${PROTO_FILES}")
+
 # compile .proto files to .pb.cc and .pb.h
 execute_process(
     COMMAND ${PROTOC_PATH} --cpp_out=${CMAKE_CURRENT_SOURCE_DIR} --proto_path=${CMAKE_CURRENT_SOURCE_DIR} ${PROTO_FILES}
@@ -74,12 +72,13 @@ set(PROTO_CC_FILES "")
 set(PROTO_H_FILES "")
 get_all_proto_cc_files(${CMAKE_CURRENT_SOURCE_DIR}/src PROTO_CC_FILES)
 get_all_proto_h_files(${CMAKE_CURRENT_SOURCE_DIR}/includes PROTO_H_FILES)
+# -------------------------------------------------------------------------------
 
 message("PROTO_CC_FILES: ${PROTO_CC_FILES}")
 message("PROTO_H_FILES: ${PROTO_H_FILES}")
 
-get_all_proto_archive_files(${PROTOBUF_INSTALL_DIR}/lib64 PROTOBUF_LIBS)
-add_library(protobuf_messages OBJECT ${PROTO_CC_FILES} ${PROTOBUF_LIBS}) 
+# get_all_proto_archive_files(${PROTOBUF_INSTALL_DIR}/lib64 PROTOBUF_LIBS)
+add_library(protobuf_messages OBJECT ${PROTO_CC_FILES}) 
 target_include_directories(protobuf_messages SYSTEM PUBLIC ${Protobuf_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/includes)
 message("Protobuf_LIBRARIES: ${Protobuf_LIBRARIES}")
 target_link_libraries(protobuf_messages PUBLIC protobuf::libprotobuf ${Protobuf_LIBRARIES})

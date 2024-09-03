@@ -2,10 +2,17 @@
 ////////////////////////////////////////////
 #include <msquic.h>
 ///////////////////////////////////////////
+#include <csignal>
 #include <cstdint>
 #include <iostream>
+#include <mutex>
 #include <ostream>
+#include <queue>
 #include <source_location>
+///////////////////////////////////////////
+#include <boost/iostreams/device/array.hpp>
+#include <boost/iostreams/stream.hpp>
+#include <sstream>
 ///////////////////////////////////////////
 // Utils can not use any raven header file
 
@@ -41,6 +48,23 @@ template <typename... Args> QUIC_STATUS NoOpSuccess(Args...) { return QUIC_STATU
 
 template <typename... Args> void NoOpVoid(Args...) { return; };
 
+static inline boost::iostreams::stream<boost::iostreams::array_source>
+quic_buffer_to_istream(QUIC_BUFFER buffer) {
+    boost::iostreams::array_source arraySource((char *)(buffer.Buffer), buffer.Length);
+    return boost::iostreams::stream<boost::iostreams::array_source>(arraySource);
+}
+
+inline void LOG_EVENT_BASE(std::ostream &os, const std::string &eventMessage) {
+    static std::mutex mtx;
+    std::lock_guard<std::mutex> lock(mtx);
+    os << eventMessage << std::endl;
+}
+
+template <typename... Args> void LOG_EVENT(std::ostream &os, Args... args) {
+    std::ostringstream oss;
+    print(oss, args...);
+    LOG_EVENT_BASE(os, oss.str());
+}
 } // namespace rvn::utils
 
 namespace rvn {

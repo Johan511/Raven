@@ -4,6 +4,7 @@
 ////////////////////////////////////////////
 #include <memory>
 #include <stdexcept>
+#include <type_traits>
 ////////////////////////////////////////////
 #include <utilities.hpp>
 ////////////////////////////////////////////
@@ -280,6 +281,32 @@ class unique_configuration
     unique_configuration(const QUIC_API_TABLE *tbl_, ConfigurationOpenParams openParams,
                          ConfigurationStartParams startParams);
     unique_configuration();
+};
+
+/*-------------MsQuic->Stream open and start--------------*/
+
+class unique_stream
+    : public detail::unique_handler2<
+          decltype(QUIC_API_TABLE::StreamOpen), decltype(QUIC_API_TABLE::StreamClose),
+          decltype(QUIC_API_TABLE::StreamStart)
+          /*TODO: check what to do about stream shutdown, it takes more than 1 argument unlike others*/> {
+  public:
+    struct StreamOpenParams {
+        HQUIC Connection;
+        QUIC_STREAM_OPEN_FLAGS Flags;
+        QUIC_STREAM_CALLBACK_HANDLER Handler;
+        void *Context;
+        HQUIC *Stream;
+    };
+
+    struct StreamStartParams {
+        HQUIC Stream;
+        QUIC_STREAM_START_FLAGS Flags;
+    };
+
+    unique_stream(const QUIC_API_TABLE *tbl_, StreamOpenParams openParams,
+                  StreamStartParams startParams);
+    unique_stream();
 };
 
 }; // namespace rvn

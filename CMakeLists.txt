@@ -36,6 +36,7 @@ set(RAVEN_SRC_DIR "raven/src")
 set(RAVEN_INCLUDE_DIR "raven/includes")
 
 # Setting proto related variables
+add_subdirectory(submodules/protobuf)
 add_subdirectory(protobuf_messages)
 set(PROTOBUF_MESSAGES_DIR "protobuf_messages")
 set(PROTOBUF_MESSAGES_INCLUDE_DIR "${PROTOBUF_MESSAGES_DIR}/includes")
@@ -46,7 +47,7 @@ get_all_files_in_directory(${RAVEN_SRC_DIR} RAVEN_SRC)
 
 # Building Raven shared library linked with msquic -----------------------------
 add_library(raven STATIC ${RAVEN_SRC})
-target_compile_options(raven PRIVATE -Wall -Wextra)
+target_compile_options(raven PRIVATE )
 # MSQUIC include directories should not leak to users of Raven
 # They should be able to use their own msquic library includes
 target_include_directories(raven PUBLIC ${RAVEN_INCLUDE_DIR})
@@ -56,14 +57,14 @@ target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES} pro
 
 # Add playground server
 add_executable(server server.cpp)
-target_compile_options(server PRIVATE -Wall -Wextra)
+target_compile_options(server PRIVATE )
 target_include_directories(server PUBLIC ${RAVEN_INCLUDE_DIR})
 target_include_directories(server PUBLIC ${MSQUIC_INCLUDE_DIR})
 target_link_libraries(server PUBLIC raven)
 
 # Add playground client
 add_executable(client client.cpp)
-target_compile_options(client PRIVATE -Wall -Wextra)
+target_compile_options(client PRIVATE )
 target_include_directories(client PUBLIC ${RAVEN_INCLUDE_DIR})
 target_include_directories(client PUBLIC ${MSQUIC_INCLUDE_DIR})
 target_link_libraries(client PUBLIC raven)

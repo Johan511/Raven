@@ -6,7 +6,7 @@
 #include <memory>
 #include <optional>
 //////////////////////////////
-#include <messages.hpp>
+#include <protobuf_messages.hpp>
 #include <utilities.hpp>
 //////////////////////////////
 
@@ -19,13 +19,13 @@ struct StreamContext {
 };
 
 class StreamSendContext {
+  public:
     // owns the QUIC_BUFFERS
     QUIC_BUFFER *buffers;
     std::uint32_t bufferCount;
     std::function<void(StreamSendContext *)> sendCompleteCallback =
         utils::NoOpVoid<StreamSendContext *>;
 
-  public:
     // non owning reference
     const StreamContext *streamContext;
 
@@ -61,7 +61,7 @@ struct ConnectionState {
     std::optional<StreamState> controlStream{};
     std::vector<StreamState> dataStreams{};
     std::string path;
-    messages::Role peerRole;
+    protobuf_messages::Role peerRole;
 };
 
 } // namespace rvn
