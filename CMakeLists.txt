@@ -15,14 +15,15 @@ set(CMAKE_CXX_STANDARD 20)
 # Set compile options as private to not warn about msquic header files
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address")
+  set(QUIC_ENABLE_LOGGING ON)
 endif()
 
 # -------------------------------------------------------------------------------
 
 # Setting MSQUIC related variables
-set(MSQUIC_INSTALL_DIR "/home/hhn/makes/msquic/install")
-set(MSQUIC_INCLUDE_DIR ${MSQUIC_INSTALL_DIR}/include)
-set(MSQUIC_LINK_LIBRARY ${MSQUIC_INSTALL_DIR}/lib/libmsquic.so.2.4.0)
+add_subdirectory(submodules/msquic)
+set(MSQUIC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/submodules/msquic/src/inc)
+set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/Release/libmsquic.so)
 
 # Setting Boost variables
 find_package(Boost COMPONENTS serialization REQUIRED)
@@ -33,17 +34,39 @@ message("boost inc:${Boost_INCLUDE_DIR}")
 set(RAVEN_SRC_DIR "raven/src")
 set(RAVEN_INCLUDE_DIR "raven/includes")
 
+
 # disabling protobuf warnings
 set(ORIGINAL_COMPILE_OPTIONS ${CMAKE_CXX_FLAGS})
-set(PROTOBUF_COMPILE_OPTIONS "${ORIGINAL_COMPILE_OPTIONS} -Wno-missing-requires -Wno-conversion -Wno-attributes -Wno-sign-conversion -Wno-this-pointer -Wno-bool-conversion -Wno-deprecated-declarations")
+set(PROTOBUF_DISABLE_WARNINGS "${ORIGINAL_COMPILE_OPTIONS} -Wno-missing-requires -Wno-conversion -Wno-attributes -Wno-sign-conversion -Wno-deprecated-declarations -Wno-subobject-linkage -Wno-deprecated")
+set(PROTOBUF_COMPILE_OPTIONS "${ORIGINAL_COMPILE_OPTIONS} ${PROTOBUF_DISABLE_WARNINGS}")
 set(CMAKE_CXX_FLAGS ${PROTOBUF_COMPILE_OPTIONS})
+
+# disable protobuf tests
+set(protobuf_BUILD_TESTS OFF)
+set(protobuf_BUILD_EXAMPLES OFF) 
+set(protobuf_BUILD_PROTOC_BINARIES ON)
+
+# compile protobuf
 add_subdirectory(submodules/protobuf)
+
+# undoing temporary changes made
 set(CMAKE_CXX_FLAGS ${ORIGINAL_COMPILE_OPTIONS})
+unset(protobuf_BUILD_TESTS)
+unset(protobuf_BUILD_EXAMPLES) 
+unset(protobuf_BUILD_PROTOC_BINARIES)
+
+
+# disabling warnings in protobuf includes
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-requires")
 
 add_subdirectory(protobuf_messages)
 set(PROTOBUF_MESSAGES_DIR "protobuf_messages")
 set(PROTOBUF_MESSAGES_INCLUDE_DIR "${PROTOBUF_MESSAGES_DIR}/src")
 set(PROTOBUF_MESSAGES_SRC_DIR "${PROTOBUF_MESSAGES_DIR}/src")
+
+add_definitions(-DRAVEN_CERT_FILE="${CMAKE_CURRENT_SOURCE_DIR}/server.cert")
+add_definitions(-DRAVEN_KEY_FILE="${CMAKE_CURRENT_SOURCE_DIR}/server.key")
+
 
 set(RAVEN_SRC "")
 get_all_files_in_directory(${RAVEN_SRC_DIR} RAVEN_SRC)

@@ -56,5 +56,5 @@ add_custom_target(ProtoFilesCompilation DEPENDS protobuf::protoc ${PROTOBUF_BINA
 
 add_library(protobuf_messages OBJECT ${PROTOBUF_BINARY_DIR}/setup_messages.pb.cc) 
 add_dependencies(protobuf_messages ProtoFilesCompilation)
-target_include_directories(protobuf_messages SYSTEM PUBLIC ${Protobuf_INCLUDE_DIRS} ${PROTOBUF_BINARY_DIR})
+target_include_directories(protobuf_messages SYSTEM PUBLIC ${PROTOBUF_BINARY_DIR})
 target_link_libraries(protobuf_messages PUBLIC protobuf::libprotobuf)
