@@ -15,8 +15,6 @@ set(CMAKE_CXX_STANDARD 20)
 # Set compile options as private to not warn about msquic header files
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address")
-else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 endif()
 
 # -------------------------------------------------------------------------------
@@ -35,11 +33,16 @@ message("boost inc:${Boost_INCLUDE_DIR}")
 set(RAVEN_SRC_DIR "raven/src")
 set(RAVEN_INCLUDE_DIR "raven/includes")
 
-# Setting proto related variables
+# disabling protobuf warnings
+set(ORIGINAL_COMPILE_OPTIONS ${CMAKE_CXX_FLAGS})
+set(PROTOBUF_COMPILE_OPTIONS "${ORIGINAL_COMPILE_OPTIONS} -Wno-missing-requires -Wno-conversion -Wno-attributes -Wno-sign-conversion -Wno-this-pointer -Wno-bool-conversion -Wno-deprecated-declarations")
+set(CMAKE_CXX_FLAGS ${PROTOBUF_COMPILE_OPTIONS})
 add_subdirectory(submodules/protobuf)
+set(CMAKE_CXX_FLAGS ${ORIGINAL_COMPILE_OPTIONS})
+
 add_subdirectory(protobuf_messages)
 set(PROTOBUF_MESSAGES_DIR "protobuf_messages")
-set(PROTOBUF_MESSAGES_INCLUDE_DIR "${PROTOBUF_MESSAGES_DIR}/includes")
+set(PROTOBUF_MESSAGES_INCLUDE_DIR "${PROTOBUF_MESSAGES_DIR}/src")
 set(PROTOBUF_MESSAGES_SRC_DIR "${PROTOBUF_MESSAGES_DIR}/src")
 
 set(RAVEN_SRC "")
@@ -47,7 +50,7 @@ get_all_files_in_directory(${RAVEN_SRC_DIR} RAVEN_SRC)
 
 # Building Raven shared library linked with msquic -----------------------------
 add_library(raven STATIC ${RAVEN_SRC})
-target_compile_options(raven PRIVATE )
+# target_compile_options(raven PRIVATE -Wall -Wextra -Werror -Wpedantic)
 # MSQUIC include directories should not leak to users of Raven
 # They should be able to use their own msquic library includes
 target_include_directories(raven PUBLIC ${RAVEN_INCLUDE_DIR})
@@ -57,14 +60,14 @@ target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES} pro
 
 # Add playground server
 add_executable(server server.cpp)
-target_compile_options(server PRIVATE )
+# target_compile_options(server PRIVATE -Wall -Wextra -Werror -Wpedantic)
 target_include_directories(server PUBLIC ${RAVEN_INCLUDE_DIR})
 target_include_directories(server PUBLIC ${MSQUIC_INCLUDE_DIR})
 target_link_libraries(server PUBLIC raven)
 
 # Add playground client
 add_executable(client client.cpp)
-target_compile_options(client PRIVATE )
+# target_compile_options(client PRIVATE -Wall -Wextra -Werror -Wpedantic)
 target_include_directories(client PUBLIC ${RAVEN_INCLUDE_DIR})
 target_include_directories(client PUBLIC ${MSQUIC_INCLUDE_DIR})
 target_link_libraries(client PUBLIC raven)

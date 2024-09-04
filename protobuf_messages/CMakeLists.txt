@@ -37,48 +37,24 @@ function(move_files FILES DESTINATION_DIR)
 endfunction()
 # -------------------------------------------------------------------------------
 
-# Compile .proto files to .pb.cc and .pb.h
-find_program(PROTOC_PATH
-    NAMES protoc
-    HINTS /usr/bin /usr/local/bin /home/hhn/makes/protobuf/install/bin
-    DOC "protoc compiler"
-)
-
-if(NOT PROTOC_PATH)
-    message(FATAL_ERROR "protoc compiler not found")
-else()
-    message("protoc compiler found at ${PROTOC}")
-endif()
-
-set(PROTOBUF_INSTALL_DIR "/home/hhn/makes/protobuf/install")
+set(PROTOBUF_BINARY_DIR "${CMAKE_BINARY_DIR}/submodules/protobuf")
+set(PROTOC "${PROTOBUF_BINARY_DIR}/protoc")
+set(PROTOBUF_MESSAGES_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
 get_all_proto_files(${CMAKE_CURRENT_SOURCE_DIR} PROTO_FILES)
 MESSAGE("PROTO FILES: ${PROTO_FILES}")
 
-# compile .proto files to .pb.cc and .pb.h
-execute_process(
-    COMMAND ${PROTOC_PATH} --cpp_out=${CMAKE_CURRENT_SOURCE_DIR} --proto_path=${CMAKE_CURRENT_SOURCE_DIR} ${PROTO_FILES}
-    RESULT_VARIABLE PROTO_COMPILATION
+add_custom_command(
+    OUTPUT ${PROTOBUF_BINARY_DIR}/setup_messages.pb.cc ${PROTOBUF_BINARY_DIR}/setup_messages.pb.h 
+    COMMAND ${PROTOC} -I ${PROTOBUF_MESSAGES_DIR} --cpp_out=${PROTOBUF_BINARY_DIR} ${PROTO_FILES}
+    DEPENDS ${PROTO_FILES}
+    VERBATIM
 )
 
-get_all_proto_cc_files(${CMAKE_CURRENT_SOURCE_DIR} PROTO_CC_FILES)
-get_all_proto_h_files(${CMAKE_CURRENT_SOURCE_DIR} PROTO_H_FILES)
+# compile .proto files to .pb.cc and .pb.h
+add_custom_target(ProtoFilesCompilation DEPENDS protobuf::protoc ${PROTOBUF_BINARY_DIR}/setup_messages.pb.cc ${PROTOBUF_BINARY_DIR}/setup_messages.pb.h)
 
-# move .pb.cc and .pb.h files to src and includes directories
-move_files(${PROTO_CC_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/src)
-move_files(${PROTO_H_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/includes)
-
-set(PROTO_CC_FILES "")
-set(PROTO_H_FILES "")
-get_all_proto_cc_files(${CMAKE_CURRENT_SOURCE_DIR}/src PROTO_CC_FILES)
-get_all_proto_h_files(${CMAKE_CURRENT_SOURCE_DIR}/includes PROTO_H_FILES)
-# -------------------------------------------------------------------------------
-
-message("PROTO_CC_FILES: ${PROTO_CC_FILES}")
-message("PROTO_H_FILES: ${PROTO_H_FILES}")
-
-# get_all_proto_archive_files(${PROTOBUF_INSTALL_DIR}/lib64 PROTOBUF_LIBS)
-add_library(protobuf_messages OBJECT ${PROTO_CC_FILES}) 
-target_include_directories(protobuf_messages SYSTEM PUBLIC ${Protobuf_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/includes)
-message("Protobuf_LIBRARIES: ${Protobuf_LIBRARIES}")
-target_link_libraries(protobuf_messages PUBLIC protobuf::libprotobuf ${Protobuf_LIBRARIES})
+add_library(protobuf_messages OBJECT ${PROTOBUF_BINARY_DIR}/setup_messages.pb.cc) 
+add_dependencies(protobuf_messages ProtoFilesCompilation)
+target_include_directories(protobuf_messages SYSTEM PUBLIC ${Protobuf_INCLUDE_DIRS} ${PROTOBUF_BINARY_DIR})
+target_link_libraries(protobuf_messages PUBLIC protobuf::libprotobuf)
