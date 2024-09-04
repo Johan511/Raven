@@ -20,5 +20,7 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char *Server
         {CredConfig});
     connection = rvn::unique_connection(tbl.get(), {reg.get(), MOQT::connection_cb_wrapper, this},
                                         {configuration.get(), Family, ServerName, ServerPort});
+
+    connectionStateMap[connection.get()] = ConnectionState{connection.get()};
 }
 } // namespace rvn

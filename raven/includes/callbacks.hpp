@@ -1,3 +1,4 @@
+#include <memory>
 #include <msquic.h>
 
 #include <contexts.hpp>
@@ -156,9 +157,17 @@ static constexpr auto client_connection_callback = [](HQUIC Connection, void *Co
         // The handshake has completed for the connection.
         //
         HQUIC stream;
+                                          
+
         StreamContext *streamContext = new StreamContext(moqtClient, Connection);
         MsQuic->StreamOpen(Connection, QUIC_STREAM_OPEN_FLAG_NONE,
                            moqtClient->control_stream_cb_wrapper, streamContext, &stream);
+        
+        auto &connectionState = moqtClient->connectionStateMap[Connection];
+        connectionState.controlStream = StreamState{stream, DEFAULT_BUFFER_CAPACITY};
+
+        StreamState &streamState = connectionState.controlStream.value();
+        streamState.set_stream_context(std::unique_ptr<StreamContext>(streamContext));
 
         MsQuic->StreamStart(stream, QUIC_STREAM_START_FLAG_NONE);
 

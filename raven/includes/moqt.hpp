@@ -219,8 +219,7 @@ class MOQT {
     */
     void interpret_control_message(ConnectionState &connectionState,
                                    const auto *receiveInformation) {
-        if (!connectionState.controlStream.has_value())
-            LOGE("Trying to interpret control message without control stream");
+        utils::ASSERT_LOG_THROW(connectionState.controlStream.has_value(), "Trying to interpret control message without control stream");
 
         const QUIC_BUFFER *buffers = receiveInformation->Buffers;
 
@@ -264,7 +263,7 @@ class MOQT {
             connectionState.peerRole = params.role().role();
 
             utils::LOG_EVENT(std::cout,
-                             "Client Setup Message received: ", clientSetupMessage.DebugString());
+                             "Client Setup Message received: \n", clientSetupMessage.DebugString());
 
             // send SERVER_SETUP message
             protobuf_messages::ControlMessageHeader serverSetupHeader;
