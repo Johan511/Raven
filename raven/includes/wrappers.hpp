@@ -285,28 +285,120 @@ class unique_configuration
 
 /*-------------MsQuic->Stream open and start--------------*/
 
-class unique_stream
-    : public detail::unique_handler2<
-          decltype(QUIC_API_TABLE::StreamOpen), decltype(QUIC_API_TABLE::StreamClose),
-          decltype(QUIC_API_TABLE::StreamStart)
-          /*TODO: check what to do about stream shutdown, it takes more than 1 argument unlike others*/> {
-  public:
+class unique_stream {
+    HQUIC streamHandle = NULL;
+
+    QUIC_STREAM_OPEN_FN open_func;
+    QUIC_STREAM_CLOSE_FN close_func;
+    QUIC_STREAM_START_FN start_func;
+    QUIC_STREAM_SHUTDOWN_FN shutdown_func;
+
+    void destroy() {
+        if (streamHandle != NULL) {
+            // TODO: shutdown function always uses with defaults flag and error code
+            shutdown_func(streamHandle, QUIC_STREAM_SHUTDOWN_FLAG_GRACEFUL, 0);
+            close_func(streamHandle);
+        };
+    }
+
+    void reset() {
+        destroy();
+        streamHandle = NULL;
+    }
+
+    template <typename... Args> QUIC_STATUS open_handler(Args... args) {
+        return open_func(args..., &streamHandle);
+    }
+
+    template <typename... Args> QUIC_STATUS start_handler(Args... args) {
+        QUIC_STATUS status;
+        status = start_func(streamHandle, args...);
+        if (QUIC_FAILED(status))
+            close_func(streamHandle);
+        return status;
+    }
+
     struct StreamOpenParams {
         HQUIC Connection;
         QUIC_STREAM_OPEN_FLAGS Flags;
         QUIC_STREAM_CALLBACK_HANDLER Handler;
         void *Context;
-        HQUIC *Stream;
     };
 
     struct StreamStartParams {
-        HQUIC Stream;
         QUIC_STREAM_START_FLAGS Flags;
     };
 
+  public:
     unique_stream(const QUIC_API_TABLE *tbl_, StreamOpenParams openParams,
-                  StreamStartParams startParams);
-    unique_stream();
+                  StreamStartParams startParams) {
+        open_func = tbl_->StreamOpen;
+        close_func = tbl_->StreamClose;
+        start_func = tbl_->StreamStart;
+        shutdown_func = tbl_->StreamShutdown;
+
+        if (QUIC_FAILED(open_handler(openParams.Connection, openParams.Flags, openParams.Handler,
+                                     openParams.Context)))
+            throw std::runtime_error("StreamOpenFailure");
+
+        if (QUIC_FAILED(start_handler(startParams.Flags)))
+            throw std::runtime_error("StreamStartFailure");
+    }
+
+    unique_stream() {
+        open_func = nullptr;
+        close_func = nullptr;
+        start_func = nullptr;
+        shutdown_func = nullptr;
+    }
+
+    ~unique_stream() noexcept { destroy(); }
+
+    unique_stream(const QUIC_API_TABLE *tbl_, HQUIC streamHandle_) : streamHandle(streamHandle_) {
+        open_func = nullptr;
+        start_func = nullptr;
+
+        close_func = tbl_->StreamClose;
+        shutdown_func = tbl_->StreamShutdown;
+    }
+
+    unique_stream(const unique_stream &) = delete;
+    unique_stream &operator=(const unique_stream &) = delete;
+
+    unique_stream(unique_stream &&rhs) {
+        if (this == &rhs)
+            return;
+        reset();
+        // take ownership
+        streamHandle = rhs.streamHandle;
+        open_func = rhs.open_func;
+        close_func = rhs.close_func;
+
+        start_func = rhs.start_func;
+        shutdown_func = rhs.shutdown_func;
+
+        // RHS releases ownership
+        rhs.streamHandle = NULL;
+    }
+
+    unique_stream &operator=(unique_stream &&rhs) {
+        if (this == &rhs)
+            return *this;
+        reset();
+        // take ownership
+        streamHandle = rhs.streamHandle;
+        open_func = rhs.open_func;
+        close_func = rhs.close_func;
+
+        start_func = rhs.start_func;
+        shutdown_func = rhs.shutdown_func;
+
+        // RHS releases ownership
+        rhs.streamHandle = NULL;
+        return *this;
+    }
+
+    HQUIC get() const { return streamHandle; }
 };
 
 }; // namespace rvn

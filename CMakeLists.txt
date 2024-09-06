@@ -23,7 +23,7 @@ endif()
 # Setting MSQUIC related variables
 add_subdirectory(submodules/msquic)
 set(MSQUIC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/submodules/msquic/src/inc)
-set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/Release/libmsquic.so)
+set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/${CMAKE_BUILD_TYPE}/libmsquic.so)
 
 # Setting Boost variables
 find_package(Boost COMPONENTS serialization REQUIRED)

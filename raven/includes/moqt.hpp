@@ -8,6 +8,7 @@
 #include <unordered_map>
 ////////////////////////////////////////////
 #include <contexts.hpp>
+#include <moqt_utils.hpp>
 #include <protobuf_messages.hpp>
 #include <serialization.hpp>
 #include <utilities.hpp>
@@ -50,6 +51,54 @@ class MOQT {
 
     // PIMPL pattern for moqt related utilities
     MOQTUtilities *utils;
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // these functions will later be pushed into cgUtils
+    // utils::MOQTComplexGetterUtils *cgUtils{this};
+
+    StreamState *get_stream_state(HQUIC connectionHandle, HQUIC streamHandle) {
+        ConnectionState &connectionState = connectionStateMap.at(connectionHandle);
+        if (connectionState.controlStream.has_value() &&
+            connectionState.controlStream.value().stream.get() == streamHandle) {
+            return &connectionState.controlStream.value();
+        }
+
+        auto streamIter =
+            std::find_if(connectionState.dataStreams.begin(), connectionState.dataStreams.end(),
+                         [streamHandle](const StreamState &streamState) {
+                             return streamState.stream.get() == streamHandle;
+                         });
+
+        if (streamIter != connectionState.dataStreams.end()) {
+            return &(*streamIter);
+        }
+
+        return nullptr;
+    }
+
+    StreamState *get_stream_state(HQUIC streamHandle) {
+        for (const auto &connectionStatePair : connectionStateMap) {
+            HQUIC connectionHandle = connectionStatePair.first;
+            ConnectionState &connectionState = connectionStateMap.at(connectionHandle);
+            if (connectionState.controlStream.has_value() &&
+                connectionState.controlStream.value().stream.get() == streamHandle) {
+                return &connectionState.controlStream.value();
+            }
+
+            auto streamIter =
+                std::find_if(connectionState.dataStreams.begin(), connectionState.dataStreams.end(),
+                             [streamHandle](const StreamState &streamState) {
+                                 return streamState.stream.get() == streamHandle;
+                             });
+
+            if (streamIter != connectionState.dataStreams.end()) {
+                return &(*streamIter);
+            }
+        }
+
+        return nullptr;
+    }
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     // need to be able to get function pointor of this
     // function hence can not be member function
@@ -147,8 +196,9 @@ class MOQT {
         return connectionStateMap;
     }
 
+    // always sends only one buffer
     template <typename... Args>
-    QUIC_STATUS stream_send(StreamContext *streamContext, HQUIC stream, Args &&...args) {
+    QUIC_STATUS stream_send(const StreamState &streamState, Args &&...args) {
         utils::LOG_EVENT(std::cout, args.DebugString()...);
 
         std::size_t requiredBufferSize = 0;
@@ -156,6 +206,8 @@ class MOQT {
         // calculate required buffer size
         std::ostringstream oss;
         (google::protobuf::util::SerializeDelimitedToOstream(args, &oss), ...);
+
+        static constexpr std::uint32_t bufferCount = 1;
 
         std::string buffer = oss.str();
         void *sendBufferRaw = malloc(sizeof(QUIC_BUFFER) + buffer.size());
@@ -166,42 +218,51 @@ class MOQT {
         sendBuffer->Length = buffer.size();
 
         std::memcpy(sendBuffer->Buffer, buffer.c_str(), buffer.size());
+        HQUIC streamHandle = streamState.stream.get();
+
+        StreamSendContext *streamSendContext =
+            new StreamSendContext(sendBuffer, bufferCount, streamState.streamContext.get());
 
         QUIC_STATUS status =
-            get_tbl()->StreamSend(stream, sendBuffer, 1, QUIC_SEND_FLAG_FIN, nullptr);
+            get_tbl()->StreamSend(streamHandle, sendBuffer, 1, QUIC_SEND_FLAG_FIN, nullptr);
 
         return status;
     }
 
-    /*
-        // sending each object as an buffer, does not work because on the receive end they might be
-       concatenated
-        // MsQuic always receives <= 2 buffers
-        template <typename... Args>
-        QUIC_STATUS stream_send(StreamContext *streamContext, HQUIC stream, Args &&...args) {
-            utils::LOG_EVENT(std::cout, args.DebugString()...);
+  private:
+    class StartParams_open_and_start_new_stream;
+    class OpenParams_open_and_start_new_stream {
+      public:
+        HQUIC connectionHandle;
+        QUIC_STREAM_OPEN_FLAGS openFlags;
+        QUIC_STREAM_CALLBACK_HANDLER streamCb;
+    };
 
-            StreamSendContext *sendContext = new StreamSendContext(streamContext);
+    class StartParams_open_and_start_new_stream {
+      public:
+        QUIC_STREAM_START_FLAGS startFlags;
+    };
 
-            // we need separate buffer for each argument, due to protobuf limitation
-            sendContext->bufferCount = sizeof...(args);
-            sendContext->buffers =
-                static_cast<QUIC_BUFFER *>(malloc(sizeof(QUIC_BUFFER) * sendContext->bufferCount));
+  public:
+    const StreamState &
+    open_and_start_new_stream(OpenParams_open_and_start_new_stream openParams,
+                              StartParams_open_and_start_new_stream startParams) {
+        HQUIC connectionHandle = openParams.connectionHandle;
+        StreamContext *streamContext = new StreamContext(this, openParams.connectionHandle);
 
-            std::size_t requiredBufferSize, i = 0;
-            (..., (requiredBufferSize = args.ByteSizeLong(),
-                   sendContext->buffers[i].Buffer = static_cast<uint8_t
-                   *>(malloc(requiredBufferSize)), sendContext->buffers[i].Length =
-                   args.ByteSizeLong(), args.SerializeToArray(sendContext->buffers[i].Buffer,
-                   args.ByteSizeLong()), i++));
+        auto stream = rvn::unique_stream(
+            get_tbl(),
+            {openParams.connectionHandle, openParams.openFlags, openParams.streamCb, streamContext},
+            {startParams.startFlags});
 
-            QUIC_STATUS status =
-                get_tbl()->StreamSend(stream, sendContext->buffers, sendContext->bufferCount,
-                                      QUIC_SEND_FLAG_FIN, sendContext);
+        auto &connectionState = this->connectionStateMap[connectionHandle];
+        connectionState.controlStream = StreamState{std::move(stream), DEFAULT_BUFFER_CAPACITY};
 
-            return status;
-        }
-    */
+        StreamState &streamState = connectionState.controlStream.value();
+        streamState.set_stream_context(std::unique_ptr<StreamContext>(streamContext));
+
+        return streamState;
+    }
 
     // auto is used as parameter because there is no named type for receive information
     // it is an anonymous structure
@@ -219,7 +280,8 @@ class MOQT {
     */
     void interpret_control_message(ConnectionState &connectionState,
                                    const auto *receiveInformation) {
-        utils::ASSERT_LOG_THROW(connectionState.controlStream.has_value(), "Trying to interpret control message without control stream");
+        utils::ASSERT_LOG_THROW(connectionState.controlStream.has_value(),
+                                "Trying to interpret control message without control stream");
 
         const QUIC_BUFFER *buffers = receiveInformation->Buffers;
 
@@ -237,8 +299,8 @@ class MOQT {
          * is received by client
          */
 
-        StreamContext *streamContext = connectionState.controlStream.value().streamContext.get();
-        HQUIC stream = connectionState.controlStream.value().stream;
+        StreamState &streamState = connectionState.controlStream.value();
+        HQUIC stream = connectionState.controlStream.value().stream.get();
         switch (header.messagetype()) {
         case protobuf_messages::MoQtMessageType::CLIENT_SETUP: {
             // CLIENT sends to SERVER
@@ -262,8 +324,8 @@ class MOQT {
             connectionState.path = std::move(params.path().path());
             connectionState.peerRole = params.role().role();
 
-            utils::LOG_EVENT(std::cout,
-                             "Client Setup Message received: \n", clientSetupMessage.DebugString());
+            utils::LOG_EVENT(std::cout, "Client Setup Message received: \n",
+                             clientSetupMessage.DebugString());
 
             // send SERVER_SETUP message
             protobuf_messages::ControlMessageHeader serverSetupHeader;
@@ -271,7 +333,7 @@ class MOQT {
 
             protobuf_messages::ServerSetupMessage serverSetupMessage;
             serverSetupMessage.add_parameters()->mutable_role()->set_role(connectionState.peerRole);
-            stream_send(streamContext, stream, serverSetupHeader, serverSetupMessage);
+            stream_send(streamState, serverSetupHeader, serverSetupMessage);
 
             break;
         }
@@ -352,7 +414,8 @@ class MOQTServer : public MOQT {
         ConnectionState &connectionState = connectionStateMap.at(connection);
         utils::ASSERT_LOG_THROW(!connectionState.controlStream.has_value(),
                                 "Control stream already registered by connection: ", connection);
-        connectionState.controlStream = StreamState{newStreamInfo.Stream, DEFAULT_BUFFER_CAPACITY};
+        connectionState.controlStream = StreamState{
+            rvn::unique_stream(get_tbl(), newStreamInfo.Stream), DEFAULT_BUFFER_CAPACITY};
 
         StreamState &streamState = connectionState.controlStream.value();
         streamState.set_stream_context(std::make_unique<StreamContext>(this, connection));

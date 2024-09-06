@@ -146,7 +146,44 @@ static constexpr auto server_data_stream_callback = [](HQUIC dataStream, void *c
     return QUIC_STATUS_SUCCESS;
 };
 
-static constexpr auto client_connection_callback = [](HQUIC Connection, void *Context,
+// Control Stream Open Flags = QUIC_STREAM_OPEN_FLAG_NONE | QUIC_STREAM_OPEN_FLAG_0_RTT
+// Control Stream Start flags = QUIC_STREAM_START_FLAG_PRIORITY_WORK
+static constexpr auto client_control_stream_callback = []([[maybe_unused]] HQUIC controlStream,
+                                                          void *context, QUIC_STREAM_EVENT *event) {
+    StreamContext *streamContext = static_cast<StreamContext *>(context);
+    HQUIC connection = streamContext->connection;
+    MOQT *moqtObject = streamContext->moqtObject;
+
+    switch (event->Type) {
+    case QUIC_STREAM_EVENT_START_COMPLETE: {
+        // called when attempting to setup stream connection
+        break;
+    }
+    case QUIC_STREAM_EVENT_RECEIVE: {
+        // Received Control Message
+        // auto receiveInformation = event->RECEIVE;
+        auto &connectionState = moqtObject->get_connectionStateMap().at(connection);
+        moqtObject->interpret_control_message(connectionState, &(event->RECEIVE));
+        break;
+    }
+    case QUIC_STREAM_EVENT_SEND_COMPLETE: {
+        // Buffer has been sent
+
+        // client context is the context used in the QUIC send function
+        StreamSendContext *streamSendContext =
+            static_cast<StreamSendContext *>(event->SEND_COMPLETE.ClientContext);
+
+        // streamSendContext->send_complete_cb();
+        // delete streamSendContext;
+        break;
+    }
+    default:
+        break;
+    }
+    return QUIC_STATUS_SUCCESS;
+};
+
+static constexpr auto client_connection_callback = [](HQUIC connectionHandle, void *Context,
                                                       QUIC_CONNECTION_EVENT *Event) {
     MOQTClient *moqtClient = static_cast<MOQTClient *>(Context);
     const QUIC_API_TABLE *MsQuic = moqtClient->get_tbl();
@@ -156,20 +193,13 @@ static constexpr auto client_connection_callback = [](HQUIC Connection, void *Co
         //
         // The handshake has completed for the connection.
         //
-        HQUIC stream;
-                                          
-
-        StreamContext *streamContext = new StreamContext(moqtClient, Connection);
-        MsQuic->StreamOpen(Connection, QUIC_STREAM_OPEN_FLAG_NONE,
-                           moqtClient->control_stream_cb_wrapper, streamContext, &stream);
-        
-        auto &connectionState = moqtClient->connectionStateMap[Connection];
-        connectionState.controlStream = StreamState{stream, DEFAULT_BUFFER_CAPACITY};
-
-        StreamState &streamState = connectionState.controlStream.value();
-        streamState.set_stream_context(std::unique_ptr<StreamContext>(streamContext));
-
-        MsQuic->StreamStart(stream, QUIC_STREAM_START_FLAG_NONE);
+        const StreamState &streamState = moqtClient->open_and_start_new_stream(
+            {
+                connectionHandle,
+                QUIC_STREAM_OPEN_FLAG_NONE,
+                moqtClient->control_stream_cb_wrapper,
+            },
+            {QUIC_STREAM_START_FLAG_NONE});
 
         protobuf_messages::ControlMessageHeader controlMessageHeader;
         controlMessageHeader.set_messagetype(protobuf_messages::MoQtMessageType::CLIENT_SETUP);
@@ -177,7 +207,7 @@ static constexpr auto client_connection_callback = [](HQUIC Connection, void *Co
         protobuf_messages::ClientSetupMessage clientSetupMessage =
             moqtClient->get_clientSetupMessage();
 
-        moqtClient->stream_send(streamContext, stream, controlMessageHeader, clientSetupMessage);
+        moqtClient->stream_send(streamState, controlMessageHeader, clientSetupMessage);
         break;
     }
     case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
@@ -187,9 +217,9 @@ static constexpr auto client_connection_callback = [](HQUIC Connection, void *Co
         // protocol, since we let idle timeout kill the connection.
         //
         if (Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE) {
-            printf("[conn][%p] Successfully shut down on idle.\n", Connection);
+            printf("[conn][%p] Successfully shut down on idle.\n", connectionHandle);
         } else {
-            printf("[conn][%p] Shut down by transport, 0x%x\n", Connection,
+            printf("[conn][%p] Shut down by transport, 0x%x\n", connectionHandle,
                    Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
         }
         break;
@@ -197,7 +227,7 @@ static constexpr auto client_connection_callback = [](HQUIC Connection, void *Co
         //
         // The connection was explicitly shut down by the peer.
         //
-        printf("[conn][%p] Shut down by peer, 0x%llu\n", Connection,
+        printf("[conn][%p] Shut down by peer, 0x%llu\n", connectionHandle,
                (unsigned long long)Event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
         break;
     case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
@@ -205,9 +235,9 @@ static constexpr auto client_connection_callback = [](HQUIC Connection, void *Co
         // The connection has completed the shutdown process and is ready to be
         // safely cleaned up.
         //
-        printf("[conn][%p] All done\n", Connection);
+        printf("[conn][%p] All done\n", connectionHandle);
         if (!Event->SHUTDOWN_COMPLETE.AppCloseInProgress) {
-            MsQuic->ConnectionClose(Connection);
+            MsQuic->ConnectionClose(connectionHandle);
         }
         break;
     case QUIC_CONNECTION_EVENT_RESUMPTION_TICKET_RECEIVED:
@@ -215,12 +245,8 @@ static constexpr auto client_connection_callback = [](HQUIC Connection, void *Co
         // A resumption ticket (also called New Session Ticket or NST) was
         // received from the server.
         //
-        printf("[conn][%p] Resumption ticket received (%u bytes):\n", Connection,
+        printf("[conn][%p] Resumption ticket received (%u bytes):\n", connectionHandle,
                Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
-        for (uint32_t i = 0; i < Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength; i++) {
-            printf("%.2X", (uint8_t)Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicket[i]);
-        }
-        printf("\n");
         break;
     default:
         break;

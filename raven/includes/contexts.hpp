@@ -1,5 +1,6 @@
 #pragma once
 //////////////////////////////
+#include "wrappers.hpp"
 #include <msquic.h>
 //////////////////////////////
 #include <functional>
@@ -23,13 +24,19 @@ class StreamSendContext {
     // owns the QUIC_BUFFERS
     QUIC_BUFFER *buffers;
     std::uint32_t bufferCount;
-    std::function<void(StreamSendContext *)> sendCompleteCallback =
-        utils::NoOpVoid<StreamSendContext *>;
 
     // non owning reference
     const StreamContext *streamContext;
 
-    StreamSendContext(StreamContext *streamContext) : streamContext(streamContext) {};
+    std::function<void(StreamSendContext *)> sendCompleteCallback =
+        utils::NoOpVoid<StreamSendContext *>;
+
+    StreamSendContext(QUIC_BUFFER *buffers_, const std::uint32_t bufferCount_,
+                      const StreamContext *streamContext_,
+                      std::function<void(StreamSendContext *)> sendCompleteCallback_ =
+                          utils::NoOpVoid<StreamSendContext *>)
+        : buffers(buffers_), bufferCount(bufferCount_), streamContext(streamContext_),
+          sendCompleteCallback(sendCompleteCallback_) {}
 
     ~StreamSendContext() { destroy_buffers(); }
 
@@ -47,12 +54,16 @@ class StreamSendContext {
 };
 
 struct StreamState {
-    HQUIC stream;
+    rvn::unique_stream stream;
     std::size_t bufferCapacity;
     std::unique_ptr<StreamContext> streamContext{};
 
-    void set_stream_context(std::unique_ptr<StreamContext> &&streamContext) {
-        this->streamContext = std::move(streamContext);
+    template <typename... Args> void set_stream_context(Args &&...args) {
+        this->streamContext = std::make_unique<StreamContext>(std::forward<Args>(args)...);
+    }
+
+    void set_stream_context(std::unique_ptr<StreamContext> &&streamContext_) {
+        this->streamContext = std::move(streamContext_);
     }
 };
 

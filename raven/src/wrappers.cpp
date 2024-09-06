@@ -69,21 +69,4 @@ unique_configuration::unique_configuration(const QUIC_API_TABLE *tbl_,
 
 unique_configuration::unique_configuration() : unique_handler2() {}
 
-/*-------------MsQuic->Stream open and start--------------*/
-
-unique_stream::unique_stream(const QUIC_API_TABLE *tbl_, StreamOpenParams openParams,
-                             StreamStartParams startParams)
-    : unique_handler2(tbl_->StreamOpen, tbl_->StreamClose, tbl_->StreamStart
-                      /*tbl_->StreamShutdown*/) { // we do not call shutdown on stream, so causing possible issues
-    if (QUIC_FAILED(open_handler(openParams.Connection, openParams.Flags, openParams.Handler,
-                                 openParams.Context)))
-        throw std::runtime_error("StreamOpenFailure");
-
-    if (QUIC_FAILED(start_handler(startParams.Flags)))
-        throw std::runtime_error("StreamStartFailure");
-};
-
-unique_stream::unique_stream() : unique_handler2() {}
-
-/*-------------------------------------------------------*/
 }; // namespace rvn

@@ -43,7 +43,7 @@ int main() {
     moqtClient->set_connectionCb(rvn::callbacks::client_connection_callback);
     moqtClient->set_listenerCb(rvn::callbacks::client_listener_callback);
 
-    moqtClient->set_controlStreamCb(rvn::callbacks::server_control_stream_callback);
+    moqtClient->set_controlStreamCb(rvn::callbacks::client_control_stream_callback);
     moqtClient->set_dataStreamCb(rvn::callbacks::server_data_stream_callback);
 
 
