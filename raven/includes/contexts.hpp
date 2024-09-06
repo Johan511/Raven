@@ -12,6 +12,8 @@
 //////////////////////////////
 
 namespace rvn {
+enum class StreamType { CONTROL, DATA };
+
 struct StreamContext {
     class MOQT *moqtObject;
     HQUIC connection;
@@ -22,7 +24,7 @@ struct StreamContext {
 class StreamSendContext {
   public:
     // owns the QUIC_BUFFERS
-    QUIC_BUFFER *buffers;
+    QUIC_BUFFER *buffer;
     std::uint32_t bufferCount;
 
     // non owning reference
@@ -31,21 +33,24 @@ class StreamSendContext {
     std::function<void(StreamSendContext *)> sendCompleteCallback =
         utils::NoOpVoid<StreamSendContext *>;
 
-    StreamSendContext(QUIC_BUFFER *buffers_, const std::uint32_t bufferCount_,
+    StreamSendContext(QUIC_BUFFER *buffer_, const std::uint32_t bufferCount_,
                       const StreamContext *streamContext_,
                       std::function<void(StreamSendContext *)> sendCompleteCallback_ =
                           utils::NoOpVoid<StreamSendContext *>)
-        : buffers(buffers_), bufferCount(bufferCount_), streamContext(streamContext_),
-          sendCompleteCallback(sendCompleteCallback_) {}
+        : buffer(buffer_), bufferCount(bufferCount_), streamContext(streamContext_),
+          sendCompleteCallback(sendCompleteCallback_) {
+        if (bufferCount != 1)
+            LOGE("StreamSendContext can only have one buffer");
+    }
 
     ~StreamSendContext() { destroy_buffers(); }
 
-    std::tuple<QUIC_BUFFER *, std::uint32_t> get_buffers() { return {buffers, bufferCount}; }
+    std::tuple<QUIC_BUFFER *, std::uint32_t> get_buffers() { return {buffer, bufferCount}; }
     void destroy_buffers() {
-        for (std::size_t i = 0; i < bufferCount; i++) {
-            free(buffers[i].Buffer);
-        }
-        buffers = nullptr;
+        //  bufferCount is always 1
+        // the way we allocate buffers is  malloc(sizeof(QUIC_BUFFER)) and this becomes our
+        // (QUIC_BUFFER *) buffers
+        free(buffer);
         bufferCount = 0;
     }
 

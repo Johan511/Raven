@@ -97,8 +97,8 @@ static constexpr auto server_control_stream_callback = []([[maybe_unused]] HQUIC
         StreamSendContext *streamSendContext =
             static_cast<StreamSendContext *>(event->SEND_COMPLETE.ClientContext);
 
-        // streamSendContext->send_complete_cb();
-        // delete streamSendContext;
+        streamSendContext->send_complete_cb();
+        delete streamSendContext;
         break;
     }
     default:
@@ -108,8 +108,7 @@ static constexpr auto server_control_stream_callback = []([[maybe_unused]] HQUIC
 };
 
 // Data Stream Open Flags = QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL
-// Data Stream Start flags = QUIC_STREAM_START_FLAG_FAIL_BLOCKED |
-// QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL
+// Data Stream Start flags = QUIC_STREAM_START_FLAG_FAIL_BLOCKED | QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL
 static constexpr auto server_data_stream_callback = [](HQUIC dataStream, void *context,
                                                        QUIC_STREAM_EVENT *event) {
     StreamContext *streamContext = static_cast<StreamContext *>(context);
@@ -136,8 +135,8 @@ static constexpr auto server_data_stream_callback = [](HQUIC dataStream, void *c
         StreamSendContext *streamSendContext =
             static_cast<StreamSendContext *>(event->SEND_COMPLETE.ClientContext);
 
-        // streamSendContext->send_complete_cb();
-        // delete streamSendContext;
+        streamSendContext->send_complete_cb();
+        delete streamSendContext;
         break;
     }
     default:
@@ -173,8 +172,8 @@ static constexpr auto client_control_stream_callback = []([[maybe_unused]] HQUIC
         StreamSendContext *streamSendContext =
             static_cast<StreamSendContext *>(event->SEND_COMPLETE.ClientContext);
 
-        // streamSendContext->send_complete_cb();
-        // delete streamSendContext;
+        streamSendContext->send_complete_cb();
+        delete streamSendContext;
         break;
     }
     default:
@@ -196,10 +195,10 @@ static constexpr auto client_connection_callback = [](HQUIC connectionHandle, vo
         const StreamState &streamState = moqtClient->open_and_start_new_stream(
             {
                 connectionHandle,
-                QUIC_STREAM_OPEN_FLAG_NONE,
+                QUIC_STREAM_OPEN_FLAG_0_RTT,
                 moqtClient->control_stream_cb_wrapper,
             },
-            {QUIC_STREAM_START_FLAG_NONE});
+            {QUIC_STREAM_START_FLAG_PRIORITY_WORK}, StreamType::CONTROL);
 
         protobuf_messages::ControlMessageHeader controlMessageHeader;
         controlMessageHeader.set_messagetype(protobuf_messages::MoQtMessageType::CLIENT_SETUP);

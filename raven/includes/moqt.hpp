@@ -224,29 +224,31 @@ class MOQT {
             new StreamSendContext(sendBuffer, bufferCount, streamState.streamContext.get());
 
         QUIC_STATUS status =
-            get_tbl()->StreamSend(streamHandle, sendBuffer, 1, QUIC_SEND_FLAG_FIN, nullptr);
+            get_tbl()->StreamSend(streamHandle, sendBuffer, 1, QUIC_SEND_FLAG_FIN, streamSendContext);
 
         return status;
     }
 
   private:
-    class StartParams_open_and_start_new_stream;
-    class OpenParams_open_and_start_new_stream {
-      public:
-        HQUIC connectionHandle;
-        QUIC_STREAM_OPEN_FLAGS openFlags;
-        QUIC_STREAM_CALLBACK_HANDLER streamCb;
-    };
+    struct open_and_start_new_stream_params {
+        class OpenParams {
+          public:
+            HQUIC connectionHandle;
+            QUIC_STREAM_OPEN_FLAGS openFlags;
+            QUIC_STREAM_CALLBACK_HANDLER streamCb;
+        };
 
-    class StartParams_open_and_start_new_stream {
-      public:
-        QUIC_STREAM_START_FLAGS startFlags;
+        class StartParams {
+          public:
+            QUIC_STREAM_START_FLAGS startFlags;
+        };
     };
 
   public:
     const StreamState &
-    open_and_start_new_stream(OpenParams_open_and_start_new_stream openParams,
-                              StartParams_open_and_start_new_stream startParams) {
+    open_and_start_new_stream(open_and_start_new_stream_params::OpenParams openParams,
+                              open_and_start_new_stream_params::StartParams startParams,
+                              StreamType streamType) {
         HQUIC connectionHandle = openParams.connectionHandle;
         StreamContext *streamContext = new StreamContext(this, openParams.connectionHandle);
 
@@ -256,12 +258,22 @@ class MOQT {
             {startParams.startFlags});
 
         auto &connectionState = this->connectionStateMap[connectionHandle];
-        connectionState.controlStream = StreamState{std::move(stream), DEFAULT_BUFFER_CAPACITY};
+        StreamState *streamState = nullptr;
 
-        StreamState &streamState = connectionState.controlStream.value();
-        streamState.set_stream_context(std::unique_ptr<StreamContext>(streamContext));
+        switch (streamType) {
+        case StreamType::CONTROL:
+            connectionState.controlStream = StreamState{std::move(stream), DEFAULT_BUFFER_CAPACITY};
+            streamState = &connectionState.controlStream.value();
+            break;
+        case StreamType::DATA:
+            connectionState.dataStreams.emplace_back(std::move(stream), DEFAULT_BUFFER_CAPACITY);
+            streamState = &connectionState.dataStreams.back();
+            break;
+        }
 
-        return streamState;
+        streamState->set_stream_context(std::unique_ptr<StreamContext>(streamContext));
+
+        return *streamState;
     }
 
     // auto is used as parameter because there is no named type for receive information
@@ -425,6 +437,14 @@ class MOQTServer : public MOQT {
 
         // registering stream can not fail
         return QUIC_STATUS_SUCCESS;
+    }
+
+    void send_stream_object(HQUIC connectionHandle, std::istream &istream) {
+        ConnectionState &connectionState = connectionStateMap.at(connectionHandle);
+        const StreamState &streamState = open_and_start_new_stream(
+            {connectionHandle, QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL, MOQT::data_stream_cb_wrapper},
+            {QUIC_STREAM_START_FLAG_FAIL_BLOCKED | QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL},
+            StreamType::DATA);
     }
 };
 
