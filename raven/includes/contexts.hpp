@@ -78,6 +78,11 @@ struct ConnectionState {
     std::vector<StreamState> dataStreams{};
     std::string path;
     protobuf_messages::Role peerRole;
+
+    bool check_subscription(const protobuf_messages::SubscribeMessage &subscribeMessage) {
+        // TODO: check if subscription data exists and if we are authenticated to get it
+        return true;
+    }
 };
 
 } // namespace rvn

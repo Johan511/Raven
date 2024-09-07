@@ -1,6 +1,12 @@
 #pragma once
 
+
+// TODO: automate this instead of manual includes
 #include <setup_messages.pb.h>
+#include <object_messages.pb.h>
+#include <message_type.pb.h>
+#include <subscribe_messages.pb.h>
+
 
 namespace rvn::messages {
 

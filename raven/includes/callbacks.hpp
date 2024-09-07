@@ -87,7 +87,7 @@ static constexpr auto server_control_stream_callback = []([[maybe_unused]] HQUIC
         // Received Control Message
         // auto receiveInformation = event->RECEIVE;
         auto &connectionState = moqtObject->get_connectionStateMap().at(connection);
-        moqtObject->interpret_control_message(connectionState, &(event->RECEIVE));
+        moqtObject->interpret_message(connectionState, controlStream, &(event->RECEIVE));
         break;
     }
     case QUIC_STREAM_EVENT_SEND_COMPLETE: {
@@ -108,7 +108,8 @@ static constexpr auto server_control_stream_callback = []([[maybe_unused]] HQUIC
 };
 
 // Data Stream Open Flags = QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL
-// Data Stream Start flags = QUIC_STREAM_START_FLAG_FAIL_BLOCKED | QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL
+// Data Stream Start flags = QUIC_STREAM_START_FLAG_FAIL_BLOCKED |
+// QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL
 static constexpr auto server_data_stream_callback = [](HQUIC dataStream, void *context,
                                                        QUIC_STREAM_EVENT *event) {
     StreamContext *streamContext = static_cast<StreamContext *>(context);
@@ -125,7 +126,7 @@ static constexpr auto server_data_stream_callback = [](HQUIC dataStream, void *c
         // Received Data Message
         // auto receiveInformation = event->RECEIVE;
         auto &connectionState = moqtObject->get_connectionStateMap().at(connection);
-        moqtObject->interpret_data_message(connectionState, dataStream, &(event->RECEIVE));
+        moqtObject->interpret_message(connectionState, dataStream, &(event->RECEIVE));
         break;
     }
     case QUIC_STREAM_EVENT_SEND_COMPLETE: {
@@ -162,7 +163,7 @@ static constexpr auto client_control_stream_callback = []([[maybe_unused]] HQUIC
         // Received Control Message
         // auto receiveInformation = event->RECEIVE;
         auto &connectionState = moqtObject->get_connectionStateMap().at(connection);
-        moqtObject->interpret_control_message(connectionState, &(event->RECEIVE));
+        moqtObject->interpret_message(connectionState, controlStream, &(event->RECEIVE));
         break;
     }
     case QUIC_STREAM_EVENT_SEND_COMPLETE: {
@@ -198,15 +199,15 @@ static constexpr auto client_connection_callback = [](HQUIC connectionHandle, vo
                 QUIC_STREAM_OPEN_FLAG_0_RTT,
                 moqtClient->control_stream_cb_wrapper,
             },
-            {QUIC_STREAM_START_FLAG_PRIORITY_WORK}, StreamType::CONTROL);
+            {QUIC_STREAM_START_FLAG_PRIORITY_WORK});
 
-        protobuf_messages::ControlMessageHeader controlMessageHeader;
-        controlMessageHeader.set_messagetype(protobuf_messages::MoQtMessageType::CLIENT_SETUP);
+        protobuf_messages::MessageHeader messageHeader;
+        messageHeader.set_messagetype(protobuf_messages::MoQtMessageType::CLIENT_SETUP);
 
         protobuf_messages::ClientSetupMessage clientSetupMessage =
             moqtClient->get_clientSetupMessage();
 
-        moqtClient->stream_send(streamState, controlMessageHeader, clientSetupMessage);
+        moqtClient->stream_send(streamState, messageHeader, clientSetupMessage);
         break;
     }
     case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:

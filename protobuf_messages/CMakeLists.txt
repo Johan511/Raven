@@ -4,9 +4,25 @@ function(get_all_proto_files directory result)
     set(${result} ${files} PARENT_SCOPE)
 endfunction()
 
-function(get_all_proto_cc_files directory result)
-    file(GLOB files "${directory}/*.pb.cc")
-    set(${result} ${files} PARENT_SCOPE)
+function(get_proto_cc_files proto_files proto_cc_files)
+    set(${proto_cc_files} "" PARENT_SCOPE)
+    foreach(item IN LISTS ${proto_files})
+        get_filename_component(file_name "${item}" NAME_WE)
+        message("file_name: ${file_name}")
+        set(cc_file "${CMAKE_CURRENT_BINARY_DIR}/${file_name}.pb.cc")
+        list(APPEND result_list "${cc_file}")
+    endforeach()
+    set(${proto_cc_files} "${result_list}" PARENT_SCOPE)
+endfunction()
+
+function(get_proto_h_files proto_files proto_h_files)
+    set(${proto_h_files} "" PARENT_SCOPE)
+    foreach(item IN LISTS ${proto_files})
+        get_filename_component(file_name "${item}" NAME_WE)
+        set(h_file "${CMAKE_CURRENT_BINARY_DIR}/${file_name}.pb.h")
+        list(APPEND result_list "${h_file}")
+    endforeach()
+    set(${proto_h_files} "${result_list}" PARENT_SCOPE)
 endfunction()
 
 function(get_all_proto_h_files directory result)
@@ -14,10 +30,6 @@ function(get_all_proto_h_files directory result)
     set(${result} ${files} PARENT_SCOPE)
 endfunction()
 
-function(get_all_proto_archive_files directory result)
-    file(GLOB files "${directory}/*.a")
-    set(${result} ${files} PARENT_SCOPE)
-endfunction()
 
 function(move_files FILES DESTINATION_DIR)
     if(EXISTS "${DESTINATION_DIR}")
@@ -37,24 +49,32 @@ function(move_files FILES DESTINATION_DIR)
 endfunction()
 # -------------------------------------------------------------------------------
 
-set(PROTOBUF_BINARY_DIR "${CMAKE_BINARY_DIR}/submodules/protobuf")
-set(PROTOC "${PROTOBUF_BINARY_DIR}/protoc")
+set(PROTOBUF_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+set(PROTOC "${CMAKE_BINARY_DIR}/submodules/protobuf/protoc")
 set(PROTOBUF_MESSAGES_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
 get_all_proto_files(${CMAKE_CURRENT_SOURCE_DIR} PROTO_FILES)
+
+get_proto_cc_files(PROTO_FILES PROTO_CC_FILES)
+get_proto_h_files(PROTO_FILES PROTO_H_FILES)
+
 MESSAGE("PROTO FILES: ${PROTO_FILES}")
+MESSAGE("PROTO CC FILES: ${PROTO_CC_FILES}")
+MESSAGE("PROTO H FILES: ${PROTO_H_FILES}")
 
 add_custom_command(
-    OUTPUT ${PROTOBUF_BINARY_DIR}/setup_messages.pb.cc ${PROTOBUF_BINARY_DIR}/setup_messages.pb.h 
+    OUTPUT ${PROTO_CC_FILES} ${PROTO_H_FILES}
     COMMAND ${PROTOC} -I ${PROTOBUF_MESSAGES_DIR} --cpp_out=${PROTOBUF_BINARY_DIR} ${PROTO_FILES}
     DEPENDS ${PROTO_FILES}
     VERBATIM
 )
 
-# compile .proto files to .pb.cc and .pb.h
-add_custom_target(ProtoFilesCompilation DEPENDS protobuf::protoc ${PROTOBUF_BINARY_DIR}/setup_messages.pb.cc ${PROTOBUF_BINARY_DIR}/setup_messages.pb.h)
+# TODO: libraven.a(setup_messages.pb.cc.o):/home/hhn/cs/raven/build/submodules/protobuf/setup_messages.pb.cc:335:(.rodata+0x1080): undefined reference to `descriptor_table_message_5ftype_2eproto'
 
-add_library(protobuf_messages OBJECT ${PROTOBUF_BINARY_DIR}/setup_messages.pb.cc) 
+# compile .proto files to .pb.cc and .pb.h
+add_custom_target(ProtoFilesCompilation DEPENDS protobuf::protoc ${PROTO_CC_FILES} ${PROTO_H_FILES})
+
+add_library(protobuf_messages OBJECT ${PROTO_CC_FILES}) 
 add_dependencies(protobuf_messages ProtoFilesCompilation)
 target_include_directories(protobuf_messages SYSTEM PUBLIC ${PROTOBUF_BINARY_DIR})
 target_link_libraries(protobuf_messages PUBLIC protobuf::libprotobuf)

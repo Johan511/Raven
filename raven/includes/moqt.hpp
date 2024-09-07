@@ -196,6 +196,7 @@ class MOQT {
         return connectionStateMap;
     }
 
+  public:
     // always sends only one buffer
     template <typename... Args>
     QUIC_STATUS stream_send(const StreamState &streamState, Args &&...args) {
@@ -223,13 +224,155 @@ class MOQT {
         StreamSendContext *streamSendContext =
             new StreamSendContext(sendBuffer, bufferCount, streamState.streamContext.get());
 
-        QUIC_STATUS status =
-            get_tbl()->StreamSend(streamHandle, sendBuffer, 1, QUIC_SEND_FLAG_FIN, streamSendContext);
+        QUIC_STATUS status = get_tbl()->StreamSend(streamHandle, sendBuffer, 1, QUIC_SEND_FLAG_FIN,
+                                                   streamSendContext);
 
         return status;
     }
 
-  private:
+    // auto is used as parameter because there is no named type for receive information
+    // it is an anonymous structure
+    /*
+        type of recieve information is
+        struct {
+            uint64_t AbsoluteOffset;
+            uint64_t TotalBufferLength;
+            _Field_size_(BufferCount)
+            const QUIC_BUFFER* Buffers;
+            _Field_range_(0, UINT32_MAX)
+            uint32_t BufferCount;
+            QUIC_RECEIVE_FLAGS Flags;
+        }
+    */
+    void interpret_message(ConnectionState &connectionState, HQUIC streamHandle,
+                           const auto *receiveInformation) {
+        utils::ASSERT_LOG_THROW(connectionState.controlStream.has_value(),
+                                "Trying to interpret control message without control stream");
+
+        const QUIC_BUFFER *buffers = receiveInformation->Buffers;
+
+        std::istringstream iStringStream(
+            std::string(reinterpret_cast<const char *>(buffers[0].Buffer), buffers[0].Length));
+
+        google::protobuf::io::IstreamInputStream istream(&iStringStream);
+
+        protobuf_messages::MessageHeader header =
+            serialization::deserialize<protobuf_messages::MessageHeader>(istream);
+
+        /* TODO, split into client and server interpret functions helps reduce the number of
+         * branches NOTE: This is the message received, which means that the client will interpret
+         * the server's message and vice verse CLIENT_SETUP is received by server and SERVER_SETUP
+         * is received by client
+         */
+
+        StreamState &streamState = *get_stream_state(connectionState.connection, streamHandle);
+        switch (header.messagetype()) {
+        case protobuf_messages::MoQtMessageType::CLIENT_SETUP: {
+            // CLIENT sends to SERVER
+
+            protobuf_messages::ClientSetupMessage clientSetupMessage =
+                serialization::deserialize<protobuf_messages::ClientSetupMessage>(istream);
+
+            auto &supportedversions = clientSetupMessage.supportedversions();
+            auto matchingVersionIter =
+                std::find(supportedversions.begin(), supportedversions.end(), version);
+
+            if (matchingVersionIter == supportedversions.end()) {
+                // TODO
+                // destroy connection
+                // connectionState.destroy_connection();
+                return;
+            }
+
+            std::size_t iterIdx = std::distance(supportedversions.begin(), matchingVersionIter);
+            auto &params = clientSetupMessage.parameters()[iterIdx];
+            connectionState.path = std::move(params.path().path());
+            connectionState.peerRole = params.role().role();
+
+            utils::LOG_EVENT(std::cout, "Client Setup Message received: \n",
+                             clientSetupMessage.DebugString());
+
+            // send SERVER_SETUP message
+            protobuf_messages::MessageHeader serverSetupHeader;
+            serverSetupHeader.set_messagetype(protobuf_messages::MoQtMessageType::SERVER_SETUP);
+
+            protobuf_messages::ServerSetupMessage serverSetupMessage;
+            serverSetupMessage.add_parameters()->mutable_role()->set_role(
+                protobuf_messages::Role::Publisher);
+            stream_send(streamState, serverSetupHeader, serverSetupMessage);
+
+            break;
+        }
+        case protobuf_messages::MoQtMessageType::SERVER_SETUP: {
+            // SERVER sends to CLIENT
+            protobuf_messages::ServerSetupMessage serverSetupMessage =
+                serialization::deserialize<protobuf_messages::ServerSetupMessage>(istream);
+
+            utils::ASSERT_LOG_THROW(connectionState.path.size() == 0,
+                                    "Server must now use the path parameter");
+            utils::ASSERT_LOG_THROW(
+                serverSetupMessage.parameters().size() > 0,
+                "SERVER_SETUP sent no parameters, requires atleast role parameter");
+
+            utils::LOG_EVENT(std::cout,
+                             "Server Setup Message received: ", serverSetupMessage.DebugString());
+
+            connectionState.peerRole = serverSetupMessage.parameters()[0].role().role();
+
+            break;
+        }
+        case protobuf_messages::MoQtMessageType::SUBSCRIBE: {
+            /*
+            SUBSCRIBE Message {
+              Subscribe ID (i),
+              Track Alias (i),
+              Group ID (i),
+              Object ID (i),
+              Publisher Priority (8),
+              Object Status (i),
+              Object Payload (..),
+            }
+            */
+
+            protobuf_messages::SubscribeMessage subscribeMessage =
+                serialization::deserialize<protobuf_messages::SubscribeMessage>(istream);
+            // TOOO
+            // if (connectionState.check_subscription(subscribeMessage))
+                // streamState.register_subscription(subscribeMessage);
+
+            utils::LOG_EVENT(std::cout, "Subscribe Message received: \n",
+                             subscribeMessage.DebugString());
+
+            break;
+        }
+        case protobuf_messages::MoQtMessageType::OBJECT_STREAM: {
+            /*
+            OBJECT_STREAM Message {
+              Subscribe ID (i),
+              Track Alias (i),
+              Group ID (i),
+              Object ID (i),
+              Publisher Priority (8),
+              Object Status (i),
+              Object Payload (..),
+            }
+            */
+
+            protobuf_messages::ObjectStreamMessage objectStreamMessage =
+                serialization::deserialize<protobuf_messages::ObjectStreamMessage>(istream);
+
+            std::cout << "ObjectPayload: \n" << objectStreamMessage.objectpayload() << std::endl;
+
+            break;
+        }
+        default:
+            LOGE("Unknown control message type", header.messagetype());
+        }
+    }
+
+  protected:
+    MOQT();
+
     struct open_and_start_new_stream_params {
         class OpenParams {
           public:
@@ -244,7 +387,6 @@ class MOQT {
         };
     };
 
-  public:
     const StreamState &
     open_and_start_new_stream(open_and_start_new_stream_params::OpenParams openParams,
                               open_and_start_new_stream_params::StartParams startParams,
@@ -276,109 +418,6 @@ class MOQT {
         return *streamState;
     }
 
-    // auto is used as parameter because there is no named type for receive information
-    // it is an anonymous structure
-    /*
-        type of recieve information is
-        struct {
-            uint64_t AbsoluteOffset;
-            uint64_t TotalBufferLength;
-            _Field_size_(BufferCount)
-            const QUIC_BUFFER* Buffers;
-            _Field_range_(0, UINT32_MAX)
-            uint32_t BufferCount;
-            QUIC_RECEIVE_FLAGS Flags;
-        }
-    */
-    void interpret_control_message(ConnectionState &connectionState,
-                                   const auto *receiveInformation) {
-        utils::ASSERT_LOG_THROW(connectionState.controlStream.has_value(),
-                                "Trying to interpret control message without control stream");
-
-        const QUIC_BUFFER *buffers = receiveInformation->Buffers;
-
-        std::istringstream iStringStream(
-            std::string(reinterpret_cast<const char *>(buffers[0].Buffer), buffers[0].Length));
-
-        google::protobuf::io::IstreamInputStream istream(&iStringStream);
-
-        protobuf_messages::ControlMessageHeader header =
-            serialization::deserialize<protobuf_messages::ControlMessageHeader>(istream);
-
-        /* TODO, split into client and server interpret functions helps reduce the number of
-         * branches NOTE: This is the message received, which means that the client will interpret
-         * the server's message and vice verse CLIENT_SETUP is received by server and SERVER_SETUP
-         * is received by client
-         */
-
-        StreamState &streamState = connectionState.controlStream.value();
-        HQUIC stream = connectionState.controlStream.value().stream.get();
-        switch (header.messagetype()) {
-        case protobuf_messages::MoQtMessageType::CLIENT_SETUP: {
-            // CLIENT sends to SERVER
-
-            protobuf_messages::ClientSetupMessage clientSetupMessage =
-                serialization::deserialize<protobuf_messages::ClientSetupMessage>(istream);
-
-            auto &supportedversions = clientSetupMessage.supportedversions();
-            auto matchingVersionIter =
-                std::find(supportedversions.begin(), supportedversions.end(), version);
-
-            if (matchingVersionIter == supportedversions.end()) {
-                // TODO
-                // destroy connection
-                // connectionState.destroy_connection();
-                return;
-            }
-
-            std::size_t iterIdx = std::distance(supportedversions.begin(), matchingVersionIter);
-            auto &params = clientSetupMessage.parameters()[iterIdx];
-            connectionState.path = std::move(params.path().path());
-            connectionState.peerRole = params.role().role();
-
-            utils::LOG_EVENT(std::cout, "Client Setup Message received: \n",
-                             clientSetupMessage.DebugString());
-
-            // send SERVER_SETUP message
-            protobuf_messages::ControlMessageHeader serverSetupHeader;
-            serverSetupHeader.set_messagetype(protobuf_messages::MoQtMessageType::SERVER_SETUP);
-
-            protobuf_messages::ServerSetupMessage serverSetupMessage;
-            serverSetupMessage.add_parameters()->mutable_role()->set_role(connectionState.peerRole);
-            stream_send(streamState, serverSetupHeader, serverSetupMessage);
-
-            break;
-        }
-        case protobuf_messages::MoQtMessageType::SERVER_SETUP: {
-            // SERVER sends to CLIENT
-            protobuf_messages::ServerSetupMessage serverSetupMessage =
-                serialization::deserialize<protobuf_messages::ServerSetupMessage>(istream);
-
-            utils::ASSERT_LOG_THROW(connectionState.path.size() == 0,
-                                    "Server must now use the path parameter");
-            utils::ASSERT_LOG_THROW(
-                serverSetupMessage.parameters().size() > 0,
-                "SERVER_SETUP sent no parameters, requires atleast role parameter");
-            connectionState.peerRole = serverSetupMessage.parameters()[0].role().role();
-
-            utils::LOG_EVENT(std::cout,
-                             "Server Setup Message received: ", serverSetupMessage.DebugString());
-            break;
-        }
-        default:
-            LOGE("Unknown control message type", header.messagetype());
-        }
-    }
-
-    void interpret_data_message(ConnectionState &connectionState, HQUIC dataStream,
-                                const auto *receiveInformation) {
-        if (!connectionState.controlStream.has_value())
-            LOGE("Trying to interpret control message without control stream");
-    }
-
-  protected:
-    MOQT();
-
   public:
     ~MOQT() { google::protobuf::ShutdownProtobufLibrary(); }
 };
@@ -390,6 +429,13 @@ class MOQTServer : public MOQT {
     MOQTServer();
 
     void start_listener(QUIC_ADDR *LocalAddress);
+
+    const StreamState &
+    open_and_start_new_stream(open_and_start_new_stream_params::OpenParams openParams,
+                              open_and_start_new_stream_params::StartParams startParams) {
+        // Server can only start data stream
+        return MOQT::open_and_start_new_stream(openParams, startParams, StreamType::DATA);
+    }
 
     /*
         decltype(newConnectionInfo) is
@@ -443,8 +489,7 @@ class MOQTServer : public MOQT {
         ConnectionState &connectionState = connectionStateMap.at(connectionHandle);
         const StreamState &streamState = open_and_start_new_stream(
             {connectionHandle, QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL, MOQT::data_stream_cb_wrapper},
-            {QUIC_STREAM_START_FLAG_FAIL_BLOCKED | QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL},
-            StreamType::DATA);
+            {QUIC_STREAM_START_FLAG_FAIL_BLOCKED | QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL});
     }
 };
 
@@ -466,6 +511,28 @@ class MOQTClient : public MOQT {
         param1->mutable_role()->set_role(protobuf_messages::Role::Subscriber);
 
         return clientSetupMessage;
+    }
+
+    QUIC_STATUS register_data_stream(HQUIC connection, auto newStreamInfo) {
+        ConnectionState &connectionState = connectionStateMap.at(connection);
+        connectionState.dataStreams.emplace_back(
+            rvn::unique_stream(get_tbl(), newStreamInfo.Stream), DEFAULT_BUFFER_CAPACITY);
+
+        StreamState &streamState = connectionState.dataStreams.back();
+        streamState.set_stream_context(std::make_unique<StreamContext>(this, connection));
+        this->get_tbl()->SetCallbackHandler(newStreamInfo.Stream,
+                                            (void *)MOQT::control_stream_cb_wrapper,
+                                            (void *)streamState.streamContext.get());
+
+        // registering stream can not fail
+        return QUIC_STATUS_SUCCESS;
+    }
+
+    const StreamState &
+    open_and_start_new_stream(open_and_start_new_stream_params::OpenParams openParams,
+                              open_and_start_new_stream_params::StartParams startParams) {
+        // Client can only start control stream
+        return MOQT::open_and_start_new_stream(openParams, startParams, StreamType::CONTROL);
     }
 };
 } // namespace rvn

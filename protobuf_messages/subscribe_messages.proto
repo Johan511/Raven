@@ -1,0 +1,77 @@
+syntax="proto3";
+package protobuf_messages;
+
+enum SubscribeFilter
+{
+    SubscribeFilterZero = 0x0; // unused, exists only due to protobuf reasons
+    LatestGroup = 0x1;
+    LatestObject = 0x2; 
+    AbsoluteStart = 0x3; 
+    AbsoluteRange = 0x4; 
+};
+
+message SubscribeParameter
+{};
+
+
+message SubscribeMessage
+{
+   
+    uint64 SubscribeID = 1;
+    uint64 TrackAlias = 2;
+    string TrackNamespace = 3;
+    string TrackName = 4;
+    uint32 SubscriberPriority = 5; // should be 8 bits
+    uint32 GroupOrder = 6; // should be 8 bits
+    SubscribeFilter FilterType = 7;
+    optional uint64 StartGroup = 8;
+    optional uint64 StartObject = 9;
+    optional uint64 EndGroup = 10;
+    optional uint64 EndObject = 11;
+    uint64 NumParameters = 12;
+    repeated SubscribeParameter parameters = 13;
+};
+
+
+message SubscribeUpdateMessage {
+  uint64 SubscribeId = 1;
+  uint64 StartGroup = 2;
+  uint64 StartObject = 3;
+  uint64 EndGroup = 4;
+  uint64 EndObject = 5;
+  uint32 SubscriberPriority = 6; // should be 8 bit
+  uint64 numParameters = 7;
+  repeated SubscribeParameter parameters = 8;
+};
+
+message UnSubscribeMessage {
+  uint64 SubscribeId = 1;
+};
+
+message SubscribeOkMessage
+{
+  uint64 SubscribeId = 1;
+  uint64 Expires = 2;
+  uint32 GroupOrder = 3; // should be 8bit
+  bool ContentExists = 4;
+  optional uint64 LargestGroupId = 5;
+  optional uint64 LargestObjectId = 6;
+};
+
+message SubscribeErrorMessage
+{
+  uint64 SubscribeId = 1;
+  uint64 ErrorCode = 2;
+  string ReasonPhrase = 3;
+  uint64 TrackAlias = 4;
+};
+
+message SubscribeDoneMessage {
+  uint64 SubscribeId = 1;
+  uint64 StatusCode = 2;
+  string ReasonPhrase = 3;
+  bool ContentExists = 4;
+  optional uint64 FinalGroup = 5;
+  optional uint64 FinalObject = 6;
+}
+

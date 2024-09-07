@@ -1,0 +1,38 @@
+syntax="proto3";
+package protobuf_messages;
+
+message ObjectStreamMessage {
+    uint64 subscribeId = 1;
+    uint64 trackAlias = 2;
+    uint64 groupId = 3;
+    uint64 objectId = 4;
+    uint32 publisherPriority = 5; // should be uint8, but proto does not support it
+    uint64 objectStatus = 6;
+    bytes objectPayload = 7;
+};
+
+
+message ObjectDatagramMessage {
+    uint64 subscribeId = 1;
+    uint64 trackAlias = 2;
+    uint64 groupId = 3;
+    uint64 objectId = 4;
+    uint32 publisherPriority = 5; // should be uint8, but proto does not support it
+    uint64 objectStatus = 6;
+    bytes objectPayload = 7;
+}
+
+message StreamHeaderTrackMessage {
+    uint64 SubscribeId = 1;
+    uint64 TrackAlias = 2;
+    uint32 PublisherPriority = 3; // should be uint8, but proto does not support it
+}
+
+// Why do https://www.ietf.org/archive/id/draft-ietf-moq-transport-05.html#figure-14 (and 15) have no typename
+
+message StreamHeaderGroupMessage{
+    uint64 SubscribeId = 1;
+    uint64 TrackAlias = 2;
+    uint64 GroupId = 3;
+    uint32 PublisherPriority = 4; // should be uint8, but proto does not support it
+}
