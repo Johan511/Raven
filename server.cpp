@@ -20,8 +20,8 @@ typedef struct QUIC_CREDENTIAL_CONFIG_HELPER {
 } QUIC_CREDENTIAL_CONFIG_HELPER;
 
 QUIC_CREDENTIAL_CONFIG *get_cred_config() {
-    const char *CertFile = RAVEN_CERT_FILE;
-    const char *KeyFile = RAVEN_KEY_FILE;
+    const char *CertFile = RAVEN_CERT_FILE_PATH;
+    const char *KeyFile = RAVEN_KEY_FILE_PATH;
     QUIC_CREDENTIAL_CONFIG_HELPER *Config =
         (QUIC_CREDENTIAL_CONFIG_HELPER *)malloc(sizeof(QUIC_CREDENTIAL_CONFIG_HELPER));
 

@@ -48,6 +48,7 @@ int main() {
 
 
     moqtClient->start_connection(QUIC_ADDRESS_FAMILY_UNSPEC, Target, UdpPort);
+    moqtClient->subscribe();
 
     {
         char c;

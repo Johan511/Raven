@@ -40,6 +40,9 @@ template <typename Ctor, typename Dtor> class unique_handler1 {
     unique_handler1 &operator=(const unique_handler1 &) = delete;
 
     unique_handler1(unique_handler1 &&rhs) {
+        if (this == &rhs)
+            return;
+
         reset();
         // take ownership
         handler = rhs.handler;
@@ -51,6 +54,9 @@ template <typename Ctor, typename Dtor> class unique_handler1 {
     }
 
     unique_handler1 &operator=(unique_handler1 &&rhs) {
+        if (this == &rhs)
+            return *this;
+        
         reset();
         // take ownership
         handler = rhs.handler;
@@ -119,6 +125,9 @@ class unique_handler2 {
     unique_handler2 &operator=(const unique_handler2 &) = delete;
 
     unique_handler2(unique_handler2 &&rhs) {
+        if (this == &rhs)
+            return;
+
         reset();
         // take ownership
         handler = rhs.handler;
@@ -133,6 +142,9 @@ class unique_handler2 {
     }
 
     unique_handler2 &operator=(unique_handler2 &&rhs) {
+        if (this == &rhs)
+            return *this;
+
         reset();
         // take ownership
         handler = rhs.handler;

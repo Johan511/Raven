@@ -3,7 +3,9 @@
 #include <msquic.h>
 ////////////////////////////////////////////
 #include <cstdint>
+#include <fstream>
 #include <functional>
+#include <ostream>
 #include <sstream>
 #include <unordered_map>
 ////////////////////////////////////////////
@@ -195,6 +197,44 @@ class MOQT {
     std::unordered_map<HQUIC, ConnectionState> &get_connectionStateMap() {
         return connectionStateMap;
     }
+    struct GetPayloadStreamError {
+        std::uint8_t errc = 0;
+    };
+
+    auto get_payload_stream(ConnectionState &connectionState,
+                            const protobuf_messages::SubscribeMessage &subscribeMessage) {
+
+        std::ifstream *payloadStream = new std::ifstream();
+        payloadStream->open(DUMMY_PAYLOAD_FILE_PATH, std::ios::in);
+
+        GetPayloadStreamError errorInfo;
+
+        return std::make_pair(payloadStream, errorInfo);
+    }
+
+    void register_subscription(StreamState &streamState,
+                               const protobuf_messages::SubscribeMessage &subscribeMessage,
+                               std::istream *payloadStream) {
+        protobuf_messages::MessageHeader header;
+        header.set_messagetype(protobuf_messages::MoQtMessageType::OBJECT_STREAM);
+
+        protobuf_messages::ObjectStreamMessage objectStreamMessage;
+        // <DummyValues>
+        objectStreamMessage.set_subscribeid(1);
+        objectStreamMessage.set_trackalias(1);
+        objectStreamMessage.set_groupid(1);
+        objectStreamMessage.set_objectid(1);
+        objectStreamMessage.set_publisherpriority(1);
+        objectStreamMessage.set_objectstatus(1);
+        // </DummyValues>
+        std::stringstream objectStreamMessageStream;
+        objectStreamMessageStream << payloadStream->rdbuf();
+        objectStreamMessage.set_objectpayload(objectStreamMessageStream.str());
+
+        stream_send(streamState, header, objectStreamMessage);
+    }
+    void send_subscription_ok(ConnectionState &connectionState,
+                              const protobuf_messages::SubscribeMessage &subscribeMessage) {}
 
   public:
     // always sends only one buffer
@@ -322,23 +362,61 @@ class MOQT {
             break;
         }
         case protobuf_messages::MoQtMessageType::SUBSCRIBE: {
-            /*
-            SUBSCRIBE Message {
-              Subscribe ID (i),
-              Track Alias (i),
-              Group ID (i),
-              Object ID (i),
-              Publisher Priority (8),
-              Object Status (i),
-              Object Payload (..),
-            }
-            */
+            // Subscriber sends to Publisher
 
-            protobuf_messages::SubscribeMessage subscribeMessage =
-                serialization::deserialize<protobuf_messages::SubscribeMessage>(istream);
-            // TOOO
-            // if (connectionState.check_subscription(subscribeMessage))
-                // streamState.register_subscription(subscribeMessage);
+            protobuf_messages::SubscribeMessage subscribeMessage;
+            // serialization::deserialize<protobuf_messages::SubscribeMessage>(istream);
+
+            // utils::ASSERT_LOG_THROW(connectionState.peerRole ==
+            // protobuf_messages::Role::Publisher,
+            //                         "Client can only subscribe to Publisher");
+
+            // utils::ASSERT_LOG_THROW(
+            //     subscribeMessage.has_startgroup() ^ subscribeMessage.has_startobject(),
+            //     "StartGroup and StartObject must both be sent or both should not be sent");
+
+            // utils::ASSERT_LOG_THROW(
+            //     subscribeMessage.has_startgroup() &&
+            //         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteStart ||
+            //          subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
+            //     "Start group Id is only present for AbsoluteStart and AbsoluteRange filter
+            //     types.");
+
+            // utils::ASSERT_LOG_THROW(
+            //     !subscribeMessage.has_startobject() &&
+            //         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteStart ||
+            //          subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
+            //     "Start object Id is only present for AbsoluteStart and AbsoluteRange filter "
+            //     "types.");
+
+            // utils::ASSERT_LOG_THROW(
+            //     subscribeMessage.has_endgroup() ^ subscribeMessage.has_endobject(),
+            //     "EndGroup and EndObject must both be sent or both should not be sent");
+
+            // utils::ASSERT_LOG_THROW(
+            //     subscribeMessage.has_endgroup() &&
+            //         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
+            //     "End group Id is only present for AbsoluteRange filter types.");
+
+            // // EndObject: The end Object ID, plus 1. A value of 0 means the entire group is
+            // // requested.
+            // utils::ASSERT_LOG_THROW(
+            //     !subscribeMessage.has_endobject() &&
+            //         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
+            //     "End object Id is only present for AbsoluteRange filter "
+            //     "types.");
+
+            auto [payloadStream, errorInfo] = get_payload_stream(connectionState, subscribeMessage);
+            if (errorInfo.errc != 0) {
+                // TODO: error handling and sending SUBSCRIBE_ERROR message
+                // send_subscribe_error(connectionState, subscribeMessage, errorInfo.value());
+                break;
+            }
+
+            // TODO: ordering between subscribe ok and register subscription (which manages sending
+            // of data)
+            register_subscription(streamState, subscribeMessage, payloadStream);
+            send_subscription_ok(connectionState, subscribeMessage);
 
             utils::LOG_EVENT(std::cout, "Subscribe Message received: \n",
                              subscribeMessage.DebugString());
@@ -346,6 +424,7 @@ class MOQT {
             break;
         }
         case protobuf_messages::MoQtMessageType::OBJECT_STREAM: {
+            // Publisher sends to Subscriber
             /*
             OBJECT_STREAM Message {
               Subscribe ID (i),
@@ -533,6 +612,21 @@ class MOQTClient : public MOQT {
                               open_and_start_new_stream_params::StartParams startParams) {
         // Client can only start control stream
         return MOQT::open_and_start_new_stream(openParams, startParams, StreamType::CONTROL);
+    }
+
+    std::ostream *subscribe() {
+        ConnectionState &connectionState = connectionStateMap.at(connection.get());
+        const StreamState &streamState = open_and_start_new_stream(
+            {connectionState.connection, QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
+             MOQT::data_stream_cb_wrapper},
+            {QUIC_STREAM_START_FLAG_FAIL_BLOCKED | QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL});
+
+        protobuf_messages::MessageHeader header;
+        header.set_messagetype(protobuf_messages::MoQtMessageType::SUBSCRIBE);
+
+        stream_send(streamState, header);
+
+        return nullptr;
     }
 };
 } // namespace rvn
