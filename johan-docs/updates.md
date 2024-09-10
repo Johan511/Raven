@@ -1,0 +1,23 @@
+# UGRC II - CS4910 (Raven)
+
+## Work till September 10
+1. `MOQTServer` and `MOQTClient object` which wraps around the MsQuic library and provide all functionality required to setup a client and server
+2. ```
+    regConfig,
+    listenerCb,
+    connectionCb,
+    AlpnBuffers,
+    AlpnBufferCount,
+    Settings,
+    CredConfig,
+    controlStreamCb,
+    dataStreamCb
+    ```
+The following members should be registered with the MoQT object, implemented code required to register and manage all these members and check before starting listener (in case of server) or connection (in case of client)
+3. wrappers for connection, listener, stream and registration objects to manage their lifetimes
+4. Implemented message serialization and deserialization using protobuf
+5. CMake build system to pull all dependencies as submodules and build the library
+
+### Relative Week1
+
+
