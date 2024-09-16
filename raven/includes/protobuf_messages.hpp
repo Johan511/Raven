@@ -2,20 +2,23 @@
 
 
 // TODO: automate this instead of manual includes
-#include <setup_messages.pb.h>
-#include <object_messages.pb.h>
 #include <message_type.pb.h>
+#include <object_messages.pb.h>
+#include <setup_messages.pb.h>
 #include <subscribe_messages.pb.h>
 
 
-namespace rvn::messages {
+namespace rvn::messages
+{
 
-// (b) type which is encoded as a variable-length integer followed by that many bytes of data.
+// (b) type which is encoded as a variable-length integer followed by that many
+// bytes of data.
 using BinaryBufferData = std::string;
 using iType = std::uint64_t; // variable size integer, check QUIC RFC
 using MOQTVersionT = iType;
 
-enum class MoQtMessageType {
+enum class MoQtMessageType
+{
     OBJECT_STREAM = 0x0,
     OBJECT_DATAGRAM = 0x1,
     SUBSCRIBE_UPDATE = 0x2,
@@ -38,7 +41,8 @@ enum class MoQtMessageType {
     STREAM_HEADER_GROUP = 0x51
 };
 
-struct ControlMessageHeader {
+struct ControlMessageHeader
+{
     MoQtMessageType messageType;
 };
 

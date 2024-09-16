@@ -6,3 +6,5 @@ protobuf_messages/src/
 submodules/msquic/*
 submodules/protobuf/*
 .cache
+*.txt
+johan-docs/*

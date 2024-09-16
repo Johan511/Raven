@@ -67,6 +67,7 @@ set(PROTOBUF_MESSAGES_SRC_DIR "${PROTOBUF_MESSAGES_DIR}/src")
 add_definitions(-DRAVEN_CERT_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.cert")
 add_definitions(-DRAVEN_KEY_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.key")
 add_definitions(-DDUMMY_PAYLOAD_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/dummy_payload.txt")
+add_definitions(-DQUIC_API_ENABLE_PREVIEW_FEATURES)
 
 
 set(RAVEN_SRC "")

@@ -7,16 +7,19 @@
 #include <wrappers.hpp>
 ///////////////////////////////////////
 
-namespace rvn::utils {
+namespace rvn::utils
+{
 
-class MOQTComplexGetterUtils {
+class MOQTComplexGetterUtils
+{
     friend class MOQT;
-    MOQT &moqt;
+    MOQT& moqt;
 
-    MOQTComplexGetterUtils(MOQT *moqt) : moqt(*moqt) {}
+    MOQTComplexGetterUtils(MOQT* moqt) : moqt(*moqt)
+    {
+    }
 
-  public:
-
+public:
 };
 
 } // namespace rvn::utils

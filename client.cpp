@@ -1,30 +1,33 @@
 #include <msquic.h>
 
+#include <callbacks.hpp>
 #include <cstring>
 #include <iostream>
 #include <memory>
 #include <moqt.hpp>
-#include <callbacks.hpp>
 
 using namespace rvn;
-const char *Target = "127.0.0.1";
+const char* Target = "127.0.0.1";
 const uint16_t UdpPort = 4567;
-const uint64_t IdleTimeoutMs = 1000000000;
+const uint64_t IdleTimeoutMs = 0;
 
-QUIC_CREDENTIAL_CONFIG *get_cred_config() {
-    QUIC_CREDENTIAL_CONFIG *CredConfig =
-        (QUIC_CREDENTIAL_CONFIG *)malloc(sizeof(QUIC_CREDENTIAL_CONFIG));
+QUIC_CREDENTIAL_CONFIG* get_cred_config()
+{
+    QUIC_CREDENTIAL_CONFIG* CredConfig =
+    (QUIC_CREDENTIAL_CONFIG*)malloc(sizeof(QUIC_CREDENTIAL_CONFIG));
 
     memset(CredConfig, 0, sizeof(QUIC_CREDENTIAL_CONFIG));
     CredConfig->Type = QUIC_CREDENTIAL_TYPE_NONE;
-    CredConfig->Flags = QUIC_CREDENTIAL_FLAG_CLIENT | QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
+    CredConfig->Flags =
+    QUIC_CREDENTIAL_FLAG_CLIENT | QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
     return CredConfig;
 }
 
-int main() {
+int main()
+{
     std::unique_ptr<MOQTClient> moqtClient = std::make_unique<MOQTClient>();
 
-    QUIC_REGISTRATION_CONFIG RegConfig = {"quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY};
+    QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
     moqtClient->set_regConfig(&RegConfig);
 
     QUIC_SETTINGS Settings;
@@ -32,10 +35,12 @@ int main() {
 
     Settings.IdleTimeoutMs = IdleTimeoutMs;
     Settings.IsSet.IdleTimeoutMs = TRUE;
+    Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
+    Settings.StreamMultiReceiveEnabled = TRUE;
 
     moqtClient->set_Settings(&Settings, sizeof(Settings));
     moqtClient->set_CredConfig(get_cred_config());
-    QUIC_BUFFER AlpnBuffer = {sizeof("sample") - 1, (uint8_t *)"sample"};
+    QUIC_BUFFER AlpnBuffer = { sizeof("sample") - 1, (uint8_t*)"sample" };
     moqtClient->set_AlpnBuffers(&AlpnBuffer);
 
     moqtClient->set_AlpnBufferCount(1);
@@ -48,7 +53,6 @@ int main() {
 
 
     moqtClient->start_connection(QUIC_ADDRESS_FAMILY_UNSPEC, Target, UdpPort);
-    moqtClient->subscribe();
 
     {
         char c;

@@ -10,13 +10,16 @@
 #include <variant>
 ////////////////////////////////////////////
 
-namespace rvn::depracated::messages {
-// (b) type which is encoded as a variable-length integer followed by that many bytes of data.
+namespace rvn::depracated::messages
+{
+// (b) type which is encoded as a variable-length integer followed by that many
+// bytes of data.
 using BinaryBufferData = std::string;
 using iType = std::uint64_t; // variable size integer, check QUIC RFC
 using MOQTVersionT = iType;
 
-enum class MoQtMessageType {
+enum class MoQtMessageType
+{
     OBJECT_STREAM = 0x0,
     OBJECT_DATAGRAM = 0x1,
     SUBSCRIBE_UPDATE = 0x2,
@@ -39,20 +42,27 @@ enum class MoQtMessageType {
     STREAM_HEADER_GROUP = 0x51
 };
 
-struct ControlMessageHeader {
+struct ControlMessageHeader
+{
     MoQtMessageType messageType;
 };
 
 ///////////////////////////// Parameters ///////////////////////////////
 
-enum class ParameterType { RoleParameter = 0x00, PathParameter = 0x01 };
+enum class ParameterType
+{
+    RoleParameter = 0x00,
+    PathParameter = 0x01
+};
 
-enum class Role {
+enum class Role
+{
     Publisher = 0x00,
     Subscriber = 0x01,
     PubSub = 0x02,
 };
-struct RoleParameter {
+struct RoleParameter
+{
     Role role;
 
     static constexpr ParameterType parameterType = ParameterType::RoleParameter;
@@ -62,12 +72,14 @@ struct RoleParameter {
 // only to be used by the client
 // should not be used by server or when using WebTransport
 // specifies MoQ URI when using native QUIC
-struct PathParameter {
+struct PathParameter
+{
     /*
      * TODO : To keep in note when serializaation, deserialization
-     * When connecting to a server using a URI with the "moq" scheme, the client MUST set the PATH
-     * parameter to the path-abempty portion of the URI; if query is present, the client MUST
-     * concatenate ?, followed by the query portion of the URI to the parameter.
+     * When connecting to a server using a URI with the "moq" scheme, the client
+     * MUST set the PATH parameter to the path-abempty portion of the URI; if
+     * query is present, the client MUST concatenate ?, followed by the query
+     * portion of the URI to the parameter.
      */
     std::string path;
 
@@ -83,8 +95,10 @@ struct PathParameter {
       Setup Parameters (..) ...,
     }
 */
-struct ClientSetupMessage {
-    struct ParamT {
+struct ClientSetupMessage
+{
+    struct ParamT
+    {
         RoleParameter role;
         PathParameter path;
     };
@@ -103,8 +117,10 @@ struct ClientSetupMessage {
       Setup Parameters (..) ...,
     }
 */
-struct ServerSetupMessage {
-    struct ParamT {
+struct ServerSetupMessage
+{
+    struct ParamT
+    {
         RoleParameter role;
     };
 
@@ -118,7 +134,8 @@ struct ServerSetupMessage {
       New Session URI (b)
     }
 */
-struct GoAwayMessage {
+struct GoAwayMessage
+{
     BinaryBufferData newSessionURI;
 };
 
@@ -140,21 +157,26 @@ struct GoAwayMessage {
     }
 */
 
-struct SubscribeMessage {
-    enum class FilterType : iType {
-        LatestGroup = 0x1, // Specifies an open-ended subscription with objects from the beginning
-                           // of the current group.
+struct SubscribeMessage
+{
+    enum class FilterType : iType
+    {
+        LatestGroup = 0x1, // Specifies an open-ended subscription with objects
+                           // from the beginning of the current group.
 
-        LatestObject = 0x2, // Specifies an open-ended subscription beginning from the current
-                            // object of the current group.
+        LatestObject = 0x2, // Specifies an open-ended subscription beginning
+                            // from the current object of the current group.
 
-        AbsoluteStart = 0x3, // Specifies an open-ended subscription beginning from the object
-                             // identified in the StartGroup and StartObject fields.
+        AbsoluteStart = 0x3, // Specifies an open-ended subscription beginning
+                             // from the object identified in the StartGroup and
+                             // StartObject fields.
 
-        AbsoluteRange = 0x4, // Specifies a closed subscription starting at StartObject in
-                             // StartGroup and ending at EndObject in EndGroup. The start and end of
-                             // the range are inclusive. EndGroup and EndObject MUST specify the
-                             // same or a later object than StartGroup and StartObject.
+        AbsoluteRange = 0x4, // Specifies a closed subscription starting at
+                             // StartObject in StartGroup and ending at
+                             // EndObject in EndGroup. The start and end of the
+                             // range are inclusive. EndGroup and EndObject MUST
+                             // specify the same or a later object than
+                             // StartGroup and StartObject.
     };
 
     using Parameter = std::variant<>;
@@ -184,7 +206,8 @@ struct SubscribeMessage {
       Subscribe Parameters (..) ...
     }
 */
-struct SubscribeUpdateMessage {
+struct SubscribeUpdateMessage
+{
     iType subscribeId;
     iType trackAlias;
     iType group;
@@ -198,7 +221,8 @@ struct SubscribeUpdateMessage {
       Subscribe ID (i)
     }
 */
-struct UnsubscribeMessage {
+struct UnsubscribeMessage
+{
     iType subscribeId;
 };
 
@@ -208,7 +232,8 @@ struct UnsubscribeMessage {
       Track Namespace (b),
     }
 */
-struct AnnounceOkMessage {
+struct AnnounceOkMessage
+{
     BinaryBufferData trackNamespace;
 };
 
@@ -220,7 +245,8 @@ struct AnnounceOkMessage {
       Reason Phrase (b),
     }
 */
-struct AnnounceErrorMessage {
+struct AnnounceErrorMessage
+{
     BinaryBufferData trackNamespace;
     iType errorCode;
     BinaryBufferData reasonPhrase;
@@ -231,7 +257,8 @@ struct AnnounceErrorMessage {
       Track Namespace (b),
     }
 */
-struct AnnounceCancelMessage {
+struct AnnounceCancelMessage
+{
     BinaryBufferData trackNamespace;
 };
 
@@ -241,31 +268,38 @@ struct AnnounceCancelMessage {
       Track Name (b),
     }
 */
-struct TrackStatusRequestMessage {
+struct TrackStatusRequestMessage
+{
     BinaryBufferData trackNamespace;
     BinaryBufferData trackName;
 };
 
-enum class ObjectStatus : iType {
-    NORMAL = 0x0, // Normal object. The payload is array of bytes and can be empty.
+enum class ObjectStatus : iType
+{
+    NORMAL = 0x0, // Normal object. The payload is array of bytes and can be
+                  // empty.
 
-    OBJECT_DNE =
-        0x1, // Indicates Object does not exist. Indicates that this object does not exist at any
-             // publisher and it will not be published in the future. This SHOULD be cached.
+    OBJECT_DNE = 0x1, // Indicates Object does not exist. Indicates that this
+                      // object does not exist at any publisher and it will not
+                      // be published in the future. This SHOULD be cached.
 
-    GROUP_DNE = 0x2, // Indicates Group does not exist. Indicates that objects with this GroupID do
-                     // not exist at any publisher and they will not be published in the future.
-                     // This SHOULD be cached and have empty payload.
+    GROUP_DNE = 0x2, // Indicates Group does not exist. Indicates that objects
+                     // with this GroupID do not exist at any publisher and they
+                     // will not be published in the future. This SHOULD be
+                     // cached and have empty payload.
 
-    END_OF_GROUP =
-        0x3, // Indicates end of Group. ObjectId is one greater that the largest object
-             // produced in the group identified by the GroupID. This is sent right after
-             // the last object in the group. This SHOULD be cached and have empty payload.
+    END_OF_GROUP = 0x3, // Indicates end of Group. ObjectId is one greater that
+                        // the largest object produced in the group identified
+                        // by the GroupID. This is sent right after the last
+                        // object in the group. This SHOULD be cached and have
+                        // empty payload.
 
-    END_OF_TRACK = 0x4, // Indicates end of Track and Group. GroupID is one greater than the largest
-                        // group produced in this track and the ObjectId is one greater than the
-                        // largest object produced in that group. This is sent right after the last
-                        // object in the track. This SHOULD be cached and have empty payload.
+    END_OF_TRACK = 0x4, // Indicates end of Track and Group. GroupID is one
+                        // greater than the largest group produced in this track
+                        // and the ObjectId is one greater than the largest
+                        // object produced in that group. This is sent right
+                        // after the last object in the track. This SHOULD be
+                        // cached and have empty payload.
 };
 
 /*
@@ -279,7 +313,8 @@ enum class ObjectStatus : iType {
       Object Payload (..),
     }
 */
-struct ObjectStreamMessage {
+struct ObjectStreamMessage
+{
     iType subscribeId;
     iType trackAlias;
     iType group;
@@ -300,7 +335,8 @@ struct ObjectStreamMessage {
       Object Payload (..),
     }
 */
-struct ObjectDatagramMessage {
+struct ObjectDatagramMessage
+{
     iType subscribeId;
     iType trackAlias;
     iType group;
@@ -317,7 +353,8 @@ struct ObjectDatagramMessage {
       Publisher Priority (8),(i)
     }
 */
-struct StreamHeaderTrackMessage {
+struct StreamHeaderTrackMessage
+{
     iType subscribeId;
     iType trackAlias;
     std::uint8_t publisherPriority;
@@ -332,11 +369,13 @@ struct StreamHeaderTrackMessage {
       Object Payload (..),
     }
 */
-struct TrackStreamObjectMessage {
+struct TrackStreamObjectMessage
+{
     iType group;
     iType object;
     iType objectPayloadLength;
-    std::optional<ObjectStatus> objectStatus; // optional, exists only is payload length is 0
+    std::optional<ObjectStatus> objectStatus; // optional, exists only is
+                                              // payload length is 0
     BinaryBufferData objectPayload;
 };
 
@@ -348,10 +387,12 @@ struct TrackStreamObjectMessage {
       Object Payload (..),
     }
 */
-struct GroupStreamObject {
+struct GroupStreamObject
+{
     iType object;
     iType objectPayloadLength;
-    std::optional<ObjectStatus> objectStatus; // optional, exists only is payload length is 0
+    std::optional<ObjectStatus> objectStatus; // optional, exists only is
+                                              // payload length is 0
     BinaryBufferData objectPayload;
 };
 
@@ -366,11 +407,13 @@ struct GroupStreamObject {
       [Largest Object ID (i)]
     }
 */
-struct SubscribeOkMessage {
+struct SubscribeOkMessage
+{
     iType subscribeId;
     iType expires;
     std::uint8_t groupOrder;
-    bool contentExists; // sizeof(bool) == 1, as the standard specifies flag should be of size 1
+    bool contentExists; // sizeof(bool) == 1, as the standard specifies flag
+                        // should be of size 1
     std::optional<iType> largestGroupId;
     std::optional<iType> largestObjectId;
 };
@@ -384,7 +427,8 @@ struct SubscribeOkMessage {
       Track Alias (i),
     }
 */
-struct SubscribeErrorMessage {
+struct SubscribeErrorMessage
+{
     iType subscribeId;
     iType errorCode;
     BinaryBufferData reasonPhrase;
@@ -401,7 +445,8 @@ struct SubscribeErrorMessage {
       [Final Object (i)],
     }
 */
-struct SubscribeDoneMessage {
+struct SubscribeDoneMessage
+{
     iType subscribeId;
     iType statusCode;
     BinaryBufferData reasonPhrase;
@@ -417,7 +462,8 @@ struct SubscribeDoneMessage {
       Parameters (..) ...,
     }
 */
-struct AnnounceMessage {
+struct AnnounceMessage
+{
     using Parameter = std::variant<>;
 
     BinaryBufferData trackNamespace;
@@ -430,7 +476,8 @@ struct AnnounceMessage {
       Track Namespace (b),
     }
 */
-struct UnannounceMessage {
+struct UnannounceMessage
+{
     BinaryBufferData trackNamespace;
 };
 
@@ -443,7 +490,8 @@ struct UnannounceMessage {
       Last Object ID (i),
     }
 */
-struct TrackStatusMessage {
+struct TrackStatusMessage
+{
     BinaryBufferData trackNamespace;
     BinaryBufferData trackName;
     iType statusCode;

@@ -1,6 +1,7 @@
 #include <wrappers.hpp>
 
-namespace rvn {
+namespace rvn
+{
 
 /*-----------------QUIC_API_TABLE------------------------*/
 
@@ -10,22 +11,29 @@ namespace rvn {
 
 /*----------------MsQuic->RegistrationOpen---------------*/
 
-unique_registration::unique_registration(const QUIC_API_TABLE *tbl_,
-                                         const QUIC_REGISTRATION_CONFIG *RegConfig)
-    : unique_handler1(tbl_->RegistrationOpen, tbl_->RegistrationClose) {
+unique_registration::unique_registration(const QUIC_API_TABLE* tbl_,
+                                         const QUIC_REGISTRATION_CONFIG* RegConfig)
+: unique_handler1(tbl_->RegistrationOpen, tbl_->RegistrationClose)
+{
     if (QUIC_FAILED(construct(RegConfig)))
         throw std::runtime_error("RegistrationHandlerConstructionFailure");
 };
 
-unique_registration::unique_registration() : unique_handler1() {}
+unique_registration::unique_registration() : unique_handler1()
+{
+}
 
 /*------------MsQuic->ListenerOpen and Start-------------*/
-unique_listener::unique_listener(const QUIC_API_TABLE *tbl_, ListenerOpenParams openParams,
+unique_listener::unique_listener(const QUIC_API_TABLE* tbl_,
+                                 ListenerOpenParams openParams,
                                  ListenerStartParams startParams)
-    : unique_handler2(tbl_->ListenerOpen, tbl_->ListenerClose, tbl_->ListenerStart,
-                      tbl_->ListenerStop) {
-    if (QUIC_FAILED(
-            open_handler(openParams.registration, openParams.listenerCb, openParams.context)))
+: unique_handler2(tbl_->ListenerOpen,
+                  tbl_->ListenerClose,
+                  tbl_->ListenerStart,
+                  tbl_->ListenerStop)
+{
+    if (QUIC_FAILED(open_handler(openParams.registration, openParams.listenerCb,
+                                 openParams.context)))
         throw std::runtime_error("ListenerOpenFailure");
 
     if (QUIC_FAILED(start_handler(startParams.AlpnBuffers, startParams.AlpnBufferCount,
@@ -33,14 +41,18 @@ unique_listener::unique_listener(const QUIC_API_TABLE *tbl_, ListenerOpenParams 
         throw std::runtime_error("ListenerStartFailure");
 };
 
-unique_listener::unique_listener() : unique_handler2() {}
+unique_listener::unique_listener() : unique_handler2()
+{
+}
 
 /*------------MsQuic->ConnectionOpen and Start-------------*/
-unique_connection::unique_connection(const QUIC_API_TABLE *tbl_, ConnectionOpenParams openParams,
+unique_connection::unique_connection(const QUIC_API_TABLE* tbl_,
+                                     ConnectionOpenParams openParams,
                                      ConnectionStartParams startParams)
-    : unique_handler2(tbl_->ConnectionOpen, tbl_->ConnectionClose, tbl_->ConnectionStart) {
-    if (QUIC_FAILED(
-            open_handler(openParams.registration, openParams.connectionCb, openParams.context)))
+: unique_handler2(tbl_->ConnectionOpen, tbl_->ConnectionClose, tbl_->ConnectionStart)
+{
+    if (QUIC_FAILED(open_handler(openParams.registration,
+                                 openParams.connectionCb, openParams.context)))
         throw std::runtime_error("ConnectionOpenFailure");
 
     if (QUIC_FAILED(start_handler(startParams.Configuration, startParams.Family,
@@ -48,15 +60,17 @@ unique_connection::unique_connection(const QUIC_API_TABLE *tbl_, ConnectionOpenP
         throw std::runtime_error("ConnectionStartFailure");
 };
 
-unique_connection::unique_connection() : unique_handler2() {}
+unique_connection::unique_connection() : unique_handler2()
+{
+}
 
 /*-------------MsQuic->Config open and load--------------*/
 
-unique_configuration::unique_configuration(const QUIC_API_TABLE *tbl_,
+unique_configuration::unique_configuration(const QUIC_API_TABLE* tbl_,
                                            ConfigurationOpenParams openParams,
                                            ConfigurationStartParams startParams)
-    : unique_handler2(tbl_->ConfigurationOpen, tbl_->ConfigurationClose,
-                      tbl_->ConfigurationLoadCredential) {
+: unique_handler2(tbl_->ConfigurationOpen, tbl_->ConfigurationClose, tbl_->ConfigurationLoadCredential)
+{
     if (QUIC_FAILED(open_handler(openParams.registration, openParams.AlpnBuffers,
                                  openParams.AlpnBufferCount, openParams.Settings,
                                  openParams.SettingsSize, openParams.Context)))
@@ -67,6 +81,8 @@ unique_configuration::unique_configuration(const QUIC_API_TABLE *tbl_,
         throw std::runtime_error("ConfigurationLoadCredentialsFailure");
 };
 
-unique_configuration::unique_configuration() : unique_handler2() {}
+unique_configuration::unique_configuration() : unique_handler2()
+{
+}
 
 }; // namespace rvn
