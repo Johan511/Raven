@@ -1,15 +1,19 @@
 #pragma once
 //////////////////////////////
-#include "wrappers.hpp"
 #include <msquic.h>
 //////////////////////////////
 #include <functional>
 #include <memory>
 #include <optional>
+#include <queue>
 //////////////////////////////
 #include <protobuf_messages.hpp>
+#include <serialization.hpp>
 #include <utilities.hpp>
+#include <wrappers.hpp>
 //////////////////////////////
+
+#define DEFAULT_BUFFER_CAPACITY 512
 
 namespace rvn
 {
@@ -80,7 +84,6 @@ public:
 struct StreamState
 {
     rvn::unique_stream stream;
-    std::size_t bufferCapacity;
     std::unique_ptr<StreamContext> streamContext{};
 
     template <typename... Args> void set_stream_context(Args&&... args)
@@ -95,20 +98,72 @@ struct StreamState
     }
 };
 
+class StreamManager
+{
+    friend class ConnectionState;
+
+    static constexpr std::size_t MAX_DATA_STREAMS = 8;
+    class ConnectionState* connectionState;
+
+    std::queue<QUIC_BUFFER*> dataBuffersToSend;
+    std::vector<StreamState> dataStreams; // they are sending/receiving data
+
+    std::queue<QUIC_BUFFER*> controlBuffersToSend;
+    std::optional<StreamState> controlStream{};
+    bool controlStreamMessageReceived = true;
+
+    StreamState& create_data_stream();
+
+    void send_data_buffer();
+    void send_control_buffer();
+
+public:
+    StreamManager(ConnectionState* connectionState)
+    : connectionState(connectionState)
+    {
+    }
+
+
+    void delete_data_stream(HQUIC streamHandle);
+
+    void enqueue_data_buffer(QUIC_BUFFER* buffer);
+    void enqueue_control_buffer(QUIC_BUFFER* buffer);
+};
+
+
 struct ConnectionState
 {
+    std::unique_ptr<StreamManager> streamManager;
     HQUIC connection = nullptr;
-    std::optional<StreamState> controlStream{};
-    std::vector<StreamState> dataStreams{};
+    class MOQT* moqtObject = nullptr;
+
     std::string path;
     protobuf_messages::Role peerRole;
 
-    bool check_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage)
+    std::size_t bufferCapacity = DEFAULT_BUFFER_CAPACITY;
+
+    bool check_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage);
+    const std::vector<StreamState>& get_data_streams() const;
+    std::vector<StreamState>& get_data_streams();
+
+    std::optional<StreamState>& get_control_stream();
+    const std::optional<StreamState>& get_control_stream() const;
+
+    ConnectionState(HQUIC connection_, class MOQT* moqtObject_)
+    : connection(connection_), moqtObject(moqtObject_),
+      streamManager(std::make_unique<StreamManager>(this))
     {
-        // TODO: check if subscription data exists and if we are authenticated
-        // to get it
-        return true;
     }
+
+
+    QUIC_STATUS accept_data_stream(HQUIC dataStreamHandle);
+
+    QUIC_STATUS accept_control_stream(HQUIC controlStreamHandle);
+
+    StreamState& reset_control_stream();
+
+    void register_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage,
+                               std::istream* payloadStream);
 };
 
 } // namespace rvn

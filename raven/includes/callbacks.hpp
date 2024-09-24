@@ -4,6 +4,7 @@
 #include <contexts.hpp>
 #include <moqt.hpp>
 #include <protobuf_messages.hpp>
+#include <serialization.hpp>
 #include <string>
 #include <utilities.hpp>
 #include <wrappers.hpp>
@@ -102,8 +103,7 @@ static constexpr auto server_control_stream_callback =
             // Received Control Message
             // auto receiveInformation = event->RECEIVE;
             auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
-            moqtObject->handle_message(connectionState, controlStream,
-                                          &(event->RECEIVE));
+            moqtObject->handle_message(connectionState, controlStream, &(event->RECEIVE));
             break;
         }
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
@@ -171,7 +171,7 @@ static constexpr auto server_data_stream_callback =
         }
         case QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE:
         {
-            moqtObject->get_stream_state(connection, dataStream)->bufferCapacity =
+            moqtObject->connectionStateMap.at(connection).bufferCapacity =
             event->IDEAL_SEND_BUFFER_SIZE.ByteCount;
         }
         default: break;
@@ -201,8 +201,7 @@ static constexpr auto client_control_stream_callback =
             // Received Control Message
             // auto receiveInformation = event->RECEIVE;
             auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
-            moqtObject->handle_message(connectionState, controlStream,
-                                          &(event->RECEIVE));
+            moqtObject->handle_message(connectionState, controlStream, &(event->RECEIVE));
             break;
         }
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
@@ -224,25 +223,21 @@ static constexpr auto client_control_stream_callback =
 };
 
 static constexpr auto client_connection_callback =
-[](HQUIC connectionHandle, void* Context, QUIC_CONNECTION_EVENT* Event)
+[](HQUIC connectionHandle, void* Context, QUIC_CONNECTION_EVENT* event)
 {
     MOQTClient* moqtClient = static_cast<MOQTClient*>(Context);
     const QUIC_API_TABLE* MsQuic = moqtClient->get_tbl();
 
-    switch (Event->Type)
+    switch (event->Type)
     {
         case QUIC_CONNECTION_EVENT_CONNECTED:
         {
             //
             // The handshake has completed for the connection.
             //
-            const StreamState& streamState = moqtClient->create_control_stream(
-            {
-            connectionHandle,
-            QUIC_STREAM_OPEN_FLAG_0_RTT,
-            moqtClient->control_stream_cb_wrapper,
-            },
-            { QUIC_STREAM_START_FLAG_PRIORITY_WORK });
+            ConnectionState& connectionState =
+            moqtClient->get_connectionStateMap().at(connectionHandle);
+            std::cout << connectionState.connection << '\n';
 
             protobuf_messages::MessageHeader messageHeader;
             messageHeader.set_messagetype(protobuf_messages::MoQtMessageType::CLIENT_SETUP);
@@ -250,7 +245,11 @@ static constexpr auto client_connection_callback =
             protobuf_messages::ClientSetupMessage clientSetupMessage =
             moqtClient->get_clientSetupMessage();
 
-            moqtClient->stream_send(streamState, messageHeader, clientSetupMessage);
+
+            QUIC_BUFFER* quicBuffer =
+            serialization::serialize(messageHeader, clientSetupMessage);
+            connectionState.streamManager->enqueue_control_buffer(quicBuffer);
+
             break;
         }
         case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
@@ -260,14 +259,14 @@ static constexpr auto client_connection_callback =
             // shut down with this protocol, since we let idle timeout
             // kill the connection.
             //
-            if (Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE)
+            if (event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE)
             {
                 printf("[conn][%p] Successfully shut down on idle.\n", connectionHandle);
             }
             else
             {
                 printf("[conn][%p] Shut down by transport, 0x%x\n", connectionHandle,
-                       Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
+                       event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
             }
             break;
         case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER:
@@ -275,7 +274,7 @@ static constexpr auto client_connection_callback =
             // The connection was explicitly shut down by the peer.
             //
             printf("[conn][%p] Shut down by peer, 0x%llu\n", connectionHandle,
-                   (unsigned long long)Event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
+                   (unsigned long long)event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
             break;
         case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
             //
@@ -283,7 +282,7 @@ static constexpr auto client_connection_callback =
             // ready to be safely cleaned up.
             //
             printf("[conn][%p] All done\n", connectionHandle);
-            if (!Event->SHUTDOWN_COMPLETE.AppCloseInProgress)
+            if (!event->SHUTDOWN_COMPLETE.AppCloseInProgress)
             {
                 MsQuic->ConnectionClose(connectionHandle);
             }
@@ -294,8 +293,17 @@ static constexpr auto client_connection_callback =
             // was received from the server.
             //
             printf("[conn][%p] Resumption ticket received (%u bytes):\n", connectionHandle,
-                   Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
+                   event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
             break;
+        case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED:
+        {
+            // remotely opened streams call this callback => they must
+            // be data streams
+            moqtClient->accept_data_stream(connectionHandle,
+                                           event->PEER_STREAM_STARTED.Stream);
+
+            break;
+        }
         default: break;
     }
     return QUIC_STATUS_SUCCESS;

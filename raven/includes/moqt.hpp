@@ -18,8 +18,6 @@
 #include <wrappers.hpp>
 ////////////////////////////////////////////
 
-#define DEFAULT_BUFFER_CAPACITY 1024
-
 namespace rvn
 {
 
@@ -68,19 +66,20 @@ public:
     StreamState* get_stream_state(HQUIC connectionHandle, HQUIC streamHandle)
     {
         ConnectionState& connectionState = connectionStateMap.at(connectionHandle);
-        if (connectionState.controlStream.has_value() &&
-            connectionState.controlStream.value().stream.get() == streamHandle)
+        if (connectionState.get_control_stream().has_value() &&
+            connectionState.get_control_stream().value().stream.get() == streamHandle)
         {
-            return &connectionState.controlStream.value();
+            return &connectionState.get_control_stream().value();
         }
 
+        auto& dataStreams = connectionState.get_data_streams();
+
         auto streamIter =
-        std::find_if(connectionState.dataStreams.begin(),
-                     connectionState.dataStreams.end(),
+        std::find_if(dataStreams.begin(), dataStreams.end(),
                      [streamHandle](const StreamState& streamState)
                      { return streamState.stream.get() == streamHandle; });
 
-        if (streamIter != connectionState.dataStreams.end())
+        if (streamIter != dataStreams.end())
         {
             return &(*streamIter);
         }
@@ -94,19 +93,20 @@ public:
         {
             HQUIC connectionHandle = connectionStatePair.first;
             ConnectionState& connectionState = connectionStateMap.at(connectionHandle);
-            if (connectionState.controlStream.has_value() &&
-                connectionState.controlStream.value().stream.get() == streamHandle)
+            if (connectionState.get_control_stream().has_value() &&
+                connectionState.get_control_stream().value().stream.get() == streamHandle)
             {
-                return &connectionState.controlStream.value();
+                return &connectionState.get_control_stream().value();
             }
 
+            auto& dataStreams = connectionState.get_data_streams();
+
             auto streamIter =
-            std::find_if(connectionState.dataStreams.begin(),
-                         connectionState.dataStreams.end(),
+            std::find_if(dataStreams.begin(), dataStreams.end(),
                          [streamHandle](const StreamState& streamState)
                          { return streamState.stream.get() == streamHandle; });
 
-            if (streamIter != connectionState.dataStreams.end())
+            if (streamIter != dataStreams.end())
             {
                 return &(*streamIter);
             }
@@ -226,8 +226,8 @@ public:
         std::uint8_t errc = 0;
     };
 
-    auto get_payload_stream(ConnectionState& connectionState,
-                            const protobuf_messages::SubscribeMessage& subscribeMessage)
+    auto get_payload_ss(ConnectionState& connectionState,
+                        const protobuf_messages::SubscribeMessage& subscribeMessage)
     {
 
         std::ifstream* payloadStream = new std::ifstream();
@@ -238,85 +238,62 @@ public:
         return std::make_pair(payloadStream, errorInfo);
     }
 
-    void send_object_payload(StreamState& streamState,
-                             const protobuf_messages::MessageHeader& header,
-                             protobuf_messages::ObjectStreamMessage& objectStreamMessage,
-                             const std::string& payload)
-    {
-        std::size_t idx = 0;
-        std::size_t payloadSize = payload.size();
-
-        while (idx != payloadSize)
-        {
-            std::size_t remainingSize = payloadSize - idx;
-            std::size_t sendSize = std::min(remainingSize, streamState.bufferCapacity);
-
-            std::string sendPayloadChunk{ payload.c_str() + idx, sendSize };
-            idx += sendSize;
-
-            objectStreamMessage.set_objectpayload(sendPayloadChunk);
-            stream_send(streamState, header, objectStreamMessage);
-        }
-    }
-
-    void register_subscription(StreamState& streamState,
-                               const protobuf_messages::SubscribeMessage& subscribeMessage,
-                               std::istream* payloadStream)
-    {
-        protobuf_messages::MessageHeader header;
-        header.set_messagetype(protobuf_messages::MoQtMessageType::OBJECT_STREAM);
-
-        protobuf_messages::ObjectStreamMessage objectStreamMessage;
-        // <DummyValues>
-        objectStreamMessage.set_subscribeid(1);
-        objectStreamMessage.set_trackalias(1);
-        objectStreamMessage.set_groupid(1);
-        objectStreamMessage.set_objectid(1);
-        objectStreamMessage.set_publisherpriority(1);
-        objectStreamMessage.set_objectstatus(1);
-        // </DummyValues>
-        std::stringstream objectStreamMessageStream;
-        objectStreamMessageStream << payloadStream->rdbuf();
-        std::string payload = objectStreamMessageStream.str();
-
-        send_object_payload(streamState, header, objectStreamMessage, payload);
-    }
 
 public:
-    // always sends only one buffer
-    template <typename... Args>
-    QUIC_STATUS stream_send(const StreamState& streamState, Args&&... args)
+    std::ostream* subscribe()
     {
-        utils::LOG_EVENT(std::cout, args.DebugString()...);
+        ConnectionState& connectionState = connectionStateMap.begin()->second;
+        connectionState.reset_control_stream();
 
-        std::size_t requiredBufferSize = 0;
+        protobuf_messages::MessageHeader subscribeHeader;
+        subscribeHeader.set_messagetype(protobuf_messages::MoQtMessageType::SUBSCRIBE);
 
-        // calculate required buffer size
-        std::ostringstream oss;
-        (google::protobuf::util::SerializeDelimitedToOstream(args, &oss), ...);
+        protobuf_messages::SubscribeMessage subscribeMessage;
+        /*
+            uint64 SubscribeID = 1;
+    uint64 TrackAlias = 2;
+    string TrackNamespace = 3;
+    string TrackName = 4;
+    uint32 SubscriberPriority = 5; // should be 8 bits
+    uint32 GroupOrder = 6; // should be 8 bits
+    SubscribeFilter FilterType = 7;
+    optional uint64 StartGroup = 8;
+    optional uint64 StartObject = 9;
+    optional uint64 EndGroup = 10;
+    optional uint64 EndObject = 11;
+    uint64 NumParameters = 12;
+    repeated SubscribeParameter parameters = 13;
+        */
 
-        static constexpr std::uint32_t bufferCount = 1;
+        subscribeMessage.set_subscribeid(1);
+        subscribeMessage.set_trackalias(1);
+        subscribeMessage.set_tracknamespace("namespace");
+        subscribeMessage.set_trackname("name");
+        subscribeMessage.set_subscriberpriority(1);
+        subscribeMessage.set_grouporder(1);
+        subscribeMessage.set_filtertype(protobuf_messages::AbsoluteStart);
+        subscribeMessage.set_startgroup(1);
+        subscribeMessage.set_startobject(1);
+        subscribeMessage.set_endgroup(1);
+        subscribeMessage.set_endobject(1);
+        subscribeMessage.set_numparameters(0);
 
-        std::string buffer = oss.str();
-        void* sendBufferRaw = malloc(sizeof(QUIC_BUFFER) + buffer.size());
-        utils::ASSERT_LOG_THROW(sendBufferRaw != nullptr,
-                                "Could not allocate memory for buffer");
 
-        QUIC_BUFFER* sendBuffer = (QUIC_BUFFER*)sendBufferRaw;
-        sendBuffer->Buffer = (uint8_t*)sendBufferRaw + sizeof(QUIC_BUFFER);
-        sendBuffer->Length = buffer.size();
+        QUIC_BUFFER* quicBuffer =
+        serialization::serialize(subscribeHeader, subscribeMessage);
 
-        std::memcpy(sendBuffer->Buffer, buffer.c_str(), buffer.size());
-        HQUIC streamHandle = streamState.stream.get();
+        connectionState.streamManager->enqueue_data_buffer(quicBuffer);
 
-        StreamSendContext* streamSendContext =
-        new StreamSendContext(sendBuffer, bufferCount, streamState.streamContext.get());
-
-        QUIC_STATUS status = get_tbl()->StreamSend(streamHandle, sendBuffer, 1,
-                                                   QUIC_SEND_FLAG_FIN, streamSendContext);
-
-        return status;
+        return nullptr;
     }
+
+
+    // to be used only by subscriber
+    StreamState& reset_control_stream()
+    {
+        ConnectionState& connectionState = connectionStateMap.begin()->second;
+        return connectionState.reset_control_stream();
+    };
 
     // auto is used as parameter because there is no named type for receive
     // information it is an anonymous structure
@@ -334,7 +311,7 @@ public:
     */
     void handle_message(ConnectionState& connectionState, HQUIC streamHandle, const auto* receiveInformation)
     {
-        utils::ASSERT_LOG_THROW(connectionState.controlStream.has_value(),
+        utils::ASSERT_LOG_THROW(connectionState.get_control_stream().has_value(),
                                 "Trying to interpret control message without "
                                 "control stream");
 
@@ -358,7 +335,7 @@ public:
         StreamState& streamState =
         *get_stream_state(connectionState.connection, streamHandle);
 
-        MessageHandler messageHandler(*this, connectionState, streamState);
+        MessageHandler messageHandler(*this, connectionState);
 
         switch (header.messagetype())
         {
@@ -376,7 +353,25 @@ public:
             }
             case protobuf_messages::MoQtMessageType::SUBSCRIBE:
             {
-                messageHandler.template handle_message<protobuf_messages::SubscribeMessage>(istream);
+                // messageHandler.template handle_message<protobuf_messages::SubscribeMessage>(istream);
+                protobuf_messages::SubscribeMessage subscribeMessage;
+                auto [payloadStream, errorInfo] =
+                get_payload_ss(connectionState, subscribeMessage);
+                if (errorInfo.errc != 0)
+                {
+                    // TODO: error handling and sending
+                    // SUBSCRIBE_ERROR message
+                    // send_subscribe_error(connectionState,
+                    // subscribeMessage, errorInfo.value());
+                }
+
+                // TODO: ordering between subscribe ok and register
+                // subscription (which manages sending of data)
+                utils::LOG_EVENT(std::cout, "Subscribe Message received: \n",
+                                 subscribeMessage.DebugString());
+
+                connectionState.register_subscription(subscribeMessage, payloadStream);
+                // send_subscription_ok(connectionState, subscribeMessage);
 
                 break;
             }
@@ -427,9 +422,6 @@ protected:
         };
     };
 
-    const StreamState& create_stream(create_stream_params::OpenParams openParams,
-                                     create_stream_params::StartParams startParams,
-                                     StreamType streamType);
 
 public:
     ~MOQT()
@@ -447,12 +439,6 @@ public:
 
     void start_listener(QUIC_ADDR* LocalAddress);
 
-    const StreamState& create_data_stream(create_stream_params::OpenParams openParams,
-                                          create_stream_params::StartParams startParams)
-    {
-        // Server can only start data stream
-        return MOQT::create_stream(openParams, startParams, StreamType::DATA);
-    }
 
     /*
         decltype(newConnectionInfo) is
@@ -464,8 +450,9 @@ public:
     QUIC_STATUS accept_new_connection(HQUIC listener, auto newConnectionInfo)
     {
         QUIC_STATUS status = QUIC_STATUS_NOT_SUPPORTED;
-        HQUIC connection = newConnectionInfo.Connection;
-        status = get_tbl()->ConnectionSetConfiguration(connection, configuration.get());
+        HQUIC connectionHandle = newConnectionInfo.Connection;
+        status =
+        get_tbl()->ConnectionSetConfiguration(connectionHandle, configuration.get());
 
         if (QUIC_FAILED(status))
         {
@@ -476,7 +463,13 @@ public:
                                       (void*)(this->connection_cb_wrapper),
                                       (void*)(this));
 
-        connectionStateMap[connection] = ConnectionState{ connection };
+        utils::ASSERT_LOG_THROW(connectionStateMap.find(connectionHandle) ==
+                                connectionStateMap.end(),
+                                "Trying to accept connection which already "
+                                "exists");
+
+        connectionStateMap.emplace(connectionHandle,
+                                   ConnectionState{ connectionHandle, this });
 
         return status;
     }
@@ -493,21 +486,7 @@ public:
         // get connection state object
         ConnectionState& connectionState = connectionStateMap.at(connection);
 
-        // set stream state of new stream
-        connectionState.controlStream =
-        StreamState{ rvn::unique_stream(get_tbl(), newStreamInfo.Stream), DEFAULT_BUFFER_CAPACITY };
-
-        // set stream context
-        StreamState& streamState = connectionState.controlStream.value();
-        streamState.set_stream_context(std::make_unique<StreamContext>(this, connection));
-
-        // set callback handler fot the stream (MOQT sets internally)
-        this->get_tbl()->SetCallbackHandler(newStreamInfo.Stream,
-                                            (void*)MOQT::control_stream_cb_wrapper,
-                                            (void*)streamState.streamContext.get());
-
-        // registering stream can not fail
-        return QUIC_STATUS_SUCCESS;
+        return connectionState.accept_control_stream(newStreamInfo.Stream);
     }
 };
 
@@ -522,34 +501,11 @@ public:
 
     protobuf_messages::ClientSetupMessage get_clientSetupMessage();
 
-    QUIC_STATUS accept_data_stream(HQUIC connection, auto newStreamInfo)
+    QUIC_STATUS accept_data_stream(HQUIC connection, HQUIC streamHandle)
     {
         ConnectionState& connectionState = connectionStateMap.at(connection);
 
-        // register new data stream into connectionState object
-        connectionState.dataStreams
-        .emplace_back(rvn::unique_stream(get_tbl(), newStreamInfo.Stream),
-                      DEFAULT_BUFFER_CAPACITY);
-
-        // set stream context fot stream
-        StreamState& streamState = connectionState.dataStreams.back();
-        streamState.set_stream_context(std::make_unique<StreamContext>(this, connection));
-
-        // set callback handler fot the stream (MOQT sets internally)
-        this->get_tbl()->SetCallbackHandler(newStreamInfo.Stream,
-                                            (void*)MOQT::control_stream_cb_wrapper,
-                                            (void*)streamState.streamContext.get());
-
-        // registering stream can not fail
-        return QUIC_STATUS_SUCCESS;
-    }
-
-    const StreamState&
-    create_control_stream(create_stream_params::OpenParams openParams,
-                          create_stream_params::StartParams startParams)
-    {
-        // Client can only establish control stream
-        return MOQT::create_stream(openParams, startParams, StreamType::CONTROL);
+        return connectionState.accept_data_stream(streamHandle);
     }
 };
 } // namespace rvn

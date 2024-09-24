@@ -24,7 +24,7 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
     rvn::unique_connection(tbl.get(), { reg.get(), MOQT::connection_cb_wrapper, this },
                            { configuration.get(), Family, ServerName, ServerPort });
 
-    connectionStateMap[connection.get()] = ConnectionState{ connection.get() };
+    connectionStateMap.emplace(connection.get(), ConnectionState{ connection.get(), this });
 }
 
 protobuf_messages::ClientSetupMessage MOQTClient::get_clientSetupMessage()

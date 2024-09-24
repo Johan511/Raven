@@ -10,7 +10,6 @@ template <typename MOQTObject> class MessageHandler
 {
     MOQTObject& moqt;
     ConnectionState& connectionState;
-    StreamState& streamState;
 
     QUIC_STATUS handle_message(protobuf_messages::ClientSetupMessage&& clientSetupMessage)
     {
@@ -42,7 +41,13 @@ template <typename MOQTObject> class MessageHandler
         protobuf_messages::ServerSetupMessage serverSetupMessage;
         serverSetupMessage.add_parameters()->mutable_role()->set_role(
         protobuf_messages::Role::Publisher);
-        return moqt.stream_send(streamState, serverSetupHeader, serverSetupMessage);
+
+        QUIC_BUFFER* quicBuffer =
+        serialization::serialize(serverSetupHeader, serverSetupMessage);
+
+        connectionState.streamManager->enqueue_control_buffer(quicBuffer);
+
+        return QUIC_STATUS_SUCCESS;
     }
 
     QUIC_STATUS handle_message(protobuf_messages::ServerSetupMessage&& serverSetupMessage)
@@ -59,6 +64,8 @@ template <typename MOQTObject> class MessageHandler
                          serverSetupMessage.DebugString());
 
         connectionState.peerRole = serverSetupMessage.parameters()[0].role().role();
+
+        moqt.subscribe();
 
         return QUIC_STATUS_SUCCESS;
     }
@@ -100,7 +107,7 @@ template <typename MOQTObject> class MessageHandler
                                 "AbsoluteRange filter types.");
 
         // EndObject: The end Object ID, plus 1. A value of 0
-        means the entire group is
+        // means the entire group is
         // requested.
         utils::ASSERT_LOG_THROW(!subscribeMessage.has_endobject() &&
                                 (subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
@@ -108,7 +115,7 @@ template <typename MOQTObject> class MessageHandler
                                 "AbsoluteRange filter types.");
 
         auto [payloadStream, errorInfo] =
-        moqt.get_payload_stream(connectionState, subscribeMessage);
+        moqt.get_payload_ss(connectionState, subscribeMessage);
         if (errorInfo.errc != 0)
         {
             // TODO: error handling and sending
@@ -122,7 +129,7 @@ template <typename MOQTObject> class MessageHandler
         utils::LOG_EVENT(std::cout, "Subscribe Message received: \n",
                          subscribeMessage.DebugString());
 
-        moqt.register_subscription(streamState, subscribeMessage, payloadStream);
+        connectionState.register_subscription(subscribeMessage, payloadStream);
         // send_subscription_ok(connectionState, subscribeMessage);
 
         return QUIC_STATUS_SUCCESS;
@@ -130,8 +137,8 @@ template <typename MOQTObject> class MessageHandler
 
 
 public:
-    MessageHandler(MOQTObject& moqt, ConnectionState& connectionState, StreamState& streamState)
-    : moqt(moqt), connectionState(connectionState), streamState(streamState)
+    MessageHandler(MOQTObject& moqt, ConnectionState& connectionState)
+    : moqt(moqt), connectionState(connectionState)
     {
     }
 

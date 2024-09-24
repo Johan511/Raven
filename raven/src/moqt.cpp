@@ -86,37 +86,4 @@ const QUIC_API_TABLE* MOQT::get_tbl()
     return tbl.get();
 }
 
-const StreamState& MOQT::create_stream(create_stream_params::OpenParams openParams,
-                                       create_stream_params::StartParams startParams,
-                                       StreamType streamType)
-{
-    HQUIC connectionHandle = openParams.connectionHandle;
-    StreamContext* streamContext = new StreamContext(this, openParams.connectionHandle);
-
-    auto stream = rvn::unique_stream(get_tbl(),
-                                     { openParams.connectionHandle, openParams.openFlags,
-                                       openParams.streamCb, streamContext },
-                                     { startParams.startFlags });
-
-    auto& connectionState = this->connectionStateMap[connectionHandle];
-    StreamState* streamState = nullptr;
-
-    switch (streamType)
-    {
-        case StreamType::CONTROL:
-            connectionState.controlStream =
-            StreamState{ std::move(stream), DEFAULT_BUFFER_CAPACITY };
-            streamState = &connectionState.controlStream.value();
-            break;
-        case StreamType::DATA:
-            connectionState.dataStreams.emplace_back(std::move(stream), DEFAULT_BUFFER_CAPACITY);
-            streamState = &connectionState.dataStreams.back();
-            break;
-    }
-
-    streamState->set_stream_context(std::unique_ptr<StreamContext>(streamContext));
-
-    return *streamState;
-}
-
 } // namespace rvn

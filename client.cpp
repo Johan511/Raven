@@ -37,6 +37,8 @@ int main()
     Settings.IsSet.IdleTimeoutMs = TRUE;
     Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
     Settings.StreamMultiReceiveEnabled = TRUE;
+    Settings.PeerUnidiStreamCount = (static_cast<uint16_t>(1) << 16) - 1;
+    Settings.IsSet.PeerUnidiStreamCount = TRUE;
 
     moqtClient->set_Settings(&Settings, sizeof(Settings));
     moqtClient->set_CredConfig(get_cred_config());

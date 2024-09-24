@@ -29,4 +29,30 @@ template <typename T, typename InputStream> T deserialize(InputStream& istream)
     return t;
 };
 
+
+template <typename... Args> QUIC_BUFFER* serialize(Args&&... args)
+{
+    utils::LOG_EVENT(std::cout, "Serializing: \n", args.DebugString()...);
+
+    std::size_t requiredBufferSize = 0;
+    std::ostringstream oss;
+    (google::protobuf::util::SerializeDelimitedToOstream(args, &oss), ...);
+
+    static constexpr std::uint32_t bufferCount = 1;
+    std::string buffer = std::move(oss).str();
+
+    void* sendBufferRaw = malloc(sizeof(QUIC_BUFFER) + buffer.size());
+    utils::ASSERT_LOG_THROW(sendBufferRaw != nullptr,
+                            "Could not allocate memory for buffer");
+
+
+    QUIC_BUFFER* sendBuffer = (QUIC_BUFFER*)sendBufferRaw;
+    sendBuffer->Buffer = (uint8_t*)sendBufferRaw + sizeof(QUIC_BUFFER);
+    sendBuffer->Length = buffer.size();
+
+
+    std::memcpy(sendBuffer->Buffer, buffer.c_str(), buffer.size());
+
+    return sendBuffer;
+}
 } // namespace rvn::serialization

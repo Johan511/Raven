@@ -14,8 +14,9 @@ endfunction()
 set(CMAKE_CXX_STANDARD 20)
 # Set compile options as private to not warn about msquic header files
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address")
-  set(QUIC_ENABLE_LOGGING ON)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fno-omit-frame-pointer")
+  set(QUIC_ENABLE_LOGGING "ON" CACHE INTERNAL "QUIC_ENABLE_LOGGING")
+  set(QUIC_LOGGING_TYPE "stdout" CACHE INTERNAL "stdout")
 endif()
 
 # -------------------------------------------------------------------------------
