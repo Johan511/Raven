@@ -248,7 +248,7 @@ static constexpr auto client_connection_callback =
 
             QUIC_BUFFER* quicBuffer =
             serialization::serialize(messageHeader, clientSetupMessage);
-            connectionState.streamManager->enqueue_control_buffer(quicBuffer);
+            connectionState.enqueue_control_buffer(quicBuffer);
 
             break;
         }

@@ -98,12 +98,12 @@ struct StreamState
     }
 };
 
-class StreamManager
-{
-    friend class ConnectionState;
 
+struct ConnectionState
+{
+    // StreamManager //////////////////////////////////////////////////////////////
+    // TODO: Inlined into the class because of some bug, please check (457239f)
     static constexpr std::size_t MAX_DATA_STREAMS = 8;
-    class ConnectionState* connectionState;
 
     std::queue<QUIC_BUFFER*> dataBuffersToSend;
     std::vector<StreamState> dataStreams; // they are sending/receiving data
@@ -112,28 +112,18 @@ class StreamManager
     std::optional<StreamState> controlStream{};
     bool controlStreamMessageReceived = true;
 
-    StreamState& create_data_stream();
-
-    void send_data_buffer();
-    void send_control_buffer();
-
-public:
-    StreamManager(ConnectionState* connectionState)
-    : connectionState(connectionState)
-    {
-    }
-
-
     void delete_data_stream(HQUIC streamHandle);
 
     void enqueue_data_buffer(QUIC_BUFFER* buffer);
     void enqueue_control_buffer(QUIC_BUFFER* buffer);
-};
+
+    StreamState& create_data_stream();
+
+    void send_data_buffer();
+    void send_control_buffer();
+    /////////////////////////////////////////////////////////////////////////////
 
 
-struct ConnectionState
-{
-    std::unique_ptr<StreamManager> streamManager;
     HQUIC connection = nullptr;
     class MOQT* moqtObject = nullptr;
 
@@ -150,8 +140,7 @@ struct ConnectionState
     const std::optional<StreamState>& get_control_stream() const;
 
     ConnectionState(HQUIC connection_, class MOQT* moqtObject_)
-    : connection(connection_), moqtObject(moqtObject_),
-      streamManager(std::make_unique<StreamManager>(this))
+    : connection(connection_), moqtObject(moqtObject_)
     {
     }
 

@@ -4,16 +4,15 @@
 
 namespace rvn
 {
-StreamState& StreamManager::create_data_stream()
+StreamState& ConnectionState::create_data_stream()
 {
-    HQUIC connectionHandle = connectionState->connection;
-    StreamContext* streamContext =
-    new StreamContext(connectionState->moqtObject, connectionHandle);
+    HQUIC connectionHandle = connection;
+    StreamContext* streamContext = new StreamContext(moqtObject, connectionHandle);
 
     auto stream =
-    rvn::unique_stream(connectionState->moqtObject->get_tbl(),
+    rvn::unique_stream(moqtObject->get_tbl(),
                        { connectionHandle, QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
-                         connectionState->moqtObject->data_stream_cb_wrapper, streamContext },
+                         moqtObject->data_stream_cb_wrapper, streamContext },
                        { QUIC_STREAM_START_FLAG_FAIL_BLOCKED |
                          QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL });
 
@@ -25,7 +24,7 @@ StreamState& StreamManager::create_data_stream()
     return streamState;
 }
 
-void StreamManager::send_data_buffer()
+void ConnectionState::send_data_buffer()
 {
     utils::ASSERT_LOG_THROW(dataBuffersToSend.size(), __FUNCTION__,
                             "called with no buffers to send");
@@ -40,14 +39,14 @@ void StreamManager::send_data_buffer()
     new StreamSendContext(buffer, 1, streamState.streamContext.get());
 
     QUIC_STATUS status =
-    connectionState->moqtObject->get_tbl()->StreamSend(streamHandle, buffer, 1, QUIC_SEND_FLAG_FIN,
-                                                      streamSendContext);
+    moqtObject->get_tbl()->StreamSend(streamHandle, buffer, 1,
+                                      QUIC_SEND_FLAG_FIN, streamSendContext);
 
     if (QUIC_FAILED(status))
         throw std::runtime_error("Failed to send data buffer");
 }
 
-void StreamManager::delete_data_stream(HQUIC streamHandle)
+void ConnectionState::delete_data_stream(HQUIC streamHandle)
 {
     auto streamIter =
     std::find_if(dataStreams.begin(), dataStreams.end(),
@@ -64,14 +63,14 @@ void StreamManager::delete_data_stream(HQUIC streamHandle)
         send_data_buffer();
 }
 
-void StreamManager::enqueue_data_buffer(QUIC_BUFFER* buffer)
+void ConnectionState::enqueue_data_buffer(QUIC_BUFFER* buffer)
 {
     dataBuffersToSend.push(buffer);
     if (dataStreams.size() < MAX_DATA_STREAMS)
         send_data_buffer();
 }
 
-void StreamManager::enqueue_control_buffer(QUIC_BUFFER* buffer)
+void ConnectionState::enqueue_control_buffer(QUIC_BUFFER* buffer)
 {
     controlBuffersToSend.push(buffer);
 
@@ -79,7 +78,7 @@ void StreamManager::enqueue_control_buffer(QUIC_BUFFER* buffer)
         send_control_buffer();
 }
 
-void StreamManager::send_control_buffer()
+void ConnectionState::send_control_buffer()
 {
     utils::ASSERT_LOG_THROW(dataBuffersToSend.empty(), __FUNCTION__,
                             "called with no buffers to send");
@@ -90,20 +89,19 @@ void StreamManager::send_control_buffer()
     auto buffer = controlBuffersToSend.front();
     controlBuffersToSend.pop();
 
-    std::cout << connectionState->connection << '\n';
-    StreamState& streamState = connectionState->reset_control_stream();
-    // HQUIC streamHandle = streamState.stream.get();
+    StreamState& streamState = reset_control_stream();
+    HQUIC streamHandle = streamState.stream.get();
 
-    // StreamSendContext* streamSendContext =
-    // new StreamSendContext(buffer, 1, streamState.streamContext.get());
+    StreamSendContext* streamSendContext =
+    new StreamSendContext(buffer, 1, streamState.streamContext.get());
 
-    // QUIC_STATUS status =
-    // connectionState->moqtObject->get_tbl()->StreamSend(streamHandle, buffer, 1, QUIC_SEND_FLAG_FIN,
-    //                                                   streamSendContext);
-    // if (QUIC_FAILED(status))
-    //     throw std::runtime_error("Failed to send control message");
-    // else
-    //     controlStreamMessageReceived = false;
+    QUIC_STATUS status =
+    moqtObject->get_tbl()->StreamSend(streamHandle, buffer, 1,
+                                      QUIC_SEND_FLAG_FIN, streamSendContext);
+    if (QUIC_FAILED(status))
+        throw std::runtime_error("Failed to send control message");
+    else
+        controlStreamMessageReceived = false;
 }
 
 
@@ -116,22 +114,22 @@ bool ConnectionState::check_subscription(const protobuf_messages::SubscribeMessa
 
 const std::vector<StreamState>& ConnectionState::get_data_streams() const
 {
-    return streamManager->dataStreams;
+    return dataStreams;
 }
 
 std::vector<StreamState>& ConnectionState::get_data_streams()
 {
-    return streamManager->dataStreams;
+    return dataStreams;
 }
 
 const std::optional<StreamState>& ConnectionState::get_control_stream() const
 {
-    return streamManager->controlStream;
+    return controlStream;
 }
 
 std::optional<StreamState>& ConnectionState::get_control_stream()
 {
-    return streamManager->controlStream;
+    return controlStream;
 }
 
 
@@ -147,7 +145,7 @@ QUIC_STATUS ConnectionState::accept_data_stream(HQUIC streamHandle)
     streamState.set_stream_context(std::make_unique<StreamContext>(moqtObject, connection));
 
     // set callback handler fot the stream (MOQT sets internally)
-    moqtObject->get_tbl()->SetCallbackHandler(streamHandle, (void*)MOQT::control_stream_cb_wrapper,
+    moqtObject->get_tbl()->SetCallbackHandler(streamHandle, (void*)MOQT::data_stream_cb_wrapper,
                                               (void*)streamState.streamContext.get());
 
     // registering stream can not fail
@@ -161,32 +159,30 @@ QUIC_STATUS ConnectionState::accept_control_stream(HQUIC controlStreamHandle)
     controlStreamState.set_stream_context(
     std::make_unique<StreamContext>(moqtObject, connection));
 
+    this->controlStream = std::move(controlStreamState);
+
     moqtObject->get_tbl()
     ->SetCallbackHandler(controlStreamHandle, (void*)MOQT::control_stream_cb_wrapper,
-                         (void*)controlStreamState.streamContext.get());
+                         (void*)controlStream.value().streamContext.get());
 
-    this->streamManager->controlStream = std::move(controlStreamState);
 
     return QUIC_STATUS_SUCCESS;
 }
 
 StreamState& ConnectionState::reset_control_stream()
 {
+    StreamContext* streamContext = new StreamContext(moqtObject, connection);
     StreamState controlStreamState(
     rvn::unique_stream(moqtObject->get_tbl(),
-                       {
-                       connection,
-                       QUIC_STREAM_OPEN_FLAG_0_RTT,
-                       MOQT::control_stream_cb_wrapper,
-                       },
+                       { connection, QUIC_STREAM_OPEN_FLAG_0_RTT,
+                         MOQT::control_stream_cb_wrapper, streamContext },
                        { QUIC_STREAM_START_FLAG_PRIORITY_WORK }));
 
-    controlStreamState.set_stream_context(
-    std::make_unique<StreamContext>(moqtObject, connection));
+    controlStreamState.set_stream_context(std::unique_ptr<StreamContext>(streamContext));
 
-    this->streamManager->controlStream = std::move(controlStreamState);
+    this->controlStream = std::move(controlStreamState);
 
-    return this->streamManager->controlStream.value();
+    return this->controlStream.value();
 }
 
 void ConnectionState::register_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage,
@@ -223,7 +219,7 @@ void ConnectionState::register_subscription(const protobuf_messages::SubscribeMe
 
         QUIC_BUFFER* quicBuffer = serialization::serialize(header, objectStreamMessage);
 
-        streamManager->enqueue_data_buffer(quicBuffer);
+        enqueue_data_buffer(quicBuffer);
     }
 }
 

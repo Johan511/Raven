@@ -282,7 +282,7 @@ public:
         QUIC_BUFFER* quicBuffer =
         serialization::serialize(subscribeHeader, subscribeMessage);
 
-        connectionState.streamManager->enqueue_data_buffer(quicBuffer);
+        connectionState.enqueue_data_buffer(quicBuffer);
 
         return nullptr;
     }

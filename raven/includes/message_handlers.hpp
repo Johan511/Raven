@@ -45,7 +45,7 @@ template <typename MOQTObject> class MessageHandler
         QUIC_BUFFER* quicBuffer =
         serialization::serialize(serverSetupHeader, serverSetupMessage);
 
-        connectionState.streamManager->enqueue_control_buffer(quicBuffer);
+        connectionState.enqueue_control_buffer(quicBuffer);
 
         return QUIC_STATUS_SUCCESS;
     }
