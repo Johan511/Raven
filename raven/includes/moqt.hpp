@@ -221,29 +221,12 @@ public:
     {
         return connectionStateMap;
     }
-    struct GetPayloadStreamError
-    {
-        std::uint8_t errc = 0;
-    };
-
-    auto get_payload_ss(ConnectionState& connectionState,
-                        const protobuf_messages::SubscribeMessage& subscribeMessage)
-    {
-
-        std::ifstream* payloadStream = new std::ifstream();
-        payloadStream->open(DUMMY_PAYLOAD_FILE_PATH, std::ios::in);
-
-        GetPayloadStreamError errorInfo;
-
-        return std::make_pair(payloadStream, errorInfo);
-    }
 
 
 public:
     std::ostream* subscribe()
     {
         ConnectionState& connectionState = connectionStateMap.begin()->second;
-        connectionState.reset_control_stream();
 
         protobuf_messages::MessageHeader subscribeHeader;
         subscribeHeader.set_messagetype(protobuf_messages::MoQtMessageType::SUBSCRIBE);
@@ -282,18 +265,11 @@ public:
         QUIC_BUFFER* quicBuffer =
         serialization::serialize(subscribeHeader, subscribeMessage);
 
-        connectionState.enqueue_data_buffer(quicBuffer);
+        connectionState.enqueue_control_buffer(quicBuffer);
 
         return nullptr;
     }
 
-
-    // to be used only by subscriber
-    StreamState& reset_control_stream()
-    {
-        ConnectionState& connectionState = connectionStateMap.begin()->second;
-        return connectionState.reset_control_stream();
-    };
 
     // auto is used as parameter because there is no named type for receive
     // information it is an anonymous structure
@@ -317,9 +293,14 @@ public:
 
         const QUIC_BUFFER* buffers = receiveInformation->Buffers;
 
-        std::istringstream iStringStream(
+        std::stringstream iStringStream(
         std::string(reinterpret_cast<const char*>(buffers[0].Buffer), buffers[0].Length));
 
+        return handle_message(connectionState, streamHandle, iStringStream);
+    }
+
+    void handle_message(ConnectionState& connectionState, HQUIC streamHandle, std::stringstream& iStringStream)
+    {
         google::protobuf::io::IstreamInputStream istream(&iStringStream);
 
         protobuf_messages::MessageHeader header =
@@ -353,25 +334,8 @@ public:
             }
             case protobuf_messages::MoQtMessageType::SUBSCRIBE:
             {
-                // messageHandler.template handle_message<protobuf_messages::SubscribeMessage>(istream);
-                protobuf_messages::SubscribeMessage subscribeMessage;
-                auto [payloadStream, errorInfo] =
-                get_payload_ss(connectionState, subscribeMessage);
-                if (errorInfo.errc != 0)
-                {
-                    // TODO: error handling and sending
-                    // SUBSCRIBE_ERROR message
-                    // send_subscribe_error(connectionState,
-                    // subscribeMessage, errorInfo.value());
-                }
-
-                // TODO: ordering between subscribe ok and register
-                // subscription (which manages sending of data)
-                utils::LOG_EVENT(std::cout, "Subscribe Message received: \n",
-                                 subscribeMessage.DebugString());
-
-                connectionState.register_subscription(subscribeMessage, payloadStream);
-                // send_subscription_ok(connectionState, subscribeMessage);
+                // Client to Servevr
+                messageHandler.template handle_message<protobuf_messages::SubscribeMessage>(istream);
 
                 break;
             }

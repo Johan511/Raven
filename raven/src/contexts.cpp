@@ -26,6 +26,8 @@ StreamState& ConnectionState::create_data_stream()
 
 void ConnectionState::send_data_buffer()
 {
+    if (dataBuffersToSend.empty())
+        return;
     utils::ASSERT_LOG_THROW(dataBuffersToSend.size(), __FUNCTION__,
                             "called with no buffers to send");
 
@@ -36,7 +38,14 @@ void ConnectionState::send_data_buffer()
     HQUIC streamHandle = streamState.stream.get();
 
     StreamSendContext* streamSendContext =
-    new StreamSendContext(buffer, 1, streamState.streamContext.get());
+    new StreamSendContext(buffer, 1, streamState.streamContext.get(),
+                          [this, streamHandle](StreamSendContext* context)
+                          {
+                              HQUIC connectionHandle = context->streamContext->connection;
+                              ConnectionState& connectionState =
+                              moqtObject->get_connectionStateMap().at(connectionHandle);
+                              connectionState.delete_data_stream(streamHandle);
+                          });
 
     QUIC_STATUS status =
     moqtObject->get_tbl()->StreamSend(streamHandle, buffer, 1,
@@ -74,34 +83,33 @@ void ConnectionState::enqueue_control_buffer(QUIC_BUFFER* buffer)
 {
     controlBuffersToSend.push(buffer);
 
-    if (controlStreamMessageReceived)
-        send_control_buffer();
+    // TODO: protect: multiple control streams from being established
+    send_control_buffer();
 }
 
 void ConnectionState::send_control_buffer()
 {
     utils::ASSERT_LOG_THROW(dataBuffersToSend.empty(), __FUNCTION__,
                             "called with no buffers to send");
-    utils::ASSERT_LOG_THROW(controlStreamMessageReceived,
-                            "Attempting to send another control message while "
-                            "there has been no reply to the previous one");
 
     auto buffer = controlBuffersToSend.front();
     controlBuffersToSend.pop();
 
-    StreamState& streamState = reset_control_stream();
-    HQUIC streamHandle = streamState.stream.get();
+    StreamState* streamState;
+    if (expectControlStreamShutdown)
+        streamState = &reset_control_stream();
+    else
+        streamState = &controlStream.value();
+    HQUIC streamHandle = streamState->stream.get();
 
     StreamSendContext* streamSendContext =
-    new StreamSendContext(buffer, 1, streamState.streamContext.get());
+    new StreamSendContext(buffer, 1, streamState->streamContext.get());
 
     QUIC_STATUS status =
     moqtObject->get_tbl()->StreamSend(streamHandle, buffer, 1,
                                       QUIC_SEND_FLAG_FIN, streamSendContext);
     if (QUIC_FAILED(status))
         throw std::runtime_error("Failed to send control message");
-    else
-        controlStreamMessageReceived = false;
 }
 
 
@@ -186,42 +194,22 @@ StreamState& ConnectionState::reset_control_stream()
 }
 
 void ConnectionState::register_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage,
-                                            std::istream* payloadStream)
+                                            std::string&& payload)
 {
     protobuf_messages::MessageHeader header;
     header.set_messagetype(protobuf_messages::MoQtMessageType::OBJECT_STREAM);
 
     protobuf_messages::ObjectStreamMessage objectStreamMessage;
-    // <DummyValues>
-    objectStreamMessage.set_subscribeid(1);
-    objectStreamMessage.set_trackalias(1);
+    objectStreamMessage.set_subscribeid(subscribeMessage.subscribeid());
+    objectStreamMessage.set_trackalias(subscribeMessage.trackalias());
     objectStreamMessage.set_groupid(1);
     objectStreamMessage.set_objectid(1);
     objectStreamMessage.set_publisherpriority(1);
-    objectStreamMessage.set_objectstatus(1);
-    // </DummyValues>
-    std::stringstream objectStreamMessageStream;
-    objectStreamMessageStream << payloadStream->rdbuf();
-    std::string payload = objectStreamMessageStream.str();
+    // TODO: Object Status Cache
+    objectStreamMessage.set_objectstatus(protobuf_messages::ObjectStatus::Normal);
+    objectStreamMessage.set_objectpayload(std::move(payload));
 
-    std::size_t idx = 0;
-    std::size_t payloadSize = payload.size();
-
-    while (idx != payloadSize)
-    {
-        std::size_t remainingSize = payloadSize - idx;
-        std::size_t sendSize = std::min(remainingSize, bufferCapacity);
-
-        std::string sendPayloadChunk{ payload.c_str() + idx, sendSize };
-        idx += sendSize;
-
-        objectStreamMessage.set_objectpayload(sendPayloadChunk);
-
-        QUIC_BUFFER* quicBuffer = serialization::serialize(header, objectStreamMessage);
-
-        enqueue_data_buffer(quicBuffer);
-    }
+    QUIC_BUFFER* quicBuffer = serialization::serialize(header, objectStreamMessage);
+    enqueue_data_buffer(quicBuffer);
 }
-
-
 } // namespace rvn

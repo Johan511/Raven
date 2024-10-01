@@ -156,22 +156,73 @@ static constexpr auto server_data_stream_callback =
             moqtObject->handle_message(connectionState, dataStream, &(event->RECEIVE));
             break;
         }
-        case QUIC_STREAM_EVENT_SEND_COMPLETE:
+        case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         {
-            // Buffer has been sent
-
-            // client context is the context used in the QUIC send
-            // function
-            StreamSendContext* streamSendContext =
-            static_cast<StreamSendContext*>(event->SEND_COMPLETE.ClientContext);
-
-            streamSendContext->send_complete_cb();
-            delete streamSendContext;
+            ConnectionState& connectionState =
+            moqtObject->get_connectionStateMap().at(connection);
+            connectionState.delete_data_stream(dataStream);
             break;
         }
         case QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE:
         {
             moqtObject->connectionStateMap.at(connection).bufferCapacity =
+            event->IDEAL_SEND_BUFFER_SIZE.ByteCount;
+        }
+        default: break;
+    }
+    return QUIC_STATUS_SUCCESS;
+};
+
+// Data Stream Open Flags = QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL
+// Data Stream Start flags = QUIC_STREAM_START_FLAG_FAIL_BLOCKED |
+// QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL
+static constexpr auto client_data_stream_callback =
+[](HQUIC dataStream, void* context, QUIC_STREAM_EVENT* event)
+{
+    StreamContext* streamContext = static_cast<StreamContext*>(context);
+    HQUIC connectionHandle = streamContext->connection;
+    MOQT* moqtObject = streamContext->moqtObject;
+
+    switch (event->Type)
+    {
+        case QUIC_STREAM_EVENT_START_COMPLETE:
+        {
+            // called when attempting to setup stream connection
+            break;
+        }
+        case QUIC_STREAM_EVENT_RECEIVE:
+        {
+            // Received Data Message
+            // auto receiveInformation = event->RECEIVE;
+            StreamState* streamState =
+            moqtObject->get_stream_state(connectionHandle, dataStream);
+            for (std::uint64_t bufferIndex = 0;
+                 bufferIndex < event->RECEIVE.BufferCount; bufferIndex++)
+            {
+                const QUIC_BUFFER* buffer = &event->RECEIVE.Buffers[bufferIndex];
+                streamState->messageSS.write(reinterpret_cast<const char*>(
+                                             buffer->Buffer),
+                                             buffer->Length);
+            }
+
+            break;
+        }
+        case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+        {
+            StreamState* streamState =
+            moqtObject->get_stream_state(connectionHandle, dataStream);
+            
+            ConnectionState& connectionState =
+            moqtObject->get_connectionStateMap().at(connectionHandle);
+
+            moqtObject->handle_message(connectionState, dataStream, streamState->messageSS);
+
+            connectionState.delete_data_stream(dataStream);
+            break;
+        }
+        case QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE:
+        {
+            moqtObject->connectionStateMap.at(connectionHandle).bufferCapacity =
             event->IDEAL_SEND_BUFFER_SIZE.ByteCount;
         }
         default: break;

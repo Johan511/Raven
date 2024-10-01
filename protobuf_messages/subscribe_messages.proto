@@ -11,6 +11,23 @@ enum SubscribeFilter
                                // The start and end of the range are inclusive. EndGroup and EndObject MUST specify the same or a later object than StartGroup and StartObject.
 };
 
+enum ObjectStatus
+{
+    Normal      = 0x0;
+    ObjectDNE   = 0x1; // Indicates that this object does not exist at any publisher 
+                       // and it will not be published in the future.
+
+    GrpDNE      = 0x2; // Indicates Group does not exist. Indicates that objects with this GroupID do not exist at 
+                       // any publisher and they will not be published in the future.
+                     
+    EndOfGroup  = 0x3; // Indicates Group does not exist. Indicates that objects with this GroupID 
+                       // do not exist at any publisher and they will not be published in the future.
+
+    EndOfTrack  = 0x4; // Indicates end of Track and Group. GroupID is one greater than the largest group produced in this track 
+                       // and the ObjectId is one greater than the largest object produced in that group. 
+                       // This is sent right after the last object in the track. 
+};
+
 message SubscribeParameter
 {};
 

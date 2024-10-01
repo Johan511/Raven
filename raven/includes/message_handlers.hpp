@@ -6,6 +6,26 @@
 
 namespace rvn
 {
+
+struct RegisterSubscriptionErr
+{
+};
+static inline RegisterSubscriptionErr
+try_register_subscription(ConnectionState& connectionState,
+                          const protobuf_messages::SubscribeMessage& subscribeMessage)
+{
+    RegisterSubscriptionErr errorInfo;
+
+    std::ifstream payloadfStream(DUMMY_PAYLOAD_FILE_PATH, std::ios::in);
+    std::stringstream payloadSS;
+    payloadSS << payloadfStream.rdbuf();
+    std::string payload = std::move(payloadSS).str();
+
+    connectionState.register_subscription(subscribeMessage, std::move(payload));
+
+    return errorInfo;
+}
+
 template <typename MOQTObject> class MessageHandler
 {
     MOQTObject& moqt;
@@ -44,6 +64,7 @@ template <typename MOQTObject> class MessageHandler
 
         QUIC_BUFFER* quicBuffer =
         serialization::serialize(serverSetupHeader, serverSetupMessage);
+        connectionState.expectControlStreamShutdown = false;
 
         connectionState.enqueue_control_buffer(quicBuffer);
 
@@ -64,6 +85,7 @@ template <typename MOQTObject> class MessageHandler
                          serverSetupMessage.DebugString());
 
         connectionState.peerRole = serverSetupMessage.parameters()[0].role().role();
+        connectionState.expectControlStreamShutdown = true;
 
         moqt.subscribe();
 
@@ -74,63 +96,53 @@ template <typename MOQTObject> class MessageHandler
     {
         // Subscriber sends to Publisher
 
-        utils::ASSERT_LOG_THROW(connectionState.peerRole == protobuf_messages::Role::Publisher,
-                                "Client can only subscribe to Publisher");
+        // utils::ASSERT_LOG_THROW(connectionState.peerRole == protobuf_messages::Role::Publisher,
+        //                         "Client can only subscribe to Publisher");
 
-        utils::ASSERT_LOG_THROW(subscribeMessage.has_startgroup() ^
-                                subscribeMessage.has_startobject(),
-                                "StartGroup and StartObject must both be sent "
-                                "or both should not be sent");
+        // utils::ASSERT_LOG_THROW(!(subscribeMessage.has_startgroup() ^
+        //                           subscribeMessage.has_startobject()),
+        //                         "StartGroup and StartObject must both be sent
+        //                         " "or both should not be sent");
 
-        utils::ASSERT_LOG_THROW(subscribeMessage.has_startgroup() &&
-                                (subscribeMessage.filtertype() == protobuf_messages::AbsoluteStart ||
-                                 subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
-                                "Start group Id is only present for "
-                                "AbsoluteStart and AbsoluteRange filter "
-                                "types.");
+        // utils::ASSERT_LOG_THROW(subscribeMessage.has_startgroup() &&
+        //                         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteStart ||
+        //                          subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
+        //                         "Start group Id is only present for "
+        //                         "AbsoluteStart and AbsoluteRange filter "
+        //                         "types.");
 
-        utils::ASSERT_LOG_THROW(!subscribeMessage.has_startobject() &&
-                                (subscribeMessage.filtertype() == protobuf_messages::AbsoluteStart ||
-                                 subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
-                                "Start object Id is only present for "
-                                "AbsoluteStart and AbsoluteRange filter "
-                                "types.");
+        // utils::ASSERT_LOG_THROW(!subscribeMessage.has_startobject() &&
+        //                         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteStart ||
+        //                          subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
+        //                         "Start object Id is only present for "
+        //                         "AbsoluteStart and AbsoluteRange filter "
+        //                         "types.");
 
-        utils::ASSERT_LOG_THROW(subscribeMessage.has_endgroup() ^
-                                subscribeMessage.has_endobject(),
-                                "EndGroup and EndObject must both be sent or "
-                                "both should not be sent");
+        // utils::ASSERT_LOG_THROW(!(subscribeMessage.has_endgroup() ^
+        //                           subscribeMessage.has_endobject()),
+        //                         "EndGroup and EndObject must both be sent or
+        //                         " "both should not be sent");
 
-        utils::ASSERT_LOG_THROW(subscribeMessage.has_endgroup() &&
-                                (subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
-                                "End group Id is only present for "
-                                "AbsoluteRange filter types.");
+        // utils::ASSERT_LOG_THROW(subscribeMessage.has_endgroup() &&
+        //                         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
+        //                         "End group Id is only present for "
+        //                         "AbsoluteRange filter types.");
 
-        // EndObject: The end Object ID, plus 1. A value of 0
-        // means the entire group is
-        // requested.
-        utils::ASSERT_LOG_THROW(!subscribeMessage.has_endobject() &&
-                                (subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
-                                "End object Id is only present for "
-                                "AbsoluteRange filter types.");
+        // // EndObject: The end Object ID, plus 1. A value of 0
+        // // means the entire group is
+        // // requested.
+        // utils::ASSERT_LOG_THROW(!subscribeMessage.has_endobject() &&
+        //                         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
+        //                         "End object Id is only present for "
+        //                         "AbsoluteRange filter types.");
 
-        auto [payloadStream, errorInfo] =
-        moqt.get_payload_ss(connectionState, subscribeMessage);
-        if (errorInfo.errc != 0)
-        {
-            // TODO: error handling and sending
-            // SUBSCRIBE_ERROR message
-            // send_subscribe_error(connectionState,
-            // subscribeMessage, errorInfo.value());
-        }
 
         // TODO: ordering between subscribe ok and register
         // subscription (which manages sending of data)
         utils::LOG_EVENT(std::cout, "Subscribe Message received: \n",
                          subscribeMessage.DebugString());
 
-        connectionState.register_subscription(subscribeMessage, payloadStream);
-        // send_subscription_ok(connectionState, subscribeMessage);
+        auto err = try_register_subscription(connectionState, subscribeMessage);
 
         return QUIC_STATUS_SUCCESS;
     }

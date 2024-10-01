@@ -85,6 +85,7 @@ struct StreamState
 {
     rvn::unique_stream stream;
     std::unique_ptr<StreamContext> streamContext{};
+    std::stringstream messageSS;
 
     template <typename... Args> void set_stream_context(Args&&... args)
     {
@@ -110,7 +111,7 @@ struct ConnectionState
 
     std::queue<QUIC_BUFFER*> controlBuffersToSend;
     std::optional<StreamState> controlStream{};
-    bool controlStreamMessageReceived = true;
+    bool expectControlStreamShutdown = true;
 
     void delete_data_stream(HQUIC streamHandle);
 
@@ -152,7 +153,7 @@ struct ConnectionState
     StreamState& reset_control_stream();
 
     void register_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage,
-                               std::istream* payloadStream);
+                               std::string&& payload);
 };
 
 } // namespace rvn

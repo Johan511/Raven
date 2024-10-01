@@ -51,7 +51,7 @@ int main()
     moqtClient->set_listenerCb(rvn::callbacks::client_listener_callback);
 
     moqtClient->set_controlStreamCb(rvn::callbacks::client_control_stream_callback);
-    moqtClient->set_dataStreamCb(rvn::callbacks::server_data_stream_callback);
+    moqtClient->set_dataStreamCb(rvn::callbacks::client_data_stream_callback);
 
 
     moqtClient->start_connection(QUIC_ADDRESS_FAMILY_UNSPEC, Target, UdpPort);
