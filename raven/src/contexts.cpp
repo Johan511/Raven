@@ -27,9 +27,17 @@ StreamState& ConnectionState::create_data_stream()
 void ConnectionState::send_data_buffer()
 {
     if (dataBuffersToSend.empty())
-        return;
-    utils::ASSERT_LOG_THROW(dataBuffersToSend.size(), __FUNCTION__,
-                            "called with no buffers to send");
+    {
+        auto iter = SubscriptionManagerHandle
+        {
+        } -> subscriptionStates[this].begin();
+        if (iter == SubscriptionManagerHandle {} -> subscriptionStates[this].end())
+            return;
+
+        return SubscriptionManagerHandle
+        {
+        } -> update_subscription_state(this, iter);
+    }
 
     QUIC_BUFFER* buffer = dataBuffersToSend.front();
     dataBuffersToSend.pop();

@@ -7,25 +7,6 @@
 namespace rvn
 {
 
-struct RegisterSubscriptionErr
-{
-};
-static inline RegisterSubscriptionErr
-try_register_subscription(ConnectionState& connectionState,
-                          const protobuf_messages::SubscribeMessage& subscribeMessage)
-{
-    RegisterSubscriptionErr errorInfo;
-
-    std::ifstream payloadfStream(DUMMY_PAYLOAD_FILE_PATH, std::ios::in);
-    std::stringstream payloadSS;
-    payloadSS << payloadfStream.rdbuf();
-    std::string payload = std::move(payloadSS).str();
-
-    connectionState.register_subscription(subscribeMessage, std::move(payload));
-
-    return errorInfo;
-}
-
 template <typename MOQTObject> class MessageHandler
 {
     MOQTObject& moqt;
@@ -142,7 +123,18 @@ template <typename MOQTObject> class MessageHandler
         utils::LOG_EVENT(std::cout, "Subscribe Message received: \n",
                          subscribeMessage.DebugString());
 
-        auto err = try_register_subscription(connectionState, subscribeMessage);
+        auto err =
+        moqt.try_register_subscription(connectionState, std::move(subscribeMessage));
+
+        return QUIC_STATUS_SUCCESS;
+    }
+
+    QUIC_STATUS handle_message(protobuf_messages::ObjectStreamMessage&& objectStreamMessage)
+    {
+        // Publisher sends to Subscriber
+
+        std::cout << "ObjectPayload: \n"
+                  << objectStreamMessage.objectpayload() << std::endl;
 
         return QUIC_STATUS_SUCCESS;
     }

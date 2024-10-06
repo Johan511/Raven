@@ -14,6 +14,7 @@
 #include <moqt_utils.hpp>
 #include <protobuf_messages.hpp>
 #include <serialization.hpp>
+#include <subscription_manager.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
 ////////////////////////////////////////////
@@ -254,11 +255,7 @@ public:
         subscribeMessage.set_trackname("name");
         subscribeMessage.set_subscriberpriority(1);
         subscribeMessage.set_grouporder(1);
-        subscribeMessage.set_filtertype(protobuf_messages::AbsoluteStart);
-        subscribeMessage.set_startgroup(1);
-        subscribeMessage.set_startobject(1);
-        subscribeMessage.set_endgroup(1);
-        subscribeMessage.set_endobject(1);
+        subscribeMessage.set_filtertype(protobuf_messages::LatestObject);
         subscribeMessage.set_numparameters(0);
 
 
@@ -341,30 +338,28 @@ public:
             }
             case protobuf_messages::MoQtMessageType::OBJECT_STREAM:
             {
-                // Publisher sends to Subscriber
-                /*
-                OBJECT_STREAM Message {
-                  Subscribe ID (i),
-                  Track Alias (i),
-                  Group ID (i),
-                  Object ID (i),
-                  Publisher Priority (8),
-                  Object Status (i),
-                  Object Payload (..),
-                }
-                */
 
-                protobuf_messages::ObjectStreamMessage objectStreamMessage =
-                serialization::deserialize<protobuf_messages::ObjectStreamMessage>(istream);
-
-                std::cout << "ObjectPayload: \n"
-                          << objectStreamMessage.objectpayload() << std::endl;
+                messageHandler.template handle_message<protobuf_messages::ObjectStreamMessage>(istream);
 
                 break;
             }
             default: LOGE("Unknown control message type", header.messagetype());
         }
     }
+
+
+    RegisterSubscriptionErr
+    try_register_subscription(ConnectionState& connectionState,
+                              protobuf_messages::SubscribeMessage&& subscribeMessage)
+    {
+        RegisterSubscriptionErr errorInfo;
+
+        SubscriptionManagerHandle
+        {
+        } -> try_register_subscription(connectionState, std::move(subscribeMessage));
+        return errorInfo;
+    }
+
 
 protected:
     MOQT();

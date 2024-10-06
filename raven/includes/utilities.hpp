@@ -19,6 +19,45 @@
 #define LOGE(...) \
     rvn::utils::LOG(std::source_location::current(), "LOGGING UNEXPECTED STATE: ", __VA_ARGS__)
 
+
+#define DEFINE_SINGLETON(ClassName)         \
+    class ClassName##Handle                 \
+    {                                       \
+        static ClassName* instance;         \
+                                            \
+    public:                                 \
+        ClassName##Handle()                 \
+        {                                   \
+            if (instance == nullptr)        \
+            {                               \
+                instance = new ClassName(); \
+            }                               \
+        }                                   \
+        ClassName* get_instance()           \
+        {                                   \
+            return instance;                \
+        }                                   \
+        ClassName& operator*()              \
+        {                                   \
+            return *instance;               \
+        }                                   \
+        const ClassName& operator*() const  \
+        {                                   \
+            return *instance;               \
+        }                                   \
+        ClassName* operator->()             \
+        {                                   \
+            return instance;                \
+        }                                   \
+    };                                      \
+
+#ifdef _MSC_VER
+#define WEAK_LINKAGE __declspec(selectany)
+#else
+#define WEAK_LINKAGE __attribute__((weak))
+#endif
+
+
 namespace rvn::utils
 {
 template <typename E>
@@ -87,6 +126,8 @@ template <typename... Args> void LOG_EVENT(std::ostream& os, Args... args)
     print(oss, args...);
     LOG_EVENT_BASE(os, oss.str());
 }
+
+
 } // namespace rvn::utils
 
 namespace rvn
