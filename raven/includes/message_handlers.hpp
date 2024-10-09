@@ -3,6 +3,8 @@
 #include <moqt.hpp>
 #include <serialization.hpp>
 
+#include <opencv2/opencv.hpp>
+
 
 namespace rvn
 {
@@ -68,8 +70,6 @@ template <typename MOQTObject> class MessageHandler
         connectionState.peerRole = serverSetupMessage.parameters()[0].role().role();
         connectionState.expectControlStreamShutdown = true;
 
-        moqt.subscribe();
-
         return QUIC_STATUS_SUCCESS;
     }
 
@@ -131,10 +131,9 @@ template <typename MOQTObject> class MessageHandler
 
     QUIC_STATUS handle_message(protobuf_messages::ObjectStreamMessage&& objectStreamMessage)
     {
-        // Publisher sends to Subscriber
+        std::uint64_t subscribeId = objectStreamMessage.subscribeid();
 
-        std::cout << "ObjectPayload: \n"
-                  << objectStreamMessage.objectpayload() << std::endl;
+        moqt.add_to_queue(objectStreamMessage.objectpayload());
 
         return QUIC_STATUS_SUCCESS;
     }

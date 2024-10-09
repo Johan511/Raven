@@ -6,7 +6,9 @@
 #include <fstream>
 #include <functional>
 #include <ostream>
+#include <queue>
 #include <sstream>
+#include <thread>
 #include <unordered_map>
 ////////////////////////////////////////////
 #include <contexts.hpp>
@@ -26,8 +28,15 @@ namespace rvn
 
 class MOQT
 {
+    std::queue<std::string> objectQueue;
 
 public:
+    void add_to_queue(std::string object)
+    {
+        objectQueue.push(std::move(object));
+    }
+
+
     using listener_cb_lamda_t =
     std::function<QUIC_STATUS(HQUIC, void*, QUIC_LISTENER_EVENT*)>;
     using connection_cb_lamda_t =
@@ -225,7 +234,7 @@ public:
 
 
 public:
-    std::ostream* subscribe()
+    auto* subscribe()
     {
         ConnectionState& connectionState = connectionStateMap.begin()->second;
 
@@ -264,7 +273,7 @@ public:
 
         connectionState.enqueue_control_buffer(quicBuffer);
 
-        return nullptr;
+        return &objectQueue;
     }
 
 
@@ -446,6 +455,22 @@ public:
         ConnectionState& connectionState = connectionStateMap.at(connection);
 
         return connectionState.accept_control_stream(newStreamInfo.Stream);
+    }
+
+    void register_object(std::string trackName,
+                         std::string trackAlias,
+                         std::uint64_t groupId,
+                         std::uint64_t objectId,
+                         std::string objectPayload)
+    {
+        std::ofstream file("../data/" + std::to_string(objectId) + ".txt");
+        if (!file.is_open())
+        {
+            std::cerr << "File not found" << std::endl;
+            return;
+        }
+        file << objectPayload;
+        file.close();
     }
 };
 

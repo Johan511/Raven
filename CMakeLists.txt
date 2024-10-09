@@ -41,22 +41,17 @@ set(ORIGINAL_COMPILE_OPTIONS ${CMAKE_CXX_FLAGS})
 set(PROTOBUF_DISABLE_WARNINGS "${ORIGINAL_COMPILE_OPTIONS} -Wno-missing-requires -Wno-conversion -Wno-attributes -Wno-sign-conversion -Wno-deprecated-declarations -Wno-subobject-linkage -Wno-deprecated")
 set(PROTOBUF_COMPILE_OPTIONS "${ORIGINAL_COMPILE_OPTIONS} ${PROTOBUF_DISABLE_WARNINGS}")
 set(CMAKE_CXX_FLAGS ${PROTOBUF_COMPILE_OPTIONS})
-
 # disable protobuf tests
 set(protobuf_BUILD_TESTS OFF)
 set(protobuf_BUILD_EXAMPLES OFF) 
 set(protobuf_BUILD_PROTOC_BINARIES ON)
-
 # compile protobuf
 add_subdirectory(submodules/protobuf)
-
 # undoing temporary changes made
 set(CMAKE_CXX_FLAGS ${ORIGINAL_COMPILE_OPTIONS})
 unset(protobuf_BUILD_TESTS)
 unset(protobuf_BUILD_EXAMPLES) 
 unset(protobuf_BUILD_PROTOC_BINARIES)
-
-
 # disabling warnings in protobuf includes
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-requires")
 
@@ -64,6 +59,8 @@ add_subdirectory(protobuf_messages)
 set(PROTOBUF_MESSAGES_DIR "protobuf_messages")
 set(PROTOBUF_MESSAGES_INCLUDE_DIR "${PROTOBUF_MESSAGES_DIR}/src")
 set(PROTOBUF_MESSAGES_SRC_DIR "${PROTOBUF_MESSAGES_DIR}/src")
+
+find_package(OpenCV REQUIRED)
 
 add_definitions(-DRAVEN_CERT_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.cert")
 add_definitions(-DRAVEN_KEY_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.key")
@@ -80,20 +77,22 @@ add_library(raven STATIC ${RAVEN_SRC})
 # MSQUIC include directories should not leak to users of Raven
 # They should be able to use their own msquic library includes
 target_include_directories(raven PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(raven PUBLIC ${MSQUIC_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${PROTOBUF_MESSAGES_INCLUDE_DIR}) 
+target_include_directories(raven PUBLIC ${MSQUIC_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${PROTOBUF_MESSAGES_INCLUDE_DIR})
+target_include_directories(raven PUBLIC ${OpenCV_INCLUDE_DIRS})  
 target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES} protobuf_messages)
+target_link_libraries(raven PUBLIC ${OpenCV_LIBS})
 # -------------------------------------------------------------------------------
 
 # Add playground server
 add_executable(server server.cpp)
 # target_compile_options(server PRIVATE -Wall -Wextra -Werror -Wpedantic)
 target_include_directories(server PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(server PUBLIC ${MSQUIC_INCLUDE_DIR})
-target_link_libraries(server PUBLIC raven)
+target_include_directories(server PUBLIC ${MSQUIC_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(server PUBLIC raven ${OpenCV_LIBS})
 
 # Add playground client
 add_executable(client client.cpp)
 # target_compile_options(client PRIVATE -Wall -Wextra -Werror -Wpedantic)
 target_include_directories(client PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(client PUBLIC ${MSQUIC_INCLUDE_DIR})
-target_link_libraries(client PUBLIC raven)
+target_include_directories(client PUBLIC ${MSQUIC_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(client PUBLIC raven ${OpenCV_LIBS})

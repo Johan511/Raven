@@ -39,6 +39,24 @@ QUIC_CREDENTIAL_CONFIG* get_cred_config()
     return &(Config->CredConfig);
 }
 
+void set_thread_affinity(std::thread& th, int core_id)
+{
+    // Get native thread handle
+    pthread_t native_handle = th.native_handle();
+
+    // Create a CPU set and set the desired core
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+
+    // Set affinity for the thread
+    int result = pthread_setaffinity_np(native_handle, sizeof(cpu_set_t), &cpuset);
+    if (result != 0)
+    {
+        std::cerr << "Error setting thread affinity: " << result << std::endl;
+    }
+}
+
 int main()
 {
     std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>();
@@ -78,6 +96,43 @@ int main()
     QuicAddrSetPort(&Address, UdpPort);
 
     moqtServer->start_listener(&Address);
+
+    std::thread th(
+    [&]()
+    {
+        cv::VideoCapture cap(0);
+        if (!cap.isOpened())
+        {
+            std::cerr << "Error: Could not open the camera." << std::endl;
+            return;
+        }
+
+        int frame_width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
+        int frame_height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
+        std::uint64_t i = 0;
+        while (true)
+        {
+            cv::Mat frame;
+
+            cap >> frame;
+
+            if (frame.empty())
+            {
+                std::cerr << "Error: Could not read frame from the camera." << std::endl;
+                break;
+            }
+
+            std::vector<uchar> buffer;
+            cv::imencode(".jpg", frame, buffer);
+
+
+            std::string image(buffer.begin(), buffer.end());
+            moqtServer->register_object("", "", 0, i++, image);
+        }
+    });
+
+
+    set_thread_affinity(th, 2);
 
     {
         char c;

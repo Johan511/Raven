@@ -34,7 +34,6 @@ message SubscribeParameter
 
 message SubscribeMessage
 {
-   
     uint64 SubscribeID = 1;
     uint64 TrackAlias = 2;
     string TrackNamespace = 3;
