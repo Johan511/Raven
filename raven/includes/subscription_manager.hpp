@@ -4,9 +4,11 @@
 #include "utilities.hpp"
 #include <boost/functional/hash.hpp>
 #include <contexts.hpp>
+#include <filesystem>
 #include <fstream>
 #include <queue>
 #include <sstream>
+#include <string>
 #include <unordered_map>
 
 namespace rvn
@@ -68,53 +70,68 @@ struct SubscriptionState
 class DataManager
 {
     friend class SubscriptionManager;
-    std::unordered_map<ObjectIdentifier, std::string, boost::hash<ObjectIdentifier>> objectCache; // data should be almost 1 page long
+    const std::string dataPath = DATA_DIRECTORY;
 
-    // true on success
-    virtual bool fetch_object(const ObjectIdentifier& objectIdentifier)
+    std::string get_path_string(const TrackIdentifier& trackIdentifier)
     {
-        std::ifstream file("../data/" + std::to_string(objectIdentifier.objectId) + ".txt");
-        utils::ASSERT_LOG_THROW(file.is_open(), "File not found");
+        return dataPath + trackIdentifier.tracknamespace + "/" +
+               trackIdentifier.trackname + "/";
+    }
 
-        std::stringstream ss;
-        ss << file.rdbuf();
-        objectCache[objectIdentifier] = std::move(ss).str();
+    std::string get_path_string(const GroupIdentifier& groupIdentifier)
+    {
+        return get_path_string(static_cast<TrackIdentifier>(groupIdentifier)) +
+               std::to_string(groupIdentifier.groupId) + "/";
+    }
 
-        return true;
+    std::string get_path_string(const ObjectIdentifier& objectIdentifier)
+    {
+        return get_path_string(static_cast<GroupIdentifier>(objectIdentifier)) +
+               std::to_string(objectIdentifier.objectId);
     }
 
     std::optional<std::string> get_object(ObjectIdentifier objectIdentifier)
     {
-        if (objectCache.find(objectIdentifier) == objectCache.end() &&
-            !fetch_object(objectIdentifier))
-            return std::nullopt;
+        std::ifstream file(get_path_string(objectIdentifier));
+        if (!file.is_open())
+            return {};
 
-        return objectCache[objectIdentifier];
+        std::stringstream ss;
+        ss << file.rdbuf();
+
+        return std::move(ss).str();
     }
 
     std::uint64_t first_object_id(const GroupIdentifier& groupIdentifier)
     {
-        return 0;
+        std::uint64_t firstObjectId = INT_MAX;
+        std::filesystem::path directoryPath = get_path_string(groupIdentifier);
+        for (const auto& entry : std::filesystem::directory_iterator(directoryPath))
+        {
+            firstObjectId = std::min(firstObjectId, std::stoul(*--entry.path().end()));
+        }
+
+        return ++firstObjectId;
     }
 
     std::uint64_t latest_object_id(const GroupIdentifier& groupIdentifier)
     {
-        return 0;
+        std::filesystem::path path = get_path_string(groupIdentifier);
+        std::cout << (--path.begin())->string() << std::endl;
+        return std::stoull((--path.begin())->string());
     }
-
-
-    virtual ~DataManager() = default;
-
 
     void next_subscription_state(SubscriptionState& subscriptionState)
     {
         subscriptionState.objectToSend->objectId++;
     }
+
+    ~DataManager() = default;
 };
 
-DEFINE_SINGLETON(DataManager);
+DECLARE_SINGLETON(DataManager);
 
-// Required weak linkage because I need them to have external linkage (so can not use static) (to avoid Wsubobjet-linkage from its use in SubscriptionManager)
+// Required weak linkage because I need them to have external linkage (so can not use static) (to avoid Wsubobject-linkage from its use in SubscriptionManager)
 WEAK_LINKAGE auto SubscriptionMessageHash =
 [](const protobuf_messages::SubscribeMessage& subscribeMessage)
 { return subscribeMessage.subscribeid(); };
@@ -192,11 +209,12 @@ public:
     }
 
 
-    virtual bool failed(RegisterSubscriptionErr)
+    bool failed(RegisterSubscriptionErr)
     {
         return false;
     }
-    virtual RegisterSubscriptionErr
+
+    RegisterSubscriptionErr
     authentication(ConnectionState&, const protobuf_messages::SubscribeMessage& subscribeMessage)
     {
         return {};
@@ -219,7 +237,7 @@ public:
 
         // utils::ASSERT_LOG_THROW(objectPayloadOpt.has_value(),
         //                         "Buffer for object not found");
-        if(!objectPayloadOpt.has_value())
+        if (!objectPayloadOpt.has_value())
             return;
 
         protobuf_messages::MessageHeader header;
@@ -265,9 +283,9 @@ public:
 
         return errorInfo;
     }
-    virtual ~SubscriptionManager() = default;
+    ~SubscriptionManager() = default;
 };
 
-DEFINE_SINGLETON(SubscriptionManager);
+DECLARE_SINGLETON(SubscriptionManager);
 
 } // namespace rvn

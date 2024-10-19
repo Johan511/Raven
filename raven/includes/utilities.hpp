@@ -9,10 +9,11 @@
 #include <ostream>
 #include <queue>
 #include <source_location>
+#include <sstream>
+#include <thread>
 ///////////////////////////////////////////
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
-#include <sstream>
 ///////////////////////////////////////////
 // Utils can not use any raven header file
 
@@ -20,7 +21,7 @@
     rvn::utils::LOG(std::source_location::current(), "LOGGING UNEXPECTED STATE: ", __VA_ARGS__)
 
 
-#define DEFINE_SINGLETON(ClassName)         \
+#define DECLARE_SINGLETON(ClassName)         \
     class ClassName##Handle                 \
     {                                       \
         static ClassName* instance;         \
@@ -49,7 +50,7 @@
         {                                   \
             return instance;                \
         }                                   \
-    };                                      \
+    };
 
 #ifdef _MSC_VER
 #define WEAK_LINKAGE __declspec(selectany)
@@ -125,6 +126,45 @@ template <typename... Args> void LOG_EVENT(std::ostream& os, Args... args)
     std::ostringstream oss;
     print(oss, args...);
     LOG_EVENT_BASE(os, oss.str());
+}
+
+// double implication TT or FF
+static inline bool xnor(bool a, bool b)
+{
+    return (a && b) || (!a && !b);
+}
+
+static inline void thread_set_affinity(std::thread& th, int core_id)
+{
+    // Get native thread handle
+    pthread_t native_handle = th.native_handle();
+
+    // Create a CPU set and set the desired core
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+
+    // Set affinity for the thread
+    int result = pthread_setaffinity_np(native_handle, sizeof(cpu_set_t), &cpuset);
+
+    if (result != 0)
+    {
+        std::cerr << "Error calling pthread_setaffinity_np: " << result << std::endl;
+        std::exit(1);
+    }
+}
+
+static inline void thread_set_max_priority(std::thread& th)
+{
+    sched_param sch;
+    int policy;
+    pthread_getschedparam(th.native_handle(), &policy, &sch);
+    sch.sched_priority = sched_get_priority_max(policy);
+    if (int result = pthread_setschedparam(th.native_handle(), policy, &sch))
+    {
+        std::cerr << "Failed to set Thread Priority, result= " << result << std::endl;
+        exit(1);
+    }
 }
 
 

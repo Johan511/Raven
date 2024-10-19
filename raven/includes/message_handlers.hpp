@@ -14,7 +14,8 @@ template <typename MOQTObject> class MessageHandler
     MOQTObject& moqt;
     ConnectionState& connectionState;
 
-    QUIC_STATUS handle_message(protobuf_messages::ClientSetupMessage&& clientSetupMessage)
+    QUIC_STATUS
+    handle_message(ConnectionState&, protobuf_messages::ClientSetupMessage&& clientSetupMessage)
     {
 
         auto& supportedversions = clientSetupMessage.supportedversions();
@@ -54,11 +55,12 @@ template <typename MOQTObject> class MessageHandler
         return QUIC_STATUS_SUCCESS;
     }
 
-    QUIC_STATUS handle_message(protobuf_messages::ServerSetupMessage&& serverSetupMessage)
+    QUIC_STATUS
+    handle_message(ConnectionState&, protobuf_messages::ServerSetupMessage&& serverSetupMessage)
     {
 
         utils::ASSERT_LOG_THROW(connectionState.path.size() == 0,
-                                "Server must now use the path "
+                                "Server must not use the path "
                                 "parameter");
         utils::ASSERT_LOG_THROW(serverSetupMessage.parameters().size() > 0,
                                 "SERVER_SETUP sent no parameters, "
@@ -73,49 +75,39 @@ template <typename MOQTObject> class MessageHandler
         return QUIC_STATUS_SUCCESS;
     }
 
-    QUIC_STATUS handle_message(protobuf_messages::SubscribeMessage&& subscribeMessage)
+    QUIC_STATUS handle_message(ConnectionState&, protobuf_messages::SubscribeMessage&& subscribeMessage)
     {
         // Subscriber sends to Publisher
 
+        // clang-format off
         // utils::ASSERT_LOG_THROW(connectionState.peerRole == protobuf_messages::Role::Publisher,
         //                         "Client can only subscribe to Publisher");
 
-        // utils::ASSERT_LOG_THROW(!(subscribeMessage.has_startgroup() ^
-        //                           subscribeMessage.has_startobject()),
-        //                         "StartGroup and StartObject must both be sent
-        //                         " "or both should not be sent");
+        // utils::ASSERT_LOG_THROW(utils::xnor(subscribeMessage.has_startgroup(), subscribeMessage.has_startobject()),
+        //                         "StartGroup and StartObject must both be sent or both should not be sent");
 
-        // utils::ASSERT_LOG_THROW(subscribeMessage.has_startgroup() &&
+        // utils::ASSERT_LOG_THROW(utils::xnor(subscribeMessage.has_startgroup(),
         //                         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteStart ||
-        //                          subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
-        //                         "Start group Id is only present for "
-        //                         "AbsoluteStart and AbsoluteRange filter "
-        //                         "types.");
+        //                          subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange)),
+        //                         "Start group Id is only present for AbsoluteStart and AbsoluteRange filter types.");
 
-        // utils::ASSERT_LOG_THROW(!subscribeMessage.has_startobject() &&
+        // utils::ASSERT_LOG_THROW(utils::xnor(subscribeMessage.has_startobject(),
         //                         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteStart ||
-        //                          subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
-        //                         "Start object Id is only present for "
-        //                         "AbsoluteStart and AbsoluteRange filter "
-        //                         "types.");
+        //                          subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange)),
+        //                         "Start object Id is only present for AbsoluteStart and AbsoluteRange filter types.");
 
-        // utils::ASSERT_LOG_THROW(!(subscribeMessage.has_endgroup() ^
-        //                           subscribeMessage.has_endobject()),
-        //                         "EndGroup and EndObject must both be sent or
-        //                         " "both should not be sent");
+        // utils::ASSERT_LOG_THROW(utils::xnor(subscribeMessage.has_endgroup(), subscribeMessage.has_endobject()),
+        //                         "EndGroup and EndObject must both be sent or both should not be sent");
 
-        // utils::ASSERT_LOG_THROW(subscribeMessage.has_endgroup() &&
-        //                         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
-        //                         "End group Id is only present for "
-        //                         "AbsoluteRange filter types.");
+        // utils::ASSERT_LOG_THROW(utils::xnor(subscribeMessage.has_endgroup(),
+        //                         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange)),
+        //                         "End group Id is only present for AbsoluteRange filter types.");
 
-        // // EndObject: The end Object ID, plus 1. A value of 0
-        // // means the entire group is
-        // // requested.
+        // // EndObject: The end Object ID, plus 1. A value of 0 means the entire group is requested.
         // utils::ASSERT_LOG_THROW(!subscribeMessage.has_endobject() &&
         //                         (subscribeMessage.filtertype() == protobuf_messages::AbsoluteRange),
-        //                         "End object Id is only present for "
-        //                         "AbsoluteRange filter types.");
+        //                         "End object Id is only present for AbsoluteRange filter types.");
+        // clang-format on
 
 
         // TODO: ordering between subscribe ok and register
@@ -129,11 +121,13 @@ template <typename MOQTObject> class MessageHandler
         return QUIC_STATUS_SUCCESS;
     }
 
-    QUIC_STATUS handle_message(protobuf_messages::ObjectStreamMessage&& objectStreamMessage)
+    QUIC_STATUS
+    handle_message(ConnectionState& connectionState,
+                   protobuf_messages::ObjectStreamMessage&& objectStreamMessage)
     {
         std::uint64_t subscribeId = objectStreamMessage.subscribeid();
 
-        moqt.add_to_queue(objectStreamMessage.objectpayload());
+        connectionState.add_to_queue(objectStreamMessage.objectpayload());
 
         return QUIC_STATUS_SUCCESS;
     }
@@ -147,11 +141,12 @@ public:
 
 
     template <typename MessageType>
-    QUIC_STATUS handle_message(google::protobuf::io::IstreamInputStream& istream)
+    QUIC_STATUS handle_message(ConnectionState& connectionState,
+                               google::protobuf::io::IstreamInputStream& istream)
     {
         MessageType message = serialization::deserialize<MessageType>(istream);
 
-        return handle_message(std::move(message));
+        return handle_message(connectionState, std::move(message));
     }
 };
 } // namespace rvn

@@ -7,6 +7,14 @@
 #include <memory>
 #include <moqt.hpp>
 
+#include <sanitizer/lsan_interface.h>
+#include <signal.h>
+
+void handler(int signum)
+{
+    // __lsan_do_leak_check();
+}
+
 using namespace rvn;
 
 typedef struct QUIC_CREDENTIAL_CONFIG_HELPER
@@ -39,26 +47,11 @@ QUIC_CREDENTIAL_CONFIG* get_cred_config()
     return &(Config->CredConfig);
 }
 
-void set_thread_affinity(std::thread& th, int core_id)
-{
-    // Get native thread handle
-    pthread_t native_handle = th.native_handle();
-
-    // Create a CPU set and set the desired core
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(core_id, &cpuset);
-
-    // Set affinity for the thread
-    int result = pthread_setaffinity_np(native_handle, sizeof(cpu_set_t), &cpuset);
-    if (result != 0)
-    {
-        std::cerr << "Error setting thread affinity: " << result << std::endl;
-    }
-}
 
 int main()
 {
+    // signal(SIGINT, handler);
+
     std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>();
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
@@ -100,39 +93,39 @@ int main()
     std::thread th(
     [&]()
     {
-        cv::VideoCapture cap(0);
-        if (!cap.isOpened())
-        {
-            std::cerr << "Error: Could not open the camera." << std::endl;
-            return;
-        }
+        // cv::VideoCapture cap(0);
+        // if (!cap.isOpened())
+        // {
+        //     std::cerr << "Error: Could not open the camera." << std::endl;
+        //     return;
+        // }
 
-        int frame_width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
-        int frame_height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
-        std::uint64_t i = 0;
-        while (true)
-        {
-            cv::Mat frame;
+        // int frame_width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
+        // int frame_height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
+        // std::uint64_t i = 0;
+        // while (true)
+        // {
+        //     cv::Mat frame;
 
-            cap >> frame;
+        //     cap >> frame;
 
-            if (frame.empty())
-            {
-                std::cerr << "Error: Could not read frame from the camera." << std::endl;
-                break;
-            }
+        //     if (frame.empty())
+        //     {
+        //         std::cerr << "Error: Could not read frame from the camera." << std::endl;
+        //         break;
+        //     }
 
-            std::vector<uchar> buffer;
-            cv::imencode(".jpg", frame, buffer);
+        //     std::vector<uchar> buffer;
+        //     cv::imencode(".jpg", frame, buffer);
 
 
-            std::string image(buffer.begin(), buffer.end());
-            moqtServer->register_object("", "", 0, i++, image);
-        }
+        //     std::string image(buffer.begin(), buffer.end());
+        //     moqtServer->register_object("default", "default", 0, i++, image);
+        // }
     });
 
-
-    set_thread_affinity(th, 2);
+    utils::thread_set_max_priority(th);
+    utils::thread_set_affinity(th, 0);
 
     {
         char c;

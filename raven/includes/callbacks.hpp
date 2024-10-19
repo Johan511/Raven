@@ -100,10 +100,24 @@ static constexpr auto server_control_stream_callback =
         }
         case QUIC_STREAM_EVENT_RECEIVE:
         {
-            // Received Control Message
-            // auto receiveInformation = event->RECEIVE;
-            auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
-            moqtObject->handle_message(connectionState, controlStream, &(event->RECEIVE));
+            try
+            {
+                auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
+                moqtObject->handle_message(connectionState, controlStream,
+                                           &(event->RECEIVE));
+            }
+            catch (const std::out_of_range& e)
+            {
+                // connection was removed from connection map
+                LOGE("Connection not found in connectionStateMap");
+                // TODO: close connection
+            }
+            catch (const rvn::exception::parsing_exception& e)
+            {
+                LOGE("Failure while trying to parse: ", e.what());
+                // TODO: close connection
+            }
+
             break;
         }
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
@@ -150,10 +164,8 @@ static constexpr auto server_data_stream_callback =
         }
         case QUIC_STREAM_EVENT_RECEIVE:
         {
-            // Received Data Message
-            // auto receiveInformation = event->RECEIVE;
-            auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
-            moqtObject->handle_message(connectionState, dataStream, &(event->RECEIVE));
+            utils::ASSERT_LOG_THROW(false, "Server should not receive message "
+                                           "on data stream");
             break;
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
@@ -193,9 +205,10 @@ static constexpr auto client_data_stream_callback =
         case QUIC_STREAM_EVENT_RECEIVE:
         {
             // Received Data Message
-            // auto receiveInformation = event->RECEIVE;
             StreamState* streamState =
             moqtObject->get_stream_state(connectionHandle, dataStream);
+
+            // accumulate all data messages received and read them when closing stream
             for (std::uint64_t bufferIndex = 0;
                  bufferIndex < event->RECEIVE.BufferCount; bufferIndex++)
             {
@@ -211,7 +224,7 @@ static constexpr auto client_data_stream_callback =
         {
             StreamState* streamState =
             moqtObject->get_stream_state(connectionHandle, dataStream);
-            
+
             ConnectionState& connectionState =
             moqtObject->get_connectionStateMap().at(connectionHandle);
 
@@ -219,11 +232,6 @@ static constexpr auto client_data_stream_callback =
 
             connectionState.delete_data_stream(dataStream);
             break;
-        }
-        case QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE:
-        {
-            moqtObject->connectionStateMap.at(connectionHandle).bufferCapacity =
-            event->IDEAL_SEND_BUFFER_SIZE.ByteCount;
         }
         default: break;
     }
@@ -251,8 +259,24 @@ static constexpr auto client_control_stream_callback =
         {
             // Received Control Message
             // auto receiveInformation = event->RECEIVE;
-            auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
-            moqtObject->handle_message(connectionState, controlStream, &(event->RECEIVE));
+            try
+            {
+                auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
+                moqtObject->handle_message(connectionState, controlStream,
+                                           &(event->RECEIVE));
+            }
+            catch (const std::out_of_range& e)
+            {
+                // connection was removed from connection map
+                LOGE("Connection not found in connectionStateMap");
+                // TODO: close connection
+            }
+            catch (const rvn::exception::parsing_exception& e)
+            {
+                LOGE("Failure while trying to parse: ", e.what());
+                // TODO: close connection
+            }
+
             break;
         }
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
@@ -288,7 +312,6 @@ static constexpr auto client_connection_callback =
             //
             ConnectionState& connectionState =
             moqtClient->get_connectionStateMap().at(connectionHandle);
-            std::cout << connectionState.connection << '\n';
 
             protobuf_messages::MessageHeader messageHeader;
             messageHeader.set_messagetype(protobuf_messages::MoQtMessageType::CLIENT_SETUP);
@@ -303,31 +326,8 @@ static constexpr auto client_connection_callback =
 
             break;
         }
-        case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
-            //
-            // The connection has been shut down by the transport.
-            // Generally, this is the expected way for the connection to
-            // shut down with this protocol, since we let idle timeout
-            // kill the connection.
-            //
-            if (event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE)
-            {
-                printf("[conn][%p] Successfully shut down on idle.\n", connectionHandle);
-            }
-            else
-            {
-                printf("[conn][%p] Shut down by transport, 0x%x\n", connectionHandle,
-                       event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
-            }
-            break;
-        case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER:
-            //
-            // The connection was explicitly shut down by the peer.
-            //
-            printf("[conn][%p] Shut down by peer, 0x%llu\n", connectionHandle,
-                   (unsigned long long)event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
-            break;
         case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
+        {
             //
             // The connection has completed the shutdown process and is
             // ready to be safely cleaned up.
@@ -338,14 +338,7 @@ static constexpr auto client_connection_callback =
                 MsQuic->ConnectionClose(connectionHandle);
             }
             break;
-        case QUIC_CONNECTION_EVENT_RESUMPTION_TICKET_RECEIVED:
-            //
-            // A resumption ticket (also called New Session Ticket or NST)
-            // was received from the server.
-            //
-            printf("[conn][%p] Resumption ticket received (%u bytes):\n", connectionHandle,
-                   event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
-            break;
+        }
         case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED:
         {
             // remotely opened streams call this callback => they must

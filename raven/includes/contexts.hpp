@@ -113,6 +113,9 @@ struct ConnectionState
     std::optional<StreamState> controlStream{};
     bool expectControlStreamShutdown = true;
 
+    // the object queue which is
+    std::list<std::queue<std::string>>::iterator objectQueue;
+
     void delete_data_stream(HQUIC streamHandle);
 
     void enqueue_data_buffer(QUIC_BUFFER* buffer);
@@ -154,6 +157,11 @@ struct ConnectionState
 
     void register_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage,
                                std::string&& payload);
+
+    void add_to_queue(const std::string& objectPayload)
+    {
+        objectQueue->push(objectPayload);
+    }
 };
 
 } // namespace rvn

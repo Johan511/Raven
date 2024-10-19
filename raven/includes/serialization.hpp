@@ -1,8 +1,9 @@
 #pragma once
 
 ///////////////////////////////////c
-#include "utilities.hpp"
+#include <exceptions.hpp>
 #include <msquic.h>
+#include <utilities.hpp>
 ///////////////////////////////////
 #include <google/protobuf/util/delimited_message_util.h>
 #include <setup_messages.pb.h>
@@ -25,15 +26,13 @@ template <typename T, typename InputStream> T deserialize(InputStream& istream)
     bool clean_eof;
     google::protobuf::util::ParseDelimitedFromZeroCopyStream(&t, &istream, &clean_eof);
     if (clean_eof)
-        throw std::runtime_error("Failed to parse message");
+        throw rvn::exception::parsing_exception();
     return t;
 };
 
 
 template <typename... Args> QUIC_BUFFER* serialize(Args&&... args)
 {
-    utils::LOG_EVENT(std::cout, "Serializing: \n", args.DebugString()...);
-
     std::size_t requiredBufferSize = 0;
     std::ostringstream oss;
     (google::protobuf::util::SerializeDelimitedToOstream(args, &oss), ...);

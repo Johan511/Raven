@@ -14,14 +14,15 @@ endfunction()
 set(CMAKE_CXX_STANDARD 20)
 # Set compile options as private to not warn about msquic header files
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address -fsanitize=leak -fsanitize=undefined -fno-omit-frame-pointer")
-  set(QUIC_ENABLE_LOGGING "ON" CACHE INTERNAL "QUIC_ENABLE_LOGGING")
-  set(QUIC_LOGGING_TYPE "stdout" CACHE INTERNAL "stdout")
+  # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address -fsanitize=leak -fsanitize=undefined -fno-omit-frame-pointer")
+  # set(QUIC_ENABLE_LOGGING "ON" CACHE INTERNAL "QUIC_ENABLE_LOGGING")
+  # set(QUIC_LOGGING_TYPE "stdout" CACHE INTERNAL "stdout")
 endif()
 
 # -------------------------------------------------------------------------------
 
 # Setting MSQUIC related variables
+set(QUIC_STATIC_LINK_CRT "ON" CACHE INTERNAL "QUIC_STATIC_LINK_CRT")
 add_subdirectory(submodules/msquic)
 set(MSQUIC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/submodules/msquic/src/inc)
 set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/${CMAKE_BUILD_TYPE}/libmsquic.so)
@@ -66,6 +67,7 @@ add_definitions(-DRAVEN_CERT_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.cert"
 add_definitions(-DRAVEN_KEY_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.key")
 add_definitions(-DDUMMY_PAYLOAD_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/dummy_payload.txt")
 add_definitions(-DQUIC_API_ENABLE_PREVIEW_FEATURES)
+add_definitions(-DDATA_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/data/")
 
 
 set(RAVEN_SRC "")

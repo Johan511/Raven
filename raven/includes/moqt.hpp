@@ -28,15 +28,8 @@ namespace rvn
 
 class MOQT
 {
-    std::queue<std::string> objectQueue;
 
 public:
-    void add_to_queue(std::string object)
-    {
-        objectQueue.push(std::move(object));
-    }
-
-
     using listener_cb_lamda_t =
     std::function<QUIC_STATUS(HQUIC, void*, QUIC_LISTENER_EVENT*)>;
     using connection_cb_lamda_t =
@@ -234,38 +227,16 @@ public:
 
 
 public:
-    auto* subscribe()
+    std::list<std::queue<std::string>> objectQueues;
+
+    auto subscribe(protobuf_messages::SubscribeMessage&& subscribeMessage)
     {
         ConnectionState& connectionState = connectionStateMap.begin()->second;
+        objectQueues.emplace_back();
+        connectionState.objectQueue = --(objectQueues.end());
 
         protobuf_messages::MessageHeader subscribeHeader;
         subscribeHeader.set_messagetype(protobuf_messages::MoQtMessageType::SUBSCRIBE);
-
-        protobuf_messages::SubscribeMessage subscribeMessage;
-        /*
-            uint64 SubscribeID = 1;
-    uint64 TrackAlias = 2;
-    string TrackNamespace = 3;
-    string TrackName = 4;
-    uint32 SubscriberPriority = 5; // should be 8 bits
-    uint32 GroupOrder = 6; // should be 8 bits
-    SubscribeFilter FilterType = 7;
-    optional uint64 StartGroup = 8;
-    optional uint64 StartObject = 9;
-    optional uint64 EndGroup = 10;
-    optional uint64 EndObject = 11;
-    uint64 NumParameters = 12;
-    repeated SubscribeParameter parameters = 13;
-        */
-
-        subscribeMessage.set_subscribeid(1);
-        subscribeMessage.set_trackalias(1);
-        subscribeMessage.set_tracknamespace("namespace");
-        subscribeMessage.set_trackname("name");
-        subscribeMessage.set_subscriberpriority(1);
-        subscribeMessage.set_grouporder(1);
-        subscribeMessage.set_filtertype(protobuf_messages::LatestObject);
-        subscribeMessage.set_numparameters(0);
 
 
         QUIC_BUFFER* quicBuffer =
@@ -273,7 +244,7 @@ public:
 
         connectionState.enqueue_control_buffer(quicBuffer);
 
-        return &objectQueue;
+        return connectionState.objectQueue;
     }
 
 
@@ -329,26 +300,26 @@ public:
             case protobuf_messages::MoQtMessageType::CLIENT_SETUP:
             {
                 // CLIENT sends to SERVER
-                messageHandler.template handle_message<protobuf_messages::ClientSetupMessage>(istream);
+                messageHandler.template handle_message<protobuf_messages::ClientSetupMessage>(connectionState, istream);
                 return;
             }
             case protobuf_messages::MoQtMessageType::SERVER_SETUP:
             {
                 // SERVER sends to CLIENT
-                messageHandler.template handle_message<protobuf_messages::ServerSetupMessage>(istream);
+                messageHandler.template handle_message<protobuf_messages::ServerSetupMessage>(connectionState, istream);
                 return;
             }
             case protobuf_messages::MoQtMessageType::SUBSCRIBE:
             {
                 // Client to Servevr
-                messageHandler.template handle_message<protobuf_messages::SubscribeMessage>(istream);
+                messageHandler.template handle_message<protobuf_messages::SubscribeMessage>(connectionState, istream);
 
                 break;
             }
             case protobuf_messages::MoQtMessageType::OBJECT_STREAM:
             {
 
-                messageHandler.template handle_message<protobuf_messages::ObjectStreamMessage>(istream);
+                messageHandler.template handle_message<protobuf_messages::ObjectStreamMessage>(connectionState, istream);
 
                 break;
             }
@@ -457,18 +428,16 @@ public:
         return connectionState.accept_control_stream(newStreamInfo.Stream);
     }
 
-    void register_object(std::string trackName,
-                         std::string trackAlias,
+    void register_object(std::string trackNamesapce,
+                         std::string trackName,
                          std::uint64_t groupId,
                          std::uint64_t objectId,
                          std::string objectPayload)
     {
-        std::ofstream file("../data/" + std::to_string(objectId) + ".txt");
-        if (!file.is_open())
-        {
-            std::cerr << "File not found" << std::endl;
-            return;
-        }
+        std::string path = DATA_DIRECTORY + trackNamesapce + "/" + trackName + "/" +
+                           std::to_string(groupId) + "/" + std::to_string(objectId);
+
+        std::ofstream file(path);
         file << objectPayload;
         file.close();
     }

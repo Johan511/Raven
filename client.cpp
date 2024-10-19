@@ -6,8 +6,16 @@
 #include <memory>
 #include <moqt.hpp>
 #include <thread>
+#include <subscription_builder.hpp>
 
 #include <opencv2/opencv.hpp>
+
+#include <sanitizer/lsan_interface.h>
+#include <signal.h>
+void handler(int signum)
+{
+    // __lsan_do_leak_check();
+}
 
 
 using namespace rvn;
@@ -27,38 +35,11 @@ QUIC_CREDENTIAL_CONFIG* get_cred_config()
     return CredConfig;
 }
 
-void set_thread_affinity(std::thread& th, int core_id)
-{
-    // Get native thread handle
-    pthread_t native_handle = th.native_handle();
-
-    // Create a CPU set and set the desired core
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(core_id, &cpuset);
-
-    // Set affinity for the thread
-    int result = pthread_setaffinity_np(native_handle, sizeof(cpu_set_t), &cpuset);
-    if (result != 0)
-    {
-        std::cerr << "Error setting thread affinity: " << result << std::endl;
-    }
-}
-
-void set_max_prio(std::thread& th)
-{
-    sched_param sch;
-    int policy;
-    pthread_getschedparam(th.native_handle(), &policy, &sch);
-    sch.sched_priority = sched_get_priority_max(policy);
-    if (pthread_setschedparam(th.native_handle(), policy, &sch))
-    {
-        std::cerr << "Failed to set Thread Priority" << std::endl;
-    }
-}
 
 int main()
 {
+    // signal(SIGINT, handler);
+
     std::unique_ptr<MOQTClient> moqtClient = std::make_unique<MOQTClient>();
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
@@ -96,15 +77,24 @@ int main()
     {
         using namespace std::chrono_literals;
         std::this_thread::sleep_for(5000ms);
-        auto* queue = moqtClient->subscribe();
+
+        SubscriptionBuilder subBuilder;
+        subBuilder.set_data_range<SubscriptionBuilder::Filter::LatestGroup>(std::size_t(0));
+        subBuilder.set_track_alias(0);
+        subBuilder.set_track_namespace("default");
+        subBuilder.set_track_name("default");
+        subBuilder.set_subscriber_priority(0);
+        subBuilder.set_group_order(0);
+        auto subMessage = subBuilder.build();
+        auto queueIter = moqtClient->subscribe(std::move(subMessage));
         while (true)
         {
-            if (!queue->empty())
+            if (!queueIter->empty())
             {
-                std::cout << "Queue Size: " << queue->size() << std::endl;
-                std::cout << queue->size() << std::endl;
-                std::string objectPayloadStr = queue->front();
-                queue->pop();
+                std::cout << "Queue Size: " << queueIter->size() << std::endl;
+                std::cout << queueIter->size() << std::endl;
+                std::string objectPayloadStr = queueIter->front();
+                queueIter->pop();
 
                 cv::Mat frame;
                 std::vector<uchar> buffer(objectPayloadStr.begin(),
@@ -116,9 +106,6 @@ int main()
             }
         }
     });
-
-    set_thread_affinity(th, 1);
-    set_max_prio(th);
 
     {
         char c;
