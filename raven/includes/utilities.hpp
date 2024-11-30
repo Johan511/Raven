@@ -21,7 +21,7 @@
     rvn::utils::LOG(std::source_location::current(), "LOGGING UNEXPECTED STATE: ", __VA_ARGS__)
 
 
-#define DECLARE_SINGLETON(ClassName)         \
+#define DECLARE_SINGLETON(ClassName)        \
     class ClassName##Handle                 \
     {                                       \
         static ClassName* instance;         \
@@ -49,6 +49,14 @@
         ClassName* operator->()             \
         {                                   \
             return instance;                \
+        }                                   \
+        const ClassName* operator->() const \
+        {                                   \
+            return instance;                \
+        }                                   \
+        ~ClassName##Handle()                \
+        {                                   \
+            delete instance;                \
         }                                   \
     };
 

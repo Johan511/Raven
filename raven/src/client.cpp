@@ -1,3 +1,4 @@
+#include <atomic>
 #include <msquic.h>
 
 #include <functional>
@@ -20,11 +21,19 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
                                               { reg.get(), AlpnBuffers, AlpnBufferCount,
                                                 Settings, SettingsSize, this },
                                               { CredConfig });
+
+    connectionSetupFlag.store(true, std::memory_order_release);
+    
+    // enable critical section
+    //            => no RAII because if emplace fails, we don't want connections to be accepted and fault elsewhere
     connection =
     rvn::unique_connection(tbl.get(), { reg.get(), MOQT::connection_cb_wrapper, this },
                            { configuration.get(), Family, ServerName, ServerPort });
 
+
     connectionStateMap.emplace(connection.get(), ConnectionState{ connection.get(), this });
+
+    connectionSetupFlag.store(false, std::memory_order_release);
 }
 
 protobuf_messages::ClientSetupMessage MOQTClient::get_clientSetupMessage()

@@ -126,7 +126,6 @@ template <typename MOQTObject> class MessageHandler
                    protobuf_messages::ObjectStreamMessage&& objectStreamMessage)
     {
         std::uint64_t subscribeId = objectStreamMessage.subscribeid();
-
         connectionState.add_to_queue(objectStreamMessage.objectpayload());
 
         return QUIC_STATUS_SUCCESS;

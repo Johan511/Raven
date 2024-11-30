@@ -2,11 +2,12 @@
 //////////////////////////////
 #include <msquic.h>
 //////////////////////////////
+#include <boost/lockfree/queue.hpp>
 #include <functional>
 #include <memory>
 #include <optional>
-#include <queue>
 //////////////////////////////
+#include <definitions.hpp>
 #include <protobuf_messages.hpp>
 #include <serialization.hpp>
 #include <utilities.hpp>
@@ -100,6 +101,7 @@ struct StreamState
 };
 
 
+namespace bl = boost::lockfree;
 struct ConnectionState
 {
     // StreamManager //////////////////////////////////////////////////////////////
@@ -111,10 +113,7 @@ struct ConnectionState
 
     std::queue<QUIC_BUFFER*> controlBuffersToSend;
     std::optional<StreamState> controlStream{};
-    bool expectControlStreamShutdown = true;
 
-    // the object queue which is
-    std::list<std::queue<std::string>>::iterator objectQueue;
 
     void delete_data_stream(HQUIC streamHandle);
 
@@ -133,8 +132,14 @@ struct ConnectionState
 
     std::string path;
     protobuf_messages::Role peerRole;
+    bool expectControlStreamShutdown = true;
+    StableContainer<MPMCQueue<std::string>>::iterator objectQueue;
 
-    std::size_t bufferCapacity = DEFAULT_BUFFER_CAPACITY;
+
+    ConnectionState(HQUIC connection_, class MOQT* moqtObject_)
+    : connection(connection_), moqtObject(moqtObject_)
+    {
+    }
 
     bool check_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage);
     const std::vector<StreamState>& get_data_streams() const;
@@ -142,11 +147,6 @@ struct ConnectionState
 
     std::optional<StreamState>& get_control_stream();
     const std::optional<StreamState>& get_control_stream() const;
-
-    ConnectionState(HQUIC connection_, class MOQT* moqtObject_)
-    : connection(connection_), moqtObject(moqtObject_)
-    {
-    }
 
 
     QUIC_STATUS accept_data_stream(HQUIC dataStreamHandle);
@@ -160,7 +160,7 @@ struct ConnectionState
 
     void add_to_queue(const std::string& objectPayload)
     {
-        objectQueue->push(objectPayload);
+        objectQueue->enqueue(objectPayload);
     }
 };
 

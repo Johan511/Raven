@@ -5,8 +5,8 @@
 #include <iostream>
 #include <memory>
 #include <moqt.hpp>
-#include <thread>
 #include <subscription_builder.hpp>
+#include <thread>
 
 #include <opencv2/opencv.hpp>
 
@@ -75,11 +75,8 @@ int main()
     std::thread th(
     [&]()
     {
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for(5000ms);
-
         SubscriptionBuilder subBuilder;
-        subBuilder.set_data_range<SubscriptionBuilder::Filter::LatestGroup>(std::size_t(0));
+        subBuilder.set_data_range<SubscriptionBuilder::Filter::LatestGroup>(std::uint64_t(0));
         subBuilder.set_track_alias(0);
         subBuilder.set_track_namespace("default");
         subBuilder.set_track_name("default");
@@ -89,23 +86,19 @@ int main()
         auto queueIter = moqtClient->subscribe(std::move(subMessage));
         while (true)
         {
-            if (!queueIter->empty())
-            {
-                std::cout << "Queue Size: " << queueIter->size() << std::endl;
-                std::cout << queueIter->size() << std::endl;
-                std::string objectPayloadStr = queueIter->front();
-                queueIter->pop();
-
-                cv::Mat frame;
-                std::vector<uchar> buffer(objectPayloadStr.begin(),
-                                          objectPayloadStr.end());
-                frame = cv::imdecode(buffer, cv::IMREAD_COLOR);
-                cv::imshow("Live Video Feed", frame);
-                if (cv::waitKey(30) == 'q')
-                    break;
-            }
+            std::string objectPayloadStr;
+            queueIter->wait_dequeue(objectPayloadStr);
+            cv::Mat frame;
+            std::vector<uchar> buffer(objectPayloadStr.begin(), objectPayloadStr.end());
+            frame = cv::imdecode(buffer, cv::IMREAD_COLOR);
+            cv::imshow("Live Video Feed", frame);
+            if (cv::waitKey(30) == 'q')
+                break;
         }
     });
+
+    utils::thread_set_max_priority(th);
+    utils::thread_set_affinity(th, 1);
 
     {
         char c;

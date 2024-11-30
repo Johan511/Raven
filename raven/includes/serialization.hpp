@@ -49,7 +49,6 @@ template <typename... Args> QUIC_BUFFER* serialize(Args&&... args)
     sendBuffer->Buffer = (uint8_t*)sendBufferRaw + sizeof(QUIC_BUFFER);
     sendBuffer->Length = buffer.size();
 
-
     std::memcpy(sendBuffer->Buffer, buffer.c_str(), buffer.size());
 
     return sendBuffer;

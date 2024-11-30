@@ -6,7 +6,6 @@
 #include <fstream>
 #include <functional>
 #include <ostream>
-#include <queue>
 #include <sstream>
 #include <thread>
 #include <unordered_map>
@@ -227,7 +226,7 @@ public:
 
 
 public:
-    std::list<std::queue<std::string>> objectQueues;
+    StableContainer<MPMCQueue<std::string>> objectQueues;
 
     auto subscribe(protobuf_messages::SubscribeMessage&& subscribeMessage)
     {
@@ -448,6 +447,10 @@ class MOQTClient : public MOQT
     rvn::unique_connection connection;
 
 public:
+    // atomic flags for multi thread synchronization
+    // make sure no connections are accepted until whole setup required is completed
+    std::atomic_bool connectionSetupFlag;
+
     MOQTClient();
 
     void start_connection(QUIC_ADDRESS_FAMILY Family, const char* ServerName, uint16_t ServerPort);

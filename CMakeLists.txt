@@ -14,7 +14,7 @@ endfunction()
 set(CMAKE_CXX_STANDARD 20)
 # Set compile options as private to not warn about msquic header files
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address -fsanitize=leak -fsanitize=undefined -fno-omit-frame-pointer")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=thread -fno-omit-frame-pointer")
   # set(QUIC_ENABLE_LOGGING "ON" CACHE INTERNAL "QUIC_ENABLE_LOGGING")
   # set(QUIC_LOGGING_TYPE "stdout" CACHE INTERNAL "stdout")
 endif()
@@ -23,19 +23,15 @@ endif()
 
 # Setting MSQUIC related variables
 set(QUIC_STATIC_LINK_CRT "ON" CACHE INTERNAL "QUIC_STATIC_LINK_CRT")
+set(QUIC_BUILD_SHARED "OFF" CACHE INTERNAL "QUIC_BUILD_SHARED")
 add_subdirectory(submodules/msquic)
 set(MSQUIC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/submodules/msquic/src/inc)
-set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/${CMAKE_BUILD_TYPE}/libmsquic.so)
+set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/${CMAKE_BUILD_TYPE}/libmsquic.a)
 
-# Setting Boost variables
-find_package(Boost COMPONENTS serialization REQUIRED)
-message("boost lib: ${Boost_LIBRARIES}")
-message("boost inc:${Boost_INCLUDE_DIR}")
 
 # Setting Raven variables
 set(RAVEN_SRC_DIR "raven/src")
 set(RAVEN_INCLUDE_DIR "raven/includes")
-
 
 # disabling protobuf warnings
 set(ORIGINAL_COMPILE_OPTIONS ${CMAKE_CXX_FLAGS})
@@ -55,6 +51,10 @@ unset(protobuf_BUILD_EXAMPLES)
 unset(protobuf_BUILD_PROTOC_BINARIES)
 # disabling warnings in protobuf includes
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-requires")
+
+add_library(MoodyCamelConcurrentQueue INTERFACE)
+target_include_directories(MoodyCamelConcurrentQueue INTERFACE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/submodules/moody_camel)
 
 add_subdirectory(protobuf_messages)
 set(PROTOBUF_MESSAGES_DIR "protobuf_messages")
@@ -81,7 +81,7 @@ add_library(raven STATIC ${RAVEN_SRC})
 target_include_directories(raven PUBLIC ${RAVEN_INCLUDE_DIR})
 target_include_directories(raven PUBLIC ${MSQUIC_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${PROTOBUF_MESSAGES_INCLUDE_DIR})
 target_include_directories(raven PUBLIC ${OpenCV_INCLUDE_DIRS})  
-target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES} protobuf_messages)
+target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES} protobuf_messages MoodyCamelConcurrentQueue)
 target_link_libraries(raven PUBLIC ${OpenCV_LIBS})
 # -------------------------------------------------------------------------------
 

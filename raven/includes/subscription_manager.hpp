@@ -125,20 +125,22 @@ class DataManager
     {
         subscriptionState.objectToSend->objectId++;
     }
-
-    ~DataManager() = default;
 };
 
 DECLARE_SINGLETON(DataManager);
 
 // Required weak linkage because I need them to have external linkage (so can not use static) (to avoid Wsubobject-linkage from its use in SubscriptionManager)
-WEAK_LINKAGE auto SubscriptionMessageHash =
-[](const protobuf_messages::SubscribeMessage& subscribeMessage)
+#ifndef __clang__
+WEAK_LINKAGE // weak linkage required only in g++ compiler, check reason
+#endif
+auto SubscriptionMessageHash = [](const protobuf_messages::SubscribeMessage& subscribeMessage)
 { return subscribeMessage.subscribeid(); };
 
-WEAK_LINKAGE auto SubscriptionMessageKeyEqual =
-[](const protobuf_messages::SubscribeMessage& lhs,
-   const protobuf_messages::SubscribeMessage& rhs)
+#ifndef __clang__
+WEAK_LINKAGE // weak linkage required only in g++ compiler, check reason
+#endif
+auto SubscriptionMessageKeyEqual = [](const protobuf_messages::SubscribeMessage& lhs,
+                                      const protobuf_messages::SubscribeMessage& rhs)
 { return lhs.subscribeid() == rhs.subscribeid(); };
 
 
@@ -202,6 +204,11 @@ public:
                 subscriptionState.lastObjectToSend = endObject;
 
                 break;
+            }
+            default:
+            {
+                utils::ASSERT_LOG_THROW(false, "Unknown filter type of: ",
+                                        subscribeMessage.filtertype());
             }
         }
 
