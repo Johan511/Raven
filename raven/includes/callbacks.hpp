@@ -302,7 +302,7 @@ static constexpr auto client_connection_callback =
     do
     {
 
-    }while(!moqtClient->connectionSetupFlag.load(std::memory_order_acquire)); 
+    }while(moqtClient->connectionSetupFlag.load(std::memory_order_acquire)); 
     // wait until setup is done, once setup is done, flag is reset to false
 
     switch (event->Type)

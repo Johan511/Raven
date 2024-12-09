@@ -75,6 +75,8 @@ int main()
     std::thread th(
     [&]()
     {
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for(5000ms);
         SubscriptionBuilder subBuilder;
         subBuilder.set_data_range<SubscriptionBuilder::Filter::LatestGroup>(std::uint64_t(0));
         subBuilder.set_track_alias(0);

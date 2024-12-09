@@ -3,9 +3,6 @@
 #include <moqt.hpp>
 #include <serialization.hpp>
 
-#include <opencv2/opencv.hpp>
-
-
 namespace rvn
 {
 

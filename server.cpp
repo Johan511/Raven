@@ -10,6 +10,7 @@
 #include <sanitizer/lsan_interface.h>
 #include <signal.h>
 
+#include <opencv2/opencv.hpp>
 void handler(int signum)
 {
     // __lsan_do_leak_check();
@@ -93,35 +94,35 @@ int main()
     std::thread th(
     [&]()
     {
-        // cv::VideoCapture cap(0);
-        // if (!cap.isOpened())
-        // {
-        //     std::cerr << "Error: Could not open the camera." << std::endl;
-        //     return;
-        // }
+        cv::VideoCapture cap(0);
+        if (!cap.isOpened())
+        {
+            std::cerr << "Error: Could not open the camera." << std::endl;
+            return;
+        }
 
-        // int frame_width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
-        // int frame_height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
-        // std::uint64_t i = 0;
-        // while (true)
-        // {
-        //     cv::Mat frame;
+        int frame_width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
+        int frame_height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
+        std::uint64_t i = 0;
+        while (true)
+        {
+            cv::Mat frame;
 
-        //     cap >> frame;
+            cap >> frame;
 
-        //     if (frame.empty())
-        //     {
-        //         std::cerr << "Error: Could not read frame from the camera." << std::endl;
-        //         break;
-        //     }
+            if (frame.empty())
+            {
+                std::cerr << "Error: Could not read frame from the camera." << std::endl;
+                break;
+            }
 
-        //     std::vector<uchar> buffer;
-        //     cv::imencode(".jpg", frame, buffer);
+            std::vector<uchar> buffer;
+            cv::imencode(".jpg", frame, buffer);
 
 
-        //     std::string image(buffer.begin(), buffer.end());
-        //     moqtServer->register_object("default", "default", 0, i++, image);
-        // }
+            std::string image(buffer.begin(), buffer.end());
+            moqtServer->register_object("default", "default", 0, i++, image);
+        }
     });
 
     utils::thread_set_max_priority(th);

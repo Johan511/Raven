@@ -230,6 +230,8 @@ public:
 
     auto subscribe(protobuf_messages::SubscribeMessage&& subscribeMessage)
     {
+        // WAIT_FOR_SETUP_COMPLETE()
+
         ConnectionState& connectionState = connectionStateMap.begin()->second;
         objectQueues.emplace_back();
         connectionState.objectQueue = --(objectQueues.end());

@@ -54,10 +54,6 @@
         {                                   \
             return instance;                \
         }                                   \
-        ~ClassName##Handle()                \
-        {                                   \
-            delete instance;                \
-        }                                   \
     };
 
 #ifdef _MSC_VER

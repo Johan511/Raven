@@ -14,19 +14,18 @@ endfunction()
 set(CMAKE_CXX_STANDARD 20)
 # Set compile options as private to not warn about msquic header files
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=thread -fno-omit-frame-pointer")
-  # set(QUIC_ENABLE_LOGGING "ON" CACHE INTERNAL "QUIC_ENABLE_LOGGING")
-  # set(QUIC_LOGGING_TYPE "stdout" CACHE INTERNAL "stdout")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address -fsanitize=leak -fsanitize=undefined -fno-omit-frame-pointer")
+  set(QUIC_ENABLE_LOGGING "ON" CACHE INTERNAL "QUIC_ENABLE_LOGGING")
+  set(QUIC_LOGGING_TYPE "stdout" CACHE INTERNAL "stdout")
 endif()
 
 # -------------------------------------------------------------------------------
 
 # Setting MSQUIC related variables
 set(QUIC_STATIC_LINK_CRT "ON" CACHE INTERNAL "QUIC_STATIC_LINK_CRT")
-set(QUIC_BUILD_SHARED "OFF" CACHE INTERNAL "QUIC_BUILD_SHARED")
 add_subdirectory(submodules/msquic)
 set(MSQUIC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/submodules/msquic/src/inc)
-set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/${CMAKE_BUILD_TYPE}/libmsquic.a)
+set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/${CMAKE_BUILD_TYPE}/libmsquic.so)
 
 
 # Setting Raven variables
