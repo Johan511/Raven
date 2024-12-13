@@ -1,8 +1,9 @@
 # Build instructions
 
 Please make sure the following external dependencies are installed
-1. boost (for hashing)
-
+1. boost
+2. openssl-devel (for RHEL and fedora)
+ 
 ```
 git clone https://github.com/Johan511/Raven
 cd Raven
