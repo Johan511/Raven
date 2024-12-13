@@ -51,9 +51,7 @@ unset(protobuf_BUILD_PROTOC_BINARIES)
 # disabling warnings in protobuf includes
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-requires")
 
-add_library(MoodyCamelConcurrentQueue INTERFACE)
-target_include_directories(MoodyCamelConcurrentQueue INTERFACE 
-    ${CMAKE_CURRENT_SOURCE_DIR}/submodules/moody_camel)
+set(MOODY_CAMEL_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/submodules/moody_camel")
 
 add_subdirectory(protobuf_messages)
 set(PROTOBUF_MESSAGES_DIR "protobuf_messages")
@@ -76,18 +74,20 @@ add_library(raven STATIC ${RAVEN_SRC})
 # MSQUIC include directories should not leak to users of Raven
 # They should be able to use their own msquic library includes
 target_include_directories(raven PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(raven PUBLIC ${MSQUIC_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${PROTOBUF_MESSAGES_INCLUDE_DIR})
-target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES} protobuf_messages MoodyCamelConcurrentQueue)
+target_include_directories(raven PUBLIC ${MSQUIC_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${PROTOBUF_MESSAGES_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR})
+target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES} protobuf_messages)
 # -------------------------------------------------------------------------------
 
 # Add playground server
 add_executable(server server.cpp)
 # target_compile_options(server PRIVATE -Wall -Wextra -Werror -Wpedantic)
 target_include_directories(server PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(server PUBLIC ${MSQUIC_INCLUDE_DIR})
+target_include_directories(server PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR} ${PROTOBUF_MESSAGES_INCLUDE_DIR})
+target_link_libraries(server PUBLIC raven)
 
 # Add playground client
 add_executable(client client.cpp)
 # target_compile_options(client PRIVATE -Wall -Wextra -Werror -Wpedantic)
 target_include_directories(client PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(client PUBLIC ${MSQUIC_INCLUDE_DIR})
+target_include_directories(client PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR} ${PROTOBUF_MESSAGES_INCLUDE_DIR})
+target_link_libraries(client PUBLIC raven)
