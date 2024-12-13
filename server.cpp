@@ -111,10 +111,7 @@ int main()
             cap >> frame;
 
             if (frame.empty())
-            {
-                std::cerr << "Error: Could not read frame from the camera." << std::endl;
-                break;
-            }
+                continue;
 
             std::vector<uchar> buffer;
             cv::imencode(".jpg", frame, buffer);

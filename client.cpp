@@ -75,10 +75,13 @@ int main()
     std::thread th(
     [&]()
     {
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for(5000ms);
+        do
+        {
+
+        } while (!moqtClient->isConnected.load(std::memory_order_acquire));
         SubscriptionBuilder subBuilder;
-        subBuilder.set_data_range<SubscriptionBuilder::Filter::LatestGroup>(std::uint64_t(0));
+        subBuilder.set_data_range<SubscriptionBuilder::Filter::LatestObject>(
+        std::uint64_t(0));
         subBuilder.set_track_alias(0);
         subBuilder.set_track_namespace("default");
         subBuilder.set_track_name("default");
@@ -90,10 +93,13 @@ int main()
         {
             std::string objectPayloadStr;
             queueIter->wait_dequeue(objectPayloadStr);
+            if (objectPayloadStr.empty())
+                continue;
             cv::Mat frame;
             std::vector<uchar> buffer(objectPayloadStr.begin(), objectPayloadStr.end());
             frame = cv::imdecode(buffer, cv::IMREAD_COLOR);
             cv::imshow("Live Video Feed", frame);
+            using namespace std::chrono_literals;
             if (cv::waitKey(30) == 'q')
                 break;
         }

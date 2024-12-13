@@ -1,5 +1,6 @@
 #pragma once
 ////////////////////////////////////////////
+#include <atomic>
 #include <msquic.h>
 ////////////////////////////////////////////
 #include <cstdint>
@@ -263,6 +264,8 @@ public:
             QUIC_RECEIVE_FLAGS Flags;
         }
     */
+    std::atomic_bool isConnected{};
+
     void handle_message(ConnectionState& connectionState, HQUIC streamHandle, const auto* receiveInformation)
     {
         utils::ASSERT_LOG_THROW(connectionState.get_control_stream().has_value(),
@@ -302,13 +305,13 @@ public:
             {
                 // CLIENT sends to SERVER
                 messageHandler.template handle_message<protobuf_messages::ClientSetupMessage>(connectionState, istream);
-                return;
+                break;
             }
             case protobuf_messages::MoQtMessageType::SERVER_SETUP:
             {
                 // SERVER sends to CLIENT
                 messageHandler.template handle_message<protobuf_messages::ServerSetupMessage>(connectionState, istream);
-                return;
+                break;
             }
             case protobuf_messages::MoQtMessageType::SUBSCRIBE:
             {
@@ -326,6 +329,7 @@ public:
             }
             default: LOGE("Unknown control message type", header.messagetype());
         }
+        isConnected.store(true, std::memory_order_release);
     }
 
 

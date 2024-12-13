@@ -1,5 +1,12 @@
-# Raven
-Implementation of better C++ bindings for MsQuic and Media-Over-Quic Draft using MsQuic using C++
+# Build instructions
+
+Please make sure the following external dependencies are installed
+1. boost (for hashing)
+
+`git clone https://github.com/Johan511/Raven`
+`cd Raven && mkdir build && cd build`
+`cmake ..`
+`make -j$(nproc)`
 
 # User APIs
 

@@ -116,9 +116,13 @@ class DataManager
 
     std::uint64_t latest_object_id(const GroupIdentifier& groupIdentifier)
     {
-        std::filesystem::path path = get_path_string(groupIdentifier);
-        std::cout << (--path.begin())->string() << std::endl;
-        return std::stoull((--path.begin())->string());
+        namespace fs = std::filesystem;
+        fs::path path = get_path_string(groupIdentifier);
+        std::optional<fs::directory_entry> lastEntry;
+        for (const auto& entry : fs::directory_iterator(path))
+            lastEntry = entry;
+
+        return std::stoull(lastEntry->path().filename());
     }
 
     void next_subscription_state(SubscriptionState& subscriptionState)
@@ -164,9 +168,8 @@ public:
             case protobuf_messages::SubscribeFilter::LatestGroup:
             {
                 GroupIdentifier latestGroup{ track, currentGroup };
-                ObjectIdentifier latestObject{
-                    latestGroup, DataManagerHandle{} -> first_object_id(latestGroup)
-                };
+                ObjectIdentifier latestObject{ latestGroup, DataManagerHandle{}
+                                               -> first_object_id(latestGroup) };
 
                 subscriptionState.objectToSend = latestObject;
 
@@ -175,9 +178,8 @@ public:
             case protobuf_messages::SubscribeFilter::LatestObject:
             {
                 GroupIdentifier latestGroup{ track, currentGroup };
-                ObjectIdentifier latestObject{
-                    latestGroup, DataManagerHandle{} -> latest_object_id(latestGroup)
-                };
+                ObjectIdentifier latestObject{ latestGroup, DataManagerHandle{}
+                                               -> latest_object_id(latestGroup) };
 
                 subscriptionState.objectToSend = latestObject;
 
@@ -245,7 +247,12 @@ public:
         // utils::ASSERT_LOG_THROW(objectPayloadOpt.has_value(),
         //                         "Buffer for object not found");
         if (!objectPayloadOpt.has_value())
+        {
+            using namespace std::chrono_literals;
+            std::this_thread::sleep_for(50ms);
+            update_subscription_state(connectionState, iter);
             return;
+        }
 
         protobuf_messages::MessageHeader header;
         header.set_messagetype(protobuf_messages::MoQtMessageType::OBJECT_STREAM);
