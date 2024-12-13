@@ -8,8 +8,6 @@
 #include <subscription_builder.hpp>
 #include <thread>
 
-#include <opencv2/opencv.hpp>
-
 #include <sanitizer/lsan_interface.h>
 #include <signal.h>
 void handler(int signum)
@@ -71,42 +69,6 @@ int main()
 
     moqtClient->start_connection(QUIC_ADDRESS_FAMILY_UNSPEC, Target, UdpPort);
 
-
-    std::thread th(
-    [&]()
-    {
-        do
-        {
-
-        } while (!moqtClient->isConnected.load(std::memory_order_acquire));
-        SubscriptionBuilder subBuilder;
-        subBuilder.set_data_range<SubscriptionBuilder::Filter::LatestObject>(
-        std::uint64_t(0));
-        subBuilder.set_track_alias(0);
-        subBuilder.set_track_namespace("default");
-        subBuilder.set_track_name("default");
-        subBuilder.set_subscriber_priority(0);
-        subBuilder.set_group_order(0);
-        auto subMessage = subBuilder.build();
-        auto queueIter = moqtClient->subscribe(std::move(subMessage));
-        while (true)
-        {
-            std::string objectPayloadStr;
-            queueIter->wait_dequeue(objectPayloadStr);
-            if (objectPayloadStr.empty())
-                continue;
-            cv::Mat frame;
-            std::vector<uchar> buffer(objectPayloadStr.begin(), objectPayloadStr.end());
-            frame = cv::imdecode(buffer, cv::IMREAD_COLOR);
-            cv::imshow("Live Video Feed", frame);
-            using namespace std::chrono_literals;
-            if (cv::waitKey(30) == 'q')
-                break;
-        }
-    });
-
-    utils::thread_set_max_priority(th);
-    utils::thread_set_affinity(th, 1);
 
     {
         char c;

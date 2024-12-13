@@ -60,8 +60,6 @@ set(PROTOBUF_MESSAGES_DIR "protobuf_messages")
 set(PROTOBUF_MESSAGES_INCLUDE_DIR "${PROTOBUF_MESSAGES_DIR}/src")
 set(PROTOBUF_MESSAGES_SRC_DIR "${PROTOBUF_MESSAGES_DIR}/src")
 
-find_package(OpenCV REQUIRED)
-
 add_definitions(-DRAVEN_CERT_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.cert")
 add_definitions(-DRAVEN_KEY_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.key")
 add_definitions(-DDUMMY_PAYLOAD_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/dummy_payload.txt")
@@ -79,21 +77,17 @@ add_library(raven STATIC ${RAVEN_SRC})
 # They should be able to use their own msquic library includes
 target_include_directories(raven PUBLIC ${RAVEN_INCLUDE_DIR})
 target_include_directories(raven PUBLIC ${MSQUIC_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${PROTOBUF_MESSAGES_INCLUDE_DIR})
-target_include_directories(raven PUBLIC ${OpenCV_INCLUDE_DIRS})  
 target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES} protobuf_messages MoodyCamelConcurrentQueue)
-target_link_libraries(raven PUBLIC ${OpenCV_LIBS})
 # -------------------------------------------------------------------------------
 
 # Add playground server
 add_executable(server server.cpp)
 # target_compile_options(server PRIVATE -Wall -Wextra -Werror -Wpedantic)
 target_include_directories(server PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(server PUBLIC ${MSQUIC_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(server PUBLIC raven ${OpenCV_LIBS})
+target_include_directories(server PUBLIC ${MSQUIC_INCLUDE_DIR})
 
 # Add playground client
 add_executable(client client.cpp)
 # target_compile_options(client PRIVATE -Wall -Wextra -Werror -Wpedantic)
 target_include_directories(client PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(client PUBLIC ${MSQUIC_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(client PUBLIC raven ${OpenCV_LIBS})
+target_include_directories(client PUBLIC ${MSQUIC_INCLUDE_DIR})
