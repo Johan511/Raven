@@ -3,8 +3,6 @@ build/
 protobuf_messages/build/
 protobuf_messages/includes/
 protobuf_messages/src/
-submodules/msquic/*
-submodules/protobuf/*
 .cache
 *.txt
 johan-docs/*

@@ -5,7 +5,9 @@ Please make sure the following external dependencies are installed
 
 ```
 git clone https://github.com/Johan511/Raven
-cd Raven && mkdir build && cd build
+cd Raven
+git submodule update --init --recursive
+mkdir build && cd build
 cmake ..
 make -j$(nproc)
 ```
