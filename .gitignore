@@ -4,6 +4,5 @@ protobuf_messages/build/
 protobuf_messages/includes/
 protobuf_messages/src/
 .cache
-*.txt
 johan-docs/*
 data*
