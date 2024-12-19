@@ -89,6 +89,7 @@ int main()
     QuicAddrSetPort(&Address, UdpPort);
 
     moqtServer->start_listener(&Address);
+    moqtServer->register_object("tnamespace", "tname", 0, 0, "Hello, World!");
 
     {
         char c;

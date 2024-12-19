@@ -34,6 +34,11 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
     connectionStateMap.emplace(connection.get(), ConnectionState{ connection.get(), this });
 
     connectionSetupFlag.store(false, std::memory_order_release);
+
+    do
+    {
+
+    }while(!isConnected.load(std::memory_order_acquire));
 }
 
 protobuf_messages::ClientSetupMessage MOQTClient::get_clientSetupMessage()

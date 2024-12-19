@@ -1,4 +1,3 @@
-#include <boost/preprocessor/cat.hpp>
 #include <stdexcept>
 
 

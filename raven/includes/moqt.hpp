@@ -1,6 +1,5 @@
 #pragma once
 ////////////////////////////////////////////
-#include <atomic>
 #include <msquic.h>
 ////////////////////////////////////////////
 #include <cstdint>
@@ -10,6 +9,7 @@
 #include <sstream>
 #include <thread>
 #include <unordered_map>
+#include <atomic>
 ////////////////////////////////////////////
 #include <contexts.hpp>
 #include <message_handlers.hpp>

@@ -25,7 +25,6 @@ QUIC_CREDENTIAL_CONFIG* get_cred_config()
 {
     QUIC_CREDENTIAL_CONFIG* CredConfig =
     (QUIC_CREDENTIAL_CONFIG*)malloc(sizeof(QUIC_CREDENTIAL_CONFIG));
-
     memset(CredConfig, 0, sizeof(QUIC_CREDENTIAL_CONFIG));
     CredConfig->Type = QUIC_CREDENTIAL_TYPE_NONE;
     CredConfig->Flags =
@@ -50,7 +49,7 @@ int main()
     Settings.IsSet.IdleTimeoutMs = TRUE;
     Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
     Settings.StreamMultiReceiveEnabled = TRUE;
-    Settings.PeerUnidiStreamCount = (static_cast<uint16_t>(1) << 16) - 1;
+    Settings.PeerUnidiStreamCount = (static_cast<uint16_t>(1) << 15) - 1;
     Settings.IsSet.PeerUnidiStreamCount = TRUE;
 
     moqtClient->set_Settings(&Settings, sizeof(Settings));
@@ -69,6 +68,25 @@ int main()
 
     moqtClient->start_connection(QUIC_ADDRESS_FAMILY_UNSPEC, Target, UdpPort);
 
+    SubscriptionBuilder subscriptionBuilder;
+    std::uint64_t startGroup = 0;
+    std::uint64_t startObject = 0;
+    std::uint64_t endGroup = 0;
+    std::uint64_t endObject = 1;
+    subscriptionBuilder.set_data_range<SubscriptionBuilder::Filter::AbsoluteRange>(startGroup, startObject,
+                                                                                   endGroup, endObject);
+    subscriptionBuilder.set_track_alias(0);
+    subscriptionBuilder.set_track_namespace("tnamespace");
+    subscriptionBuilder.set_track_name("tname");
+    subscriptionBuilder.set_subscriber_priority(0);
+    subscriptionBuilder.set_group_order(0);
+
+    auto subMessage = subscriptionBuilder.build();
+    auto queueRef = moqtClient->subscribe(std::move(subMessage));
+
+    std::string receivedData;
+    queueRef->wait_dequeue(receivedData);
+    std::cout << "Received data: " << receivedData << std::endl;
 
     {
         char c;

@@ -2,7 +2,6 @@
 //////////////////////////////
 #include <msquic.h>
 //////////////////////////////
-#include <boost/lockfree/queue.hpp>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -101,7 +100,6 @@ struct StreamState
 };
 
 
-namespace bl = boost::lockfree;
 struct ConnectionState
 {
     // StreamManager //////////////////////////////////////////////////////////////
