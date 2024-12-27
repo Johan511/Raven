@@ -141,7 +141,6 @@ int main()
 
         using namespace std::chrono_literals;
         // Make sure `register_object` is called before `subscribe`
-        std::this_thread::sleep_for(1.5s);
         auto queueRef = moqtClient->subscribe(std::move(subMessage));
 
         std::string receivedData;

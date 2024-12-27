@@ -23,7 +23,7 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
                                               { CredConfig });
 
     connectionSetupFlag.store(true, std::memory_order_release);
-    
+
     // enable critical section
     //            => no RAII because if emplace fails, we don't want connections to be accepted and fault elsewhere
     connection =
@@ -38,7 +38,7 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
     do
     {
 
-    }while(!isConnected.load(std::memory_order_acquire));
+    } while (!isConnected.load(std::memory_order_acquire));
 }
 
 protobuf_messages::ClientSetupMessage MOQTClient::get_clientSetupMessage()

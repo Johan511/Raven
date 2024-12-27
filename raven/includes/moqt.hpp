@@ -2,6 +2,7 @@
 ////////////////////////////////////////////
 #include <msquic.h>
 ////////////////////////////////////////////
+#include <atomic>
 #include <cstdint>
 #include <fstream>
 #include <functional>
@@ -9,7 +10,6 @@
 #include <sstream>
 #include <thread>
 #include <unordered_map>
-#include <atomic>
 ////////////////////////////////////////////
 #include <contexts.hpp>
 #include <message_handlers.hpp>
