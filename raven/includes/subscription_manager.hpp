@@ -6,6 +6,7 @@
 #include <contexts.hpp>
 #include <filesystem>
 #include <fstream>
+#include <ostream>
 #include <queue>
 #include <sstream>
 #include <string>
@@ -42,6 +43,12 @@ struct ObjectIdentifier : public GroupIdentifier
     bool operator==(const ObjectIdentifier& other) const
     {
         return GroupIdentifier::operator==(other) && objectId == other.objectId;
+    }
+
+    std::ostream& operator<<(std::ostream& os)
+    {
+        return os << tracknamespace << " " << trackname << " " << groupId << " "
+                  << objectId << " ";
     }
 };
 
@@ -92,7 +99,9 @@ class DataManager
 
     std::optional<std::string> get_object(ObjectIdentifier objectIdentifier)
     {
-        std::ifstream file(get_path_string(objectIdentifier));
+        std::string objectPath = get_path_string(objectIdentifier);
+        utils::LOG_EVENT(std::cout, "Reading object from: ", objectPath);
+        std::ifstream file(std::move(objectPath));
         if (!file.is_open())
             return {};
 
@@ -111,7 +120,7 @@ class DataManager
             firstObjectId = std::min(firstObjectId, std::stoul(*--entry.path().end()));
         }
 
-        return ++firstObjectId;
+        return firstObjectId;
     }
 
     std::uint64_t latest_object_id(const GroupIdentifier& groupIdentifier)
@@ -244,15 +253,8 @@ public:
         {
         } -> get_object(objectIdentifier);
 
-        // utils::ASSERT_LOG_THROW(objectPayloadOpt.has_value(),
-        //                         "Buffer for object not found");
-        if (!objectPayloadOpt.has_value())
-        {
-            using namespace std::chrono_literals;
-            std::this_thread::sleep_for(50ms);
-            update_subscription_state(connectionState, iter);
-            return;
-        }
+        utils::ASSERT_LOG_THROW(objectPayloadOpt.has_value(),
+                                "Buffer for object not found");
 
         protobuf_messages::MessageHeader header;
         header.set_messagetype(protobuf_messages::MoQtMessageType::OBJECT_STREAM);
@@ -269,6 +271,7 @@ public:
 
 
         QUIC_BUFFER* quicBuffer = serialization::serialize(header, objectStreamMessage);
+
         connectionState->enqueue_data_buffer(quicBuffer);
 
         DataManagerHandle

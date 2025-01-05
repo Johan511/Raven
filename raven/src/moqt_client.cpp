@@ -8,7 +8,7 @@
 
 namespace rvn
 {
-MOQTClient::MOQTClient() : MOQT() {};
+MOQTClient::MOQTClient() : MOQT(HostType::CLIENT) {};
 
 void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* ServerName, uint16_t ServerPort)
 {
@@ -31,7 +31,7 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
                            { configuration.get(), Family, ServerName, ServerPort });
 
 
-    connectionStateMap.emplace(connection.get(), ConnectionState{ connection.get(), this });
+    connectionState = ConnectionState{ connection.get(), this };
 
     connectionSetupFlag.store(false, std::memory_order_release);
 

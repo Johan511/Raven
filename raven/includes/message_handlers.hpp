@@ -1,5 +1,6 @@
 #pragma once
 
+#include "utilities.hpp"
 #include <moqt.hpp>
 #include <serialization.hpp>
 
@@ -122,6 +123,8 @@ template <typename MOQTObject> class MessageHandler
     handle_message(ConnectionState& connectionState,
                    protobuf_messages::ObjectStreamMessage&& objectStreamMessage)
     {
+        utils::LOG_EVENT(std::cout, "Object Stream Message received: \n",
+                         objectStreamMessage.DebugString());
         std::uint64_t subscribeId = objectStreamMessage.subscribeid();
         connectionState.add_to_queue(objectStreamMessage.objectpayload());
 

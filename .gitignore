@@ -1,8 +1,6 @@
 .vscode
 build/
-protobuf_messages/build/
-protobuf_messages/includes/
-protobuf_messages/src/
 .cache
 johan-docs/*
 data*
+compile_commands.json

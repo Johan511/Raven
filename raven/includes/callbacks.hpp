@@ -102,7 +102,7 @@ static constexpr auto server_control_stream_callback =
         {
             try
             {
-                auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
+                auto& connectionState = *moqtObject->get_connectionState(connection);
                 moqtObject->handle_message(connectionState, controlStream,
                                            &(event->RECEIVE));
             }
@@ -170,8 +170,8 @@ static constexpr auto server_data_stream_callback =
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         {
-            ConnectionState& connectionState =
-            moqtObject->get_connectionStateMap().at(connection);
+            ConnectionState& connectionState = *moqtObject->get_connectionState(connection);
+
             connectionState.delete_data_stream(dataStream);
             break;
         }
@@ -222,7 +222,7 @@ static constexpr auto client_data_stream_callback =
             moqtObject->get_stream_state(connectionHandle, dataStream);
 
             ConnectionState& connectionState =
-            moqtObject->get_connectionStateMap().at(connectionHandle);
+            *moqtObject->get_connectionState(connectionHandle);
 
             moqtObject->handle_message(connectionState, dataStream, streamState->messageSS);
 
@@ -257,7 +257,7 @@ static constexpr auto client_control_stream_callback =
             // auto receiveInformation = event->RECEIVE;
             try
             {
-                auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
+                auto& connectionState = *moqtObject->get_connectionState(connection);
                 moqtObject->handle_message(connectionState, controlStream,
                                            &(event->RECEIVE));
             }
@@ -312,8 +312,7 @@ static constexpr auto client_connection_callback =
             //
             // The handshake has completed for the connection.
             //
-            ConnectionState& connectionState =
-            moqtClient->get_connectionStateMap().at(connectionHandle);
+            ConnectionState& connectionState = *moqtClient->connectionState;
 
             protobuf_messages::MessageHeader messageHeader;
             messageHeader.set_messagetype(protobuf_messages::MoQtMessageType::CLIENT_SETUP);

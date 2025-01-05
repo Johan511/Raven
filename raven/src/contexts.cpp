@@ -1,3 +1,4 @@
+#include "utilities.hpp"
 #include <contexts.hpp>
 #include <moqt.hpp>
 #include <stdexcept>
@@ -51,7 +52,7 @@ void ConnectionState::send_data_buffer()
                           {
                               HQUIC connectionHandle = context->streamContext->connection;
                               ConnectionState& connectionState =
-                              moqtObject->get_connectionStateMap().at(connectionHandle);
+                              *moqtObject->get_connectionState(connectionHandle);
                               connectionState.delete_data_stream(streamHandle);
                           });
 
@@ -82,6 +83,7 @@ void ConnectionState::delete_data_stream(HQUIC streamHandle)
 
 void ConnectionState::enqueue_data_buffer(QUIC_BUFFER* buffer)
 {
+    utils::LOG_EVENT(std::cout, "Enqueueing data buffer of size: ", buffer->Length);
     dataBuffersToSend.push(buffer);
     if (dataStreams.size() < MAX_DATA_STREAMS)
         send_data_buffer();
