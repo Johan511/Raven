@@ -26,12 +26,13 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
 
     // enable critical section
     //            => no RAII because if emplace fails, we don't want connections to be accepted and fault elsewhere
-    connection =
+    auto connection =
     rvn::unique_connection(tbl.get(), { reg.get(), MOQT::connection_cb_wrapper, this },
                            { configuration.get(), Family, ServerName, ServerPort });
 
 
-    connectionState = ConnectionState{ connection.get(), this };
+    // connection state is optional
+    connectionState.emplace(std::move(connection), this);
 
     connectionSetupFlag.store(false, std::memory_order_release);
 

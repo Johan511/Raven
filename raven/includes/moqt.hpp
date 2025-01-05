@@ -175,7 +175,9 @@ public:
         return handle_message(connectionState, streamHandle, iStringStream);
     }
 
-    void handle_message(ConnectionState& connectionState, HQUIC streamHandle, std::stringstream& iStringStream);
+    void handle_message(ConnectionState& connectionState,
+                        HQUIC streamHandle,
+                        std::stringstream& iStringStream);
 
 
 public:

@@ -91,7 +91,8 @@ ConnectionState* MOQT::get_connectionState(HQUIC connectionHandle)
     if (hostType_ == HostType::CLIENT)
     {
         MOQTClient* thisClient = static_cast<MOQTClient*>(this);
-        utils::ASSERT_LOG_THROW(connectionHandle == thisClient->connectionState->connection,
+        utils::ASSERT_LOG_THROW(connectionHandle ==
+                                thisClient->connectionState->connection_.get(),
                                 "Connection handle does not match");
 
         return std::addressof(*thisClient->connectionState);

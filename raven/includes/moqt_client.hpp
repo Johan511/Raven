@@ -19,11 +19,9 @@ namespace rvn
 {
 class MOQTClient : public MOQT
 {
-    rvn::unique_connection connection;
-
+public:
     // ConnectionState is not default constructable
     // so we need to have a optional wrapper
-public:
     std::optional<ConnectionState> connectionState;
     StableContainer<MPMCQueue<std::string>> objectQueues;
 
@@ -61,7 +59,7 @@ public:
          */
 
         StreamState& streamState =
-        *get_stream_state(connectionState.connection, streamHandle);
+        *get_stream_state(connectionState.connection_.get(), streamHandle);
 
         MessageHandler messageHandler(*this, connectionState);
 
@@ -91,7 +89,7 @@ public:
 
     StreamState* get_stream_state(HQUIC connectionHandle, HQUIC streamHandle)
     {
-        rvn::utils::ASSERT_LOG_THROW(connectionState->connection == connectionHandle,
+        rvn::utils::ASSERT_LOG_THROW(connectionState->connection_.get() == connectionHandle,
                                      "Connection handle does not match");
 
         if (connectionState->get_control_stream().has_value() &&

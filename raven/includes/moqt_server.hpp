@@ -67,7 +67,7 @@ public:
          */
 
         StreamState& streamState =
-        *get_stream_state(connectionState.connection, streamHandle);
+        *get_stream_state(connectionState.connection_.get(), streamHandle);
 
         MessageHandler messageHandler(*this, connectionState);
 
@@ -158,8 +158,10 @@ public:
                                 "Trying to accept connection which already "
                                 "exists");
 
+        unique_connection connection = unique_connection(tbl.get(), connectionHandle);
+
         connectionStateMap.emplace(connectionHandle,
-                                   ConnectionState{ connectionHandle, this });
+                                   ConnectionState{ std::move(connection), this });
 
         return status;
     }

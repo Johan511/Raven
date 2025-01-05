@@ -52,16 +52,6 @@ struct ObjectIdentifier : public GroupIdentifier
     }
 };
 
-static inline std::size_t hash_value(const ObjectIdentifier& b)
-{
-    std::size_t seed = 0;
-    boost::hash_combine(seed, b.tracknamespace);
-    boost::hash_combine(seed, b.trackname);
-    boost::hash_combine(seed, b.groupId);
-    boost::hash_combine(seed, b.objectId);
-    return seed;
-}
-
 struct RegisterSubscriptionErr
 {
 };
@@ -101,6 +91,7 @@ class DataManager
     {
         std::string objectPath = get_path_string(objectIdentifier);
         utils::LOG_EVENT(std::cout, "Reading object from: ", objectPath);
+
         std::ifstream file(std::move(objectPath));
         if (!file.is_open())
             return {};
@@ -134,7 +125,7 @@ class DataManager
         return std::stoull(lastEntry->path().filename());
     }
 
-    void next_subscription_state(SubscriptionState& subscriptionState)
+    void next(SubscriptionState& subscriptionState)
     {
         subscriptionState.objectToSend->objectId++;
     }
@@ -248,7 +239,7 @@ public:
                                            subscriptionState.objectToSend->trackname,
                                            subscriptionState.objectToSend->groupId,
                                            subscriptionState.objectToSend->objectId };
-        // check if object is already in cache
+
         std::optional<std::string> objectPayloadOpt = DataManagerHandle
         {
         } -> get_object(objectIdentifier);
@@ -276,7 +267,7 @@ public:
 
         DataManagerHandle
         {
-        } -> next_subscription_state(subscriptionState);
+        } -> next(subscriptionState);
     }
 
     RegisterSubscriptionErr
