@@ -94,3 +94,5 @@ target_link_libraries(client PUBLIC raven)
 # -------------------------------------------------------------------------------
 
 add_subdirectory(tests)
+
+add_subdirectory(examples) #---adding a new examples directory
