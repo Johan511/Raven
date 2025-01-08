@@ -111,8 +111,7 @@ template <typename MOQTObject> class MessageHandler
         utils::LOG_EVENT(std::cout, "Subscribe Message received: \n",
                          subscribeMessage.DebugString());
 
-        auto err =
-        moqt.try_register_subscription(connectionState, std::move(subscribeMessage));
+        moqt.register_subscription(connectionState, std::move(subscribeMessage));
 
         return QUIC_STATUS_SUCCESS;
     }

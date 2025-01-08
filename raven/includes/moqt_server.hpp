@@ -23,15 +23,12 @@ class MOQTServer : public MOQT
 public:
     std::unordered_map<HQUIC, ConnectionState> connectionStateMap;
 
-    auto try_register_subscription(ConnectionState& connectionState,
-                                   protobuf_messages::SubscribeMessage&& subscribeMessage)
+    void register_subscription(ConnectionState& connectionState,
+                               protobuf_messages::SubscribeMessage&& subscribeMessage)
     {
-        RegisterSubscriptionErr errorInfo;
-
-        SubscriptionManagerHandle
+        auto subscriptionState = SubscriptionManagerHandle
         {
         } -> try_register_subscription(connectionState, std::move(subscribeMessage));
-        return errorInfo;
     }
 
     void handle_message_internal(ConnectionState& connectionState,

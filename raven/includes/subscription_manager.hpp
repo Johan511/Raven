@@ -6,10 +6,14 @@
 #include <contexts.hpp>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <ostream>
 #include <sstream>
 #include <string>
 #include <unordered_map>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 
 namespace rvn
 {
@@ -44,10 +48,10 @@ struct ObjectIdentifier : public GroupIdentifier
         return GroupIdentifier::operator==(other) && objectId == other.objectId;
     }
 
-    std::ostream& operator<<(std::ostream& os)
+    friend inline std::ostream& operator<<(std::ostream& os, const ObjectIdentifier& oid)
     {
-        return os << tracknamespace << " " << trackname << " " << groupId << " "
-                  << objectId << " ";
+        return os << oid.tracknamespace << " " << oid.trackname << " "
+                  << oid.groupId << " " << oid.objectId << " ";
     }
 };
 
@@ -66,12 +70,11 @@ struct SubscriptionState
 class DataManager
 {
     friend class SubscriptionManager;
-    const std::string dataPath = DATA_DIRECTORY;
 
     std::string get_path_string(const TrackIdentifier& trackIdentifier)
     {
-        return dataPath + trackIdentifier.tracknamespace + "/" +
-               trackIdentifier.trackname + "/";
+        return std::string(DATA_DIRECTORY) + trackIdentifier.tracknamespace +
+               "/" + trackIdentifier.trackname + "/";
     }
 
     std::string get_path_string(const GroupIdentifier& groupIdentifier)
@@ -86,15 +89,28 @@ class DataManager
                std::to_string(objectIdentifier.objectId);
     }
 
-    std::optional<std::string> get_object(ObjectIdentifier objectIdentifier)
+
+public:
+    /*
+        * @brief Get the object from the file system
+        * @param objectIdentifier
+        * @return absl::StatusOr<std::string>, possible error codes are
+                                                NotFoundError: object does not
+       exist InternalError: otherwise
+    */
+    absl::StatusOr<std::string> get_object(ObjectIdentifier objectIdentifier)
     {
-        std::string objectPath = get_path_string(objectIdentifier);
-        utils::LOG_EVENT(std::cout, "Reading object from: ", objectPath);
+        std::string objectLocation = get_path_string(objectIdentifier);
+        utils::LOG_EVENT(std::cout, "Reading object from: ", objectLocation);
 
-        std::ifstream file(std::move(objectPath));
-        if (!file.is_open())
-            return {};
+        if (!std::filesystem::exists(objectLocation))
+        {
+            utils::ASSERT_LOG_THROW(false, "Object: ", objectIdentifier,
+                                    "\ndoes not exist at location\n", objectLocation);
+            return absl::NotFoundError("Object does not exist");
+        }
 
+        std::ifstream file(std::move(objectLocation));
         std::stringstream ss;
         ss << file.rdbuf();
 
@@ -103,7 +119,7 @@ class DataManager
 
     std::uint64_t first_object_id(const GroupIdentifier& groupIdentifier)
     {
-        std::uint64_t firstObjectId = INT_MAX;
+        std::uint64_t firstObjectId = std::numeric_limits<std::uint64_t>::max();
         std::filesystem::path directoryPath = get_path_string(groupIdentifier);
         for (const auto& entry : std::filesystem::directory_iterator(directoryPath))
         {
@@ -239,11 +255,11 @@ public:
                                            subscriptionState.objectToSend->groupId,
                                            subscriptionState.objectToSend->objectId };
 
-        std::optional<std::string> objectPayloadOpt = DataManagerHandle
+        auto objectPayloadOpt = DataManagerHandle
         {
         } -> get_object(objectIdentifier);
 
-        utils::ASSERT_LOG_THROW(objectPayloadOpt.has_value(),
+        utils::ASSERT_LOG_THROW(objectPayloadOpt.ok(),
                                 "Buffer for object not found");
 
         protobuf_messages::MessageHeader header;
