@@ -297,10 +297,7 @@ static constexpr auto client_connection_callback =
     MOQTClient* moqtClient = static_cast<MOQTClient*>(Context);
     const QUIC_API_TABLE* MsQuic = moqtClient->get_tbl();
 
-    do
-    {
-
-    } while (moqtClient->connectionSetupFlag.load(std::memory_order_acquire));
+    utils::wait_for(moqtClient->quicConnectionStateSetupFlag_);
     // wait until setup is done, once setup is done, flag is reset to false
 
     switch (event->Type)

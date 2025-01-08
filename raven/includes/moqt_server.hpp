@@ -88,7 +88,6 @@ public:
             }
             default: LOGE("Unknown control message type", header.messagetype());
         }
-        isConnected.store(true, std::memory_order_release);
     }
     // map from connection HQUIC to connection state
     std::unordered_map<HQUIC, ConnectionState>& get_connectionStateMap()

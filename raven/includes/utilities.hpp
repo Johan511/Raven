@@ -171,6 +171,13 @@ static inline void thread_set_max_priority(std::thread& th)
     }
 }
 
+static inline void wait_for(std::atomic_bool& flag)
+{
+    do
+    {
+
+    } while (!flag.load(std::memory_order_acquire));
+}
 
 } // namespace rvn::utils
 

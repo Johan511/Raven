@@ -69,6 +69,7 @@ public:
             {
                 // SERVER sends to CLIENT
                 messageHandler.template handle_message<protobuf_messages::ServerSetupMessage>(connectionState, istream);
+                ravenConnectionSetupFlag_.store(true, std::memory_order_release);
                 break;
             }
             case protobuf_messages::MoQtMessageType::OBJECT_STREAM:
@@ -80,7 +81,6 @@ public:
             }
             default: LOGE("Unknown control message type", header.messagetype());
         }
-        isConnected.store(true, std::memory_order_release);
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -132,10 +132,6 @@ public:
     }
 
 
-    // atomic flags for multi thread synchronization
-    // make sure no connections are accepted until whole setup required is completed
-    std::atomic_bool connectionSetupFlag;
-
     MOQTClient();
 
     void start_connection(QUIC_ADDRESS_FAMILY Family, const char* ServerName, uint16_t ServerPort);
@@ -146,5 +142,12 @@ public:
     {
         return connectionState->accept_data_stream(streamHandle);
     }
+
+    // atomic flags for multi thread synchronization
+    // make sure no connections are accepted until whole setup required is completed
+    std::atomic_bool quicConnectionStateSetupFlag_{};
+
+    // make sure no communication untill setup messages are exchanged
+    std::atomic_bool ravenConnectionSetupFlag_{};
 };
 } // namespace rvn

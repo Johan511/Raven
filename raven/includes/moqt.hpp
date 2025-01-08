@@ -195,8 +195,6 @@ public:
             QUIC_RECEIVE_FLAGS Flags;
         }
     */
-    std::atomic_bool isConnected{};
-
 
 protected:
     MOQT(HostType hostType);
