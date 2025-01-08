@@ -1,11 +1,9 @@
-#include <memory>
 #include <msquic.h>
 
 #include <contexts.hpp>
 #include <moqt.hpp>
 #include <protobuf_messages.hpp>
 #include <serialization.hpp>
-#include <string>
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
@@ -312,7 +310,9 @@ static constexpr auto client_connection_callback =
             //
             // The handshake has completed for the connection.
             //
+
             ConnectionState& connectionState = *moqtClient->connectionState;
+            connectionState.establish_control_stream();
 
             protobuf_messages::MessageHeader messageHeader;
             messageHeader.set_messagetype(protobuf_messages::MoQtMessageType::CLIENT_SETUP);

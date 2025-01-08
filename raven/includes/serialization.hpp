@@ -8,8 +8,6 @@
 #include <google/protobuf/util/delimited_message_util.h>
 #include <setup_messages.pb.h>
 ///////////////////////////////////
-#include <algorithm>
-///////////////////////////////////
 #include <protobuf_messages.hpp>
 ///////////////////////////////////
 

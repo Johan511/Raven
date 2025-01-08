@@ -46,7 +46,6 @@ template <typename MOQTObject> class MessageHandler
 
         QUIC_BUFFER* quicBuffer =
         serialization::serialize(serverSetupHeader, serverSetupMessage);
-        connectionState.expectControlStreamShutdown = false;
 
         connectionState.enqueue_control_buffer(quicBuffer);
 
@@ -68,7 +67,6 @@ template <typename MOQTObject> class MessageHandler
                          serverSetupMessage.DebugString());
 
         connectionState.peerRole = serverSetupMessage.parameters()[0].role().role();
-        connectionState.expectControlStreamShutdown = true;
 
         return QUIC_STATUS_SUCCESS;
     }

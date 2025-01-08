@@ -129,11 +129,13 @@ struct ConnectionState
 
     std::string path;
     protobuf_messages::Role peerRole;
-    bool expectControlStreamShutdown = true;
+
+    // Only for Subscribers
+    // TODO: We can have multiple subscriptions
     StableContainer<MPMCQueue<std::string>>::iterator objectQueue;
 
 
-    ConnectionState(unique_connection &&connection, class MOQT* moqtObject_)
+    ConnectionState(unique_connection&& connection, class MOQT* moqtObject_)
     : connection_(std::move(connection)), moqtObject(moqtObject_)
     {
     }
@@ -150,7 +152,7 @@ struct ConnectionState
 
     QUIC_STATUS accept_control_stream(HQUIC controlStreamHandle);
 
-    StreamState& reset_control_stream();
+    StreamState& establish_control_stream();
 
     void add_to_queue(const std::string& objectPayload)
     {
