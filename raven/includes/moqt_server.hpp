@@ -7,7 +7,7 @@
 #include <contexts.hpp>
 #include <message_handlers.hpp>
 #include <protobuf_messages.hpp>
-#include <serialization.hpp>
+#include <serialization/serialization.hpp>
 #include <subscription_manager.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>

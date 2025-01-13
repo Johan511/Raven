@@ -1,16 +1,18 @@
 #pragma once
 
-#include "serialization.hpp"
-#include "utilities.hpp"
 #include <boost/functional/hash.hpp>
 #include <contexts.hpp>
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <ostream>
+#include <serialization/serialization.hpp>
 #include <sstream>
 #include <string>
+#include <subscribe_messages.pb.h>
 #include <unordered_map>
+#include <utilities.hpp>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -95,8 +97,8 @@ public:
         * @brief Get the object from the file system
         * @param objectIdentifier
         * @return absl::StatusOr<std::string>, possible error codes are
-                                                NotFoundError: object does not
-       exist InternalError: otherwise
+                                        NotFoundError: object does not
+                                        exist InternalError: otherwise
     */
     absl::StatusOr<std::string> get_object(ObjectIdentifier objectIdentifier)
     {
@@ -285,15 +287,27 @@ public:
         } -> next(subscriptionState);
     }
 
+    bool verify_validity(const protobuf_messages::SubscribeMessage& subscribeMessage)
+    {
+        return true;
+    }
+
+
+    using RegisterSubscriptionErr = std::optional<protobuf_messages::SubscribeErrorMessage>;
+
+    RegisterSubscriptionErr
+    build_subscribe_error_message(const protobuf_messages::SubscribeMessage& subscribeMessage)
+    {
+        return {};
+    }
+
     RegisterSubscriptionErr
     try_register_subscription(ConnectionState& connectionState,
                               protobuf_messages::SubscribeMessage&& subscribeMessage)
     {
-        RegisterSubscriptionErr errorInfo =
-        authentication(connectionState, subscribeMessage);
+        if (verify_validity(subscribeMessage) == false)
+            return build_subscribe_error_message(subscribeMessage);
 
-        if (this->failed(errorInfo))
-            return errorInfo;
 
         SubscriptionState subscriptionState = build_subscription_state(subscribeMessage);
         auto [iter, inserted] =
@@ -304,7 +318,7 @@ public:
 
         update_subscription_state(&connectionState, iter);
 
-        return errorInfo;
+        return std::nullopt;
     }
     ~SubscriptionManager() = default;
 };

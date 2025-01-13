@@ -1,7 +1,7 @@
 #include <memory>
 #include <moqt.hpp>
 #include <protobuf_messages.hpp>
-#include <serialization.hpp>
+#include <serialization/serialization.hpp>
 #include <utilities.hpp>
 
 namespace rvn

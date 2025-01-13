@@ -8,7 +8,7 @@
 //////////////////////////////
 #include <definitions.hpp>
 #include <protobuf_messages.hpp>
-#include <serialization.hpp>
+#include <serialization/serialization.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
 //////////////////////////////
