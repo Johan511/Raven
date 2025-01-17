@@ -57,9 +57,6 @@ struct ObjectIdentifier : public GroupIdentifier
     }
 };
 
-struct RegisterSubscriptionErr
-{
-};
 
 struct SubscriptionState
 {
@@ -234,17 +231,6 @@ public:
         return subscriptionState;
     }
 
-
-    bool failed(RegisterSubscriptionErr)
-    {
-        return false;
-    }
-
-    RegisterSubscriptionErr
-    authentication(ConnectionState&, const protobuf_messages::SubscribeMessage& subscribeMessage)
-    {
-        return {};
-    }
 
     void update_subscription_state(
     ConnectionState* connectionState,

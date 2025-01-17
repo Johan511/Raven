@@ -138,6 +138,19 @@ static inline bool xnor(bool a, bool b)
     return (a && b) || (!a && !b);
 }
 
+static inline std::uint64_t next_power_of_2(std::uint64_t n) noexcept
+{
+    n--;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    n |= n >> 32;
+    n++;
+    return n;
+}
+
 static inline void thread_set_affinity(std::thread& th, int core_id)
 {
     // Get native thread handle

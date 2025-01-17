@@ -3,13 +3,13 @@
 ///////////////////////////////////c
 #include <exceptions.hpp>
 #include <msquic.h>
+#include <protobuf_messages.hpp>
+#include <serialization/chunk.hpp>
 #include <serialization/quic_var.hpp>
 #include <utilities.hpp>
 ///////////////////////////////////
 #include <google/protobuf/util/delimited_message_util.h>
 #include <setup_messages.pb.h>
-///////////////////////////////////
-#include <protobuf_messages.hpp>
 ///////////////////////////////////
 
 namespace rvn::serialization
@@ -109,15 +109,108 @@ constexpr guess_size_t guess_size(const std::string& s)
 
 using namespace protobuf_messages;
 
-template <typename T, typename InputStream> T deserialize(InputStream& istream)
+
+namespace detail
 {
-    T t;
-    bool clean_eof;
-    google::protobuf::util::ParseDelimitedFromZeroCopyStream(&t, &istream, &clean_eof);
-    if (clean_eof)
-        throw rvn::exception::parsing_exception();
-    return t;
-};
+    /*
+        2 byte integer => xy
+        y is lower byte
+        x is higher byte
+
+        Little Endian =>
+
+
+
+    */
+    struct LittleEndian
+    {
+    };
+    struct BigEndian
+    {
+    };
+
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define SYSTEM_LITTLE_ENDIAN 1
+#else
+#define SYSTEM_LITTLE_ENDIAN 0
+#endif
+
+    template <typename T>
+    ds::chunk serialize_trivial(const T& t, const LittleEndian&)
+    {
+        static_assert(sizeof(T) > 0);
+        ds::chunk c(sizeof(T));
+#if SYSTEM_LITTLE_ENDIAN
+        std::memcpy(c.data(), &t, sizeof(T));
+#else
+        // reverse the bytes
+        constexpr std::size_t size = sizeof(T);
+        char* p = reinterpret_cast<char*>(&t);
+        for (std::size_t i = size - 1; i >= 0; --i)
+            c.data()[i] = p[i];
+
+#endif
+        return c;
+    }
+
+
+    template <typename T>
+    ds::chunk serialize_trivial(const T& t, const BigEndian&)
+    {
+        static_assert(sizeof(T) > 0);
+        ds::chunk c(sizeof(T));
+#if SYSTEM_LITTLE_ENDIAN
+        // reverse the bytes
+        constexpr std::size_t size = sizeof(T);
+        char* p = reinterpret_cast<char*>(&t);
+        for (std::size_t i = size - 1; i >= 0; --i)
+            c.data()[i] = p[i];
+#else
+        std::memcpy(c.data(), &t, sizeof(T));
+#endif
+        return c;
+    }
+
+    template <typename Endianess>
+    ds::chunk serialize(ds::quic_var_int i, const Endianess& e)
+    {
+        const auto chunkSize = i.size();
+
+        switch (chunkSize)
+        {
+            case 1:
+            {
+                std::uint8_t value = i.value(); // 00xxxxxx
+                utils::ASSERT_LOG_THROW(value == i.value(),
+                                        "Value is too large for 1 byte");
+                return serialize_trivial(value, e);
+            }
+            case 2:
+            {
+                std::uint16_t value = (0x40ULL << 8) | i.value(); // 01xxxxxx xxxxxxxx
+                utils::ASSERT_LOG_THROW(value == i.value(),
+                                        "Value is too large for 2 byte");
+                return serialize_trivial(value, e);
+            }
+            case 4:
+            {
+                std::uint8_t value = (0x80ULL << 24) | i.value(); // 10xxxxxx xxxxxxxx ...
+                utils::ASSERT_LOG_THROW(value == i.value(),
+                                        "Value is too large for 4 byte");
+                return serialize_trivial(value, e);
+            }
+            case 8:
+            {
+                std::uint8_t value = (0xC0ULL << 56) | i.value(); // 10xxxxxx xxxxxxxx ...
+                utils::ASSERT_LOG_THROW(value == i.value(),
+                                        "Value is too large for 8 byte");
+                return serialize_trivial(value, e);
+            }
+        }
+
+        assert(false);
+    }
+} // namespace detail
 
 
 template <typename... Args> QUIC_BUFFER* serialize(Args&&... args)
@@ -142,4 +235,14 @@ template <typename... Args> QUIC_BUFFER* serialize(Args&&... args)
 
     return sendBuffer;
 }
+
+template <typename T, typename InputStream> T deserialize(InputStream& istream)
+{
+    T t;
+    bool clean_eof;
+    google::protobuf::util::ParseDelimitedFromZeroCopyStream(&t, &istream, &clean_eof);
+    if (clean_eof)
+        throw rvn::exception::parsing_exception();
+    return t;
+};
 } // namespace rvn::serialization
