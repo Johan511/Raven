@@ -208,5 +208,10 @@ public:
     {
         return chunk_.data() + beginOffset_;
     }
+
+    std::uint8_t operator[](std::uint64_t index) const noexcept
+    {
+        return chunk_.data()[beginOffset_ + index];
+    }
 };
 } // namespace rvn::ds

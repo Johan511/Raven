@@ -62,6 +62,7 @@ void byte_sized_tests()
 {
     byte_sized_tests<std::uint8_t>();
     byte_sized_tests<std::uint16_t>();
+    byte_sized_tests<std::uint32_t>();
     bit_64_test();
 }
 

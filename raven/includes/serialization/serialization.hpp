@@ -2,6 +2,7 @@
 
 ///////////////////////////////////c
 #include <bit>
+#include <cassert>
 #include <cstdint>
 #include <endian.h>
 #include <exceptions.hpp>
@@ -236,7 +237,7 @@ namespace detail
 
     // By default we always want to serialize in network byte order
     template <typename T, Endianness FromEndianness = NetworkEndian>
-    T deserialize_trivial(ds::chunk& chunk, FromEndianness = network_endian)
+    T deserialize_trivial(const ds::ChunkSpan& chunk, FromEndianness = network_endian)
     {
         T t;
         deserialize_trivial<T>(t, chunk, FromEndianness{});
@@ -244,44 +245,102 @@ namespace detail
     }
 
 
-    template <typename Endianess>
-    ds::chunk serialize(ds::quic_var_int i, const Endianess& e)
+    template <typename T, typename ToEndianess = NetworkEndian>
+    void serialize(ds::chunk& c, ds::quic_var_int i, ToEndianess = network_endian)
     {
         const auto chunkSize = i.size();
+        static_assert(std::is_same_v<T, ds::quic_var_int>);
 
         switch (chunkSize)
         {
             case 1:
             {
                 std::uint8_t value = i.value(); // 00xxxxxx
-                utils::ASSERT_LOG_THROW(value == i.value(),
-                                        "Value is too large for 1 byte");
-                return serialize_trivial(value, e);
+                return serialize_trivial<std::uint8_t>(c, value, ToEndianess{});
             }
             case 2:
             {
                 std::uint16_t value = (0x40ULL << 8) | i.value(); // 01xxxxxx xxxxxxxx
-                utils::ASSERT_LOG_THROW(value == i.value(),
-                                        "Value is too large for 2 byte");
-                return serialize_trivial(value, e);
+                return serialize_trivial<std::uint16_t>(c, value, ToEndianess{});
             }
             case 4:
             {
-                std::uint8_t value = (0x80ULL << 24) | i.value(); // 10xxxxxx xxxxxxxx ...
-                utils::ASSERT_LOG_THROW(value == i.value(),
-                                        "Value is too large for 4 byte");
-                return serialize_trivial(value, e);
+                std::uint32_t value = (0x80ULL << 24) | i.value(); // 10xxxxxx xxxxxxxx ...
+                return serialize_trivial<std::uint32_t>(c, value, ToEndianess{});
             }
             case 8:
             {
-                std::uint8_t value = (0xC0ULL << 56) | i.value(); // 10xxxxxx xxxxxxxx ...
-                utils::ASSERT_LOG_THROW(value == i.value(),
-                                        "Value is too large for 8 byte");
-                return serialize_trivial(value, e);
+                std::uint64_t value = (0xC0ULL << 56) | i.value(); // 10xxxxxx xxxxxxxx ...
+                return serialize_trivial<std::uint64_t>(c, value, ToEndianess{});
             }
         }
 
         assert(false);
+    }
+
+    template <typename T, typename ToEndianess = NetworkEndian>
+    ds::chunk serialize(ds::quic_var_int i, ToEndianess = network_endian)
+    {
+        ds::chunk c;
+        serialize<T>(c, i, ToEndianess{});
+        return c;
+    }
+
+    /*
+        We can't deserialize a quic_var_int from little endian beacuse
+        higher order bits are used to indicate the length of the integer
+    */
+    template <typename T>
+    void deserialize(ds::quic_var_int& i, const ds::ChunkSpan& chunk, NetworkEndian = network_endian)
+    {
+        static_assert(std::is_same_v<T, ds::quic_var_int>);
+        std::uint8_t prefix2Bits = chunk[0] >> 6;
+        switch (prefix2Bits)
+        {
+            case 0b00:
+            {
+                // 1 byte integer
+                using t00 = std::uint8_t;
+                t00 prefixedValue = deserialize_trivial<t00>(chunk, NetworkEndian{});
+                i = prefixedValue & ~(t00(0b11) << 6);
+                return;
+            }
+            case 0b01:
+            {
+                // 2 byte integer
+                using t01 = std::uint16_t;
+                t01 prefixedValue = deserialize_trivial<t01>(chunk, NetworkEndian{});
+                i = prefixedValue & ~(t01(0b11) << 14);
+                return;
+            }
+            case 0b10:
+            {
+                // 4 byte integer
+                using t10 = std::uint32_t;
+                t10 prefixedValue = deserialize_trivial<t10>(chunk, NetworkEndian{});
+                i = prefixedValue & ~(t10(0b11) << 30);
+                return;
+            }
+            case 0b11:
+            {
+                // 8 byte integer
+                using t11 = std::uint64_t;
+                t11 prefixedValue = deserialize_trivial<t11>(chunk, NetworkEndian{});
+                i = prefixedValue & ~(t11(0b11) << 62);
+                return;
+            }
+        }
+
+        assert(false);
+    }
+
+    template <typename T>
+    ds::quic_var_int
+    deserialize(const ds::ChunkSpan& chunk, NetworkEndian = network_endian)
+    {
+        ds::quic_var_int i(0);
+        deserialize<T>(i, chunk, NetworkEndian{});
+        return i;
     }
 } // namespace detail
 
