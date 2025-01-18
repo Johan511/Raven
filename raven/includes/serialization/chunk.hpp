@@ -1,9 +1,9 @@
 #pragma once
 
-#include <utilities.hpp>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <utilities.hpp>
 
 namespace rvn::ds
 {
@@ -15,6 +15,7 @@ class chunk
     std::uint64_t maxSize_;  // length of data_ allocated
     std::uint8_t* data_;
 
+
     void swap(chunk& other) noexcept
     {
         std::swap(currSize_, other.currSize_);
@@ -23,6 +24,8 @@ class chunk
     }
 
 public:
+    using type = std::uint8_t;
+
     chunk() : currSize_{ 0 }, maxSize_{ 0 }, data_{ nullptr }
     {
     }
@@ -87,6 +90,14 @@ public:
         other.data_ = nullptr;
 
         return *this;
+    }
+
+    bool operator==(const chunk& other) const noexcept
+    {
+        if (currSize_ != other.currSize_)
+            return false;
+
+        return std::memcmp(data_, other.data_, currSize_) == 0;
     }
 
     chunk(chunk&& other) noexcept
@@ -159,6 +170,43 @@ public:
 
         data_ = static_cast<std::uint8_t*>(reallocedData);
         maxSize_ = size;
+    }
+};
+
+
+class ChunkSpan
+{
+    chunk& chunk_;
+    std::uint64_t beginOffset_;
+    std::uint64_t endOffset_;
+
+public:
+    ChunkSpan(chunk& chunk)
+    : chunk_(chunk), beginOffset_(0), endOffset_(chunk.size())
+    {
+        utils::ASSERT_LOG_THROW(chunk_.size() > 0, "Chunk size must be greater "
+                                                   "than 0");
+    }
+
+    ChunkSpan(chunk& chunk, std::uint64_t beginOffset) : ChunkSpan(chunk)
+    {
+        beginOffset_ = beginOffset;
+        utils::ASSERT_LOG_THROW(beginOffset_ <= endOffset_,
+                                "beginOffset must be less than or equal to "
+                                "endOffset");
+    }
+    ChunkSpan(chunk& chunk, std::uint64_t beginOffset, std::uint64_t endOffset)
+    : ChunkSpan(chunk, beginOffset)
+    {
+        endOffset_ = endOffset;
+        utils::ASSERT_LOG_THROW(endOffset_ <= chunk_.size(),
+                                "endOffset must be less than or equal to chunk "
+                                "size");
+    }
+
+    std::uint8_t* data() const noexcept
+    {
+        return chunk_.data() + beginOffset_;
     }
 };
 } // namespace rvn::ds

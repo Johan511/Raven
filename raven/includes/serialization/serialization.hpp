@@ -1,11 +1,15 @@
 #pragma once
 
 ///////////////////////////////////c
+#include <bit>
+#include <cstdint>
+#include <endian.h>
 #include <exceptions.hpp>
 #include <msquic.h>
 #include <protobuf_messages.hpp>
 #include <serialization/chunk.hpp>
 #include <serialization/quic_var.hpp>
+#include <type_traits>
 #include <utilities.hpp>
 ///////////////////////////////////
 #include <google/protobuf/util/delimited_message_util.h>
@@ -109,67 +113,136 @@ constexpr guess_size_t guess_size(const std::string& s)
 
 using namespace protobuf_messages;
 
+struct LittleEndian
+{
+};
+struct BigEndian
+{
+};
+
+using NetworkEndian = BigEndian;
+// TODO: deal with mixed endianness
+static_assert(std::endian::native == std::endian::little ||
+              std::endian::native == std::endian::big,
+              "Mixed endianness not supported");
+using NativeEndian =
+std::conditional_t<std::endian::native == std::endian::little, LittleEndian, BigEndian>;
+
+static constexpr LittleEndian little_endian{};
+static constexpr BigEndian big_endian{};
+static constexpr NetworkEndian network_endian{};
+static constexpr NativeEndian native_endian{};
+
+template <typename T>
+concept Endianness = std::same_as<T, LittleEndian> || std::same_as<T, BigEndian>;
+
+#define STATIC_ASSERT_WITH_NUMBER(condition, number) \
+    static_assert(condition, NumberToType<number>::value)
 
 namespace detail
 {
-    /*
-        2 byte integer => xy
-        y is lower byte
-        x is higher byte
-
-        Little Endian =>
-
-
-
-    */
-    struct LittleEndian
+    // By default we always want to serialize in network byte order
+    template <typename T, Endianness ToEndianness = NetworkEndian>
+    void serialize_trivial(ds::chunk& c, const auto& value, ToEndianness = network_endian)
     {
-    };
-    struct BigEndian
-    {
-    };
+        auto requiredSize = c.size() + sizeof(T);
+        c.reserve(requiredSize);
 
-#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define SYSTEM_LITTLE_ENDIAN 1
-#else
-#define SYSTEM_LITTLE_ENDIAN 0
-#endif
+        auto* endPtr = c.data() + c.size();
+        T valueCastToT = value;
+        T valueModifiedEndianness;
 
-    template <typename T>
-    ds::chunk serialize_trivial(const T& t, const LittleEndian&)
+        if constexpr (std::is_same_v<ToEndianness, NativeEndian> ||
+                      std::is_same_v<T, std::uint8_t>)
+            return c.append(&valueCastToT, sizeof(T));
+        else if constexpr (std::is_same_v<ToEndianness, BigEndian>)
+        {
+            if constexpr (std::is_same_v<T, std::uint16_t>)
+                valueModifiedEndianness = htobe16(valueCastToT);
+            else if constexpr (std::is_same_v<T, std::uint32_t>)
+                valueModifiedEndianness = htobe32(valueCastToT);
+            else if constexpr (std::is_same_v<T, std::uint64_t>)
+                valueModifiedEndianness = htobe64(valueCastToT);
+            else
+                static_assert(false, "Unsupported type, only 16, 32, 64 bit "
+                                     "unsigned integers supported");
+        }
+        else if constexpr (std::is_same_v<ToEndianness, LittleEndian>)
+        {
+            if constexpr (std::is_same_v<T, std::uint16_t>)
+                valueModifiedEndianness = htole16(valueCastToT);
+            else if constexpr (std::is_same_v<T, std::uint32_t>)
+                valueModifiedEndianness = htole32(valueCastToT);
+            else if constexpr (std::is_same_v<T, std::uint64_t>)
+                valueModifiedEndianness = htole64(valueCastToT);
+            else
+                static_assert(false, "Unsupported type, only 16, 32, 64 bit "
+                                     "unsigned integers supported");
+        }
+        else
+            static_assert(false, "Unsupported endianness");
+
+        c.append(&valueModifiedEndianness, sizeof(T));
+    }
+
+    template <typename T, Endianness ToEndianness = NetworkEndian>
+    ds::chunk serialize_trivial(const auto& t, ToEndianness = network_endian)
     {
         static_assert(sizeof(T) > 0);
         ds::chunk c(sizeof(T));
-#if SYSTEM_LITTLE_ENDIAN
-        std::memcpy(c.data(), &t, sizeof(T));
-#else
-        // reverse the bytes
-        constexpr std::size_t size = sizeof(T);
-        char* p = reinterpret_cast<char*>(&t);
-        for (std::size_t i = size - 1; i >= 0; --i)
-            c.data()[i] = p[i];
+        serialize_trivial<T>(c, t, ToEndianness{});
 
-#endif
         return c;
     }
 
 
-    template <typename T>
-    ds::chunk serialize_trivial(const T& t, const BigEndian&)
+    // By default we always want to serialize in network byte order
+    template <typename T, Endianness FromEndianness = NetworkEndian>
+    std::uint32_t
+    deserialize_trivial(auto& t, const ds::ChunkSpan& c, FromEndianness = network_endian)
     {
-        static_assert(sizeof(T) > 0);
-        ds::chunk c(sizeof(T));
-#if SYSTEM_LITTLE_ENDIAN
-        // reverse the bytes
-        constexpr std::size_t size = sizeof(T);
-        char* p = reinterpret_cast<char*>(&t);
-        for (std::size_t i = size - 1; i >= 0; --i)
-            c.data()[i] = p[i];
-#else
-        std::memcpy(c.data(), &t, sizeof(T));
-#endif
-        return c;
+        auto* beginPtr = c.data();
+        if constexpr (std::is_same_v<FromEndianness, NativeEndian> || sizeof(T) == 1)
+            t = *reinterpret_cast<T*>(beginPtr);
+        else if constexpr (std::is_same_v<FromEndianness, BigEndian>)
+        {
+            if constexpr (std::is_same_v<T, std::uint16_t>)
+                t = be16toh(*reinterpret_cast<std::uint16_t*>(beginPtr));
+            else if constexpr (std::is_same_v<T, std::uint32_t>)
+                t = be32toh(*reinterpret_cast<std::uint32_t*>(beginPtr));
+            else if constexpr (std::is_same_v<T, std::uint64_t>)
+                t = be64toh(*reinterpret_cast<std::uint64_t*>(beginPtr));
+            else
+                static_assert(false, "Unsupported type, only 16, 32, 64 bit "
+                                     "unsigned integers supported");
+        }
+        else if constexpr (std::is_same_v<FromEndianness, LittleEndian>)
+        {
+            if constexpr (std::is_same_v<T, std::uint16_t>)
+                t = le16toh(*reinterpret_cast<std::uint16_t*>(beginPtr));
+            else if constexpr (std::is_same_v<T, std::uint32_t>)
+                t = le32toh(*reinterpret_cast<std::uint32_t*>(beginPtr));
+            else if constexpr (std::is_same_v<T, std::uint64_t>)
+                t = le64toh(*reinterpret_cast<std::uint64_t*>(beginPtr));
+            else
+                static_assert(false, "Unsupported type, only 16, 32, 64 bit "
+                                     "unsigned integers supported");
+        }
+        else
+            static_assert(false, "Unsupported endianness");
+
+        return sizeof(T);
     }
+
+    // By default we always want to serialize in network byte order
+    template <typename T, Endianness FromEndianness = NetworkEndian>
+    T deserialize_trivial(ds::chunk& chunk, FromEndianness = network_endian)
+    {
+        T t;
+        deserialize_trivial<T>(t, chunk, FromEndianness{});
+        return t;
+    }
+
 
     template <typename Endianess>
     ds::chunk serialize(ds::quic_var_int i, const Endianess& e)
