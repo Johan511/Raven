@@ -26,9 +26,9 @@ public:
     {
         if (value_ < (1 << 6))
             return 1;
-        if (value_ < (1 << 14))
+        else if (value_ < (1 << 14))
             return 2;
-        if (value_ < (1 << 30))
+        else if (value_ < (1 << 30))
             return 4;
         else
             return 8;

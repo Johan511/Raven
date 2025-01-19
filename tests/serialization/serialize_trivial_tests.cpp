@@ -1,7 +1,8 @@
 #include <cstdint>
 #include <iostream>
 #include <limits>
-#include <serialization/serialization.hpp>
+#include <serialization/serialization_impl.hpp>
+#include <serialization/deserialization_impl.hpp>
 
 using namespace rvn::serialization;
 
