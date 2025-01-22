@@ -1,4 +1,4 @@
-#include "serialization/quic_var.hpp"
+#include "serialization/quic_var_int.hpp"
 #include "utilities.hpp"
 #include <cstdint>
 #include <iostream>
@@ -20,10 +20,10 @@ void byte_sized_tests(std::size_t from, std::size_t to) // [from, to)
     {
         try
         {
-            ds::quic_var_int i = value;
+            std::uint64_t i = value;
             detail::serialize<ds::quic_var_int>(c, i);
 
-            ds::quic_var_int deserialized(0);
+            std::uint64_t deserialized;
             detail::deserialize<ds::quic_var_int>(deserialized, c);
 
             utils::ASSERT_LOG_THROW(value == deserialized,
@@ -49,7 +49,7 @@ void bit_64_test_impl(std::uint64_t value)
         ds::quic_var_int i = value;
         detail::serialize<ds::quic_var_int>(c, i);
 
-        ds::quic_var_int deserialized(0);
+        std::uint64_t deserialized(0);
         detail::deserialize<ds::quic_var_int>(deserialized, c);
 
         utils::ASSERT_LOG_THROW(value == deserialized, "Failed to deserialize value: ", value,

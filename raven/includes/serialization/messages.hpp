@@ -4,10 +4,12 @@
 ////////////////////////////////////////////
 #include <msquic.h>
 ////////////////////////////////////////////
-#include <setup_messages.pb.h>
+#include <serialization/quic_var_int.hpp>
 ////////////////////////////////////////////
 #include <optional>
+#include <string>
 #include <variant>
+#include <vector>
 ////////////////////////////////////////////
 
 namespace rvn::depracated::messages
@@ -16,12 +18,12 @@ namespace rvn::depracated::messages
 // bytes of data.
 using BinaryBufferData = std::string;
 using iType = std::uint64_t; // variable size integer, check QUIC RFC
-using MOQTVersionT = iType;
+using MOQTVersion = std::uint32_t;
 
 enum class MoQtMessageType
 {
-    OBJECT_STREAM = 0x0,
-    OBJECT_DATAGRAM = 0x1,
+    // not in draft v7 // OBJECT_STREAM = 0x0,
+    // not in draft v7 // OBJECT_DATAGRAM = 0x1,
     SUBSCRIBE_UPDATE = 0x2,
     SUBSCRIBE = 0x3,
     SUBSCRIBE_OK = 0x4,
@@ -38,105 +40,66 @@ enum class MoQtMessageType
     GOAWAY = 0x10,
     CLIENT_SETUP = 0x40,
     SERVER_SETUP = 0x41,
-    STREAM_HEADER_TRACK = 0x50,
-    STREAM_HEADER_GROUP = 0x51
+    // not in draft v7 // STREAM_HEADER_TRACK = 0x50,
+    // not in draft v7 // STREAM_HEADER_GROUP = 0x51
 };
 
 struct ControlMessageHeader
 {
-    MoQtMessageType messageType;
+    MoQtMessageType messageType_;
+    std::uint64_t length_;
 };
 
 ///////////////////////////// Parameters ///////////////////////////////
 
-enum class ParameterType
+enum class ParameterType : std::uint64_t
 {
-    RoleParameter = 0x00,
-    PathParameter = 0x01
+
 };
 
-enum class Role
+// Only one parameter of each type should be sent
+struct Parameter
 {
-    Publisher = 0x00,
-    Subscriber = 0x01,
-    PubSub = 0x02,
-};
-struct RoleParameter
-{
-    Role role;
-
-    static constexpr ParameterType parameterType = ParameterType::RoleParameter;
-    static constexpr std::uint32_t parameterLenth = sizeof(role);
+    ParameterType parameterType_;
+    std::string parameterValue_;
 };
 
-// only to be used by the client
-// should not be used by server or when using WebTransport
-// specifies MoQ URI when using native QUIC
-struct PathParameter
-{
-    /*
-     * TODO : To keep in note when serializaation, deserialization
-     * When connecting to a server using a URI with the "moq" scheme, the client
-     * MUST set the PATH parameter to the path-abempty portion of the URI; if
-     * query is present, the client MUST concatenate ?, followed by the query
-     * portion of the URI to the parameter.
-     */
-    std::string path;
-
-    static constexpr ParameterType parameterType = ParameterType::PathParameter;
-    static constexpr std::uint32_t parameterLenth = sizeof(path);
-};
-
+///////////////////////////// Messages ///////////////////////////////
 /*
-    CLIENT_SETUP Message Payload {
+    CLIENT_SETUP Message {
+      Type (i) = 0x40,
+      Length (i),
       Number of Supported Versions (i),
       Supported Version (i) ...,
       Number of Parameters (i) ...,
       Setup Parameters (..) ...,
     }
 */
-struct ClientSetupMessage
+struct ClientSetupMessage : public ControlMessageHeader
 {
-    struct ParamT
-    {
-        RoleParameter role;
-        PathParameter path;
-    };
-
-    iType numSupportedVersions;
-    std::vector<MOQTVersionT> supportedVersions;
-    std::vector<iType> numberOfParameters;
-    std::vector<ParamT> parameters;
+    /*
+        MoQ Transport versions are a 32-bit unsigned integer, encoded as a
+       varint. This version of the specification is identified by the number
+       0x00000001. Versions with the most significant 16 bits of the version
+       number cleared are reserved for use in future IETF consensus documents.
+    */
+    std::vector<MOQTVersion> supportedVersions_;
+    std::vector<Parameter> parameters_;
 };
 
 /*
-    multiple number parameters in case client is using extensions
-    SERVER_SETUP Message Payload {
+    SERVER_SETUP Message {
+      Type (i) = 0x41,
+      Length (i),
       Selected Version (i),
       Number of Parameters (i) ...,
       Setup Parameters (..) ...,
     }
 */
-struct ServerSetupMessage
+struct ServerSetupMessage : public ControlMessageHeader
 {
-    struct ParamT
-    {
-        RoleParameter role;
-    };
-
-    MOQTVersionT selectedVersion;
-    iType numberOfParameters;
-    std::vector<ParamT> parameters;
-};
-
-/*
-    GOAWAY Message {
-      New Session URI (b)
-    }
-*/
-struct GoAwayMessage
-{
-    BinaryBufferData newSessionURI;
+    MOQTVersion selectedVersion_;
+    std::vector<Parameter> parameters_;
 };
 
 /*
@@ -156,10 +119,9 @@ struct GoAwayMessage
       Subscribe Parameters (..) ...
     }
 */
-
-struct SubscribeMessage
+struct SubscribeMessage : public ControlMessageHeader
 {
-    enum class FilterType : iType
+    enum class FilterType
     {
         LatestGroup = 0x1, // Specifies an open-ended subscription with objects
                            // from the beginning of the current group.
@@ -179,19 +141,31 @@ struct SubscribeMessage
                              // StartGroup and StartObject.
     };
 
-    using Parameter = std::variant<>;
+    struct GroupObjectPair
+    {
+        std::uint64_t group_;
+        std::uint64_t object_;
+    };
 
-    iType subscribeId;
-    iType trackAlias;
-    BinaryBufferData trackNamespace;
-    BinaryBufferData trackName;
-    std::uint8_t subscriberPriority;
-    std::uint8_t groupOrder;
-    FilterType filterType;
-    std::optional<std::pair<iType, iType>> startGroupObjectPair;
-    std::optional<std::pair<iType, iType>> endGroupObjectPair;
-    // iType numberOfParameters;
-    std::vector<Parameter> params;
+    std::uint64_t subscribeId_;
+    std::uint64_t trackAlias_;
+    std::string trackName_;
+    std::uint8_t subscriberPriority_;
+    std::uint8_t groupOrder_;
+    FilterType filterType_;
+    std::optional<GroupObjectPair> start_;
+    std::optional<GroupObjectPair> end_;
+    std::vector<Parameter> parameters_;
+};
+
+/*
+    GOAWAY Message {
+      New Session URI (b)
+    }
+*/
+struct GoAwayMessage
+{
+    BinaryBufferData newSessionURI;
 };
 
 /*
@@ -213,7 +187,7 @@ struct SubscribeUpdateMessage
     iType group;
     iType object;
     // iType numberOfParameters;
-    std::vector<SubscribeMessage::Parameter> params;
+    std::vector<Parameter> params;
 };
 
 /*

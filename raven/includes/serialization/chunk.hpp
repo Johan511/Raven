@@ -3,7 +3,9 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <ostream>
 #include <utilities.hpp>
+#include <bitset>
 
 namespace rvn::ds
 {
@@ -176,26 +178,26 @@ public:
 
 class ChunkSpan
 {
-    chunk& chunk_;
+    const chunk& chunk_;
     std::uint64_t beginOffset_;
     std::uint64_t endOffset_;
 
 public:
-    ChunkSpan(chunk& chunk)
+    ChunkSpan(const chunk& chunk)
     : chunk_(chunk), beginOffset_(0), endOffset_(chunk.size())
     {
         utils::ASSERT_LOG_THROW(chunk_.size() > 0, "Chunk size must be greater "
                                                    "than 0");
     }
 
-    ChunkSpan(chunk& chunk, std::uint64_t beginOffset) : ChunkSpan(chunk)
+    ChunkSpan(const chunk& chunk, std::uint64_t beginOffset) : ChunkSpan(chunk)
     {
         beginOffset_ = beginOffset;
         utils::ASSERT_LOG_THROW(beginOffset_ <= endOffset_,
                                 "beginOffset must be less than or equal to "
                                 "endOffset");
     }
-    ChunkSpan(chunk& chunk, std::uint64_t beginOffset, std::uint64_t endOffset)
+    ChunkSpan(const chunk& chunk, std::uint64_t beginOffset, std::uint64_t endOffset)
     : ChunkSpan(chunk, beginOffset)
     {
         endOffset_ = endOffset;
@@ -204,14 +206,48 @@ public:
                                 "size");
     }
 
-    std::uint8_t* data() const noexcept
+    const std::uint8_t* data() const noexcept
     {
         return chunk_.data() + beginOffset_;
+    }
+
+    std::uint64_t size() const noexcept
+    {
+        return endOffset_ - beginOffset_;
     }
 
     std::uint8_t operator[](std::uint64_t index) const noexcept
     {
         return chunk_.data()[beginOffset_ + index];
+    }
+
+    void copy_to(void* dest, std::uint64_t size) const
+    {
+        std::memcpy(dest, data(), size);
+    }
+
+    void advance_begin(std::uint64_t size)
+    {
+        beginOffset_ += size;
+        utils::ASSERT_LOG_THROW(beginOffset_ <= endOffset_,
+                                "beginOffset must be less than or equal to "
+                                "endOffset");
+    }
+
+    friend inline std::ostream& operator<<(std::ostream& os, ChunkSpan span)
+    {
+        // Save the current formatting state of the stream
+        std::ios_base::fmtflags f(os.flags());
+
+        for (std::uint64_t i = 0; i < span.size(); ++i)
+        {
+            os << std::bitset<8>(span[i]) << " ";
+        }
+
+        // Restore the original formatting state
+        os.flags(f);
+
+        return os;
     }
 };
 } // namespace rvn::ds

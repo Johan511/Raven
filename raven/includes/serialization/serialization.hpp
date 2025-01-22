@@ -7,7 +7,7 @@
 #include <msquic.h>
 #include <protobuf_messages.hpp>
 #include <serialization/chunk.hpp>
-#include <serialization/quic_var.hpp>
+#include <serialization/quic_var_int.hpp>
 #include <type_traits>
 #include <utilities.hpp>
 ///////////////////////////////////
