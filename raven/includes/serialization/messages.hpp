@@ -120,10 +120,20 @@ struct ClientSetupMessage
       Setup Parameters (..) ...,
     }
 */
-struct ServerSetupMessage : public ControlMessageHeader
+struct ServerSetupMessage
 {
     MOQTVersion selectedVersion_;
     std::vector<Parameter> parameters_;
+
+    bool operator==(const ServerSetupMessage&) const = default;
+
+    friend inline std::ostream& operator<<(std::ostream& os, const ServerSetupMessage& msg)
+    {
+        os << "SelectedVersion: " << msg.selectedVersion_ << " Parameters: ";
+        for (const auto& parameter : msg.parameters_)
+            os << parameter;
+        return os;
+    }
 };
 
 /*

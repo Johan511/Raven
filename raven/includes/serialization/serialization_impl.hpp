@@ -207,5 +207,45 @@ serialize(ds::chunk& c,
 
     return headerLen + msgLen;
 }
-///////////////////////////////////////////////////////////////////////////////////////////////
+
+template <typename ToEndianess = NetworkEndian>
+serialize_return_t
+serialize(ds::chunk& c,
+          const rvn::depracated::messages::ServerSetupMessage& serverSetupMessage,
+          ToEndianess = network_endian)
+{
+    std::uint64_t msgLen = 0;
+    // we need to find out length of the message we would be serializing
+    {
+        msgLen += mock_serialize<ds::quic_var_int>(serverSetupMessage.selectedVersion_);
+        msgLen +=
+        mock_serialize<ds::quic_var_int>(serverSetupMessage.parameters_.size());
+        for (const auto& parameter : serverSetupMessage.parameters_)
+        {
+            msgLen += mock_serialize<ds::quic_var_int>(
+            static_cast<std::uint32_t>(parameter.parameterType_));
+            msgLen += mock_serialize<ds::quic_var_int>(parameter.parameterValue_.size());
+            // c.append(parameter.parameterValue_.data(), parameter.parameterValue_.size());
+            msgLen += parameter.parameterValue_.size();
+        }
+    }
+
+    std::uint64_t headerLen = 0;
+    headerLen +=
+    serialize<ds::quic_var_int>(c, utils::to_underlying(depracated::messages::MoQtMessageType::SERVER_SETUP),
+                                ToEndianess{});
+    headerLen += serialize<ds::quic_var_int>(c, msgLen, ToEndianess{});
+
+    serialize<ds::quic_var_int>(c, serverSetupMessage.selectedVersion_, ToEndianess{});
+    serialize<ds::quic_var_int>(c, serverSetupMessage.parameters_.size(), ToEndianess{});
+    for (const auto& parameter : serverSetupMessage.parameters_)
+    {
+        serialize<ds::quic_var_int>(c, utils::to_underlying(parameter.parameterType_),
+                                    ToEndianess{});
+        serialize<ds::quic_var_int>(c, parameter.parameterValue_.size(), ToEndianess{});
+        c.append(parameter.parameterValue_.data(), parameter.parameterValue_.size());
+    }
+
+    return headerLen + msgLen;
+}
 } // namespace rvn::serialization::detail

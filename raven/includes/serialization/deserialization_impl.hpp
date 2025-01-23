@@ -171,4 +171,36 @@ deserialize(rvn::depracated::messages::ControlMessageHeader& controlMessageHeade
 
     return deserializedBytes;
 }
+
+static inline deserialize_return_t
+deserialize(rvn::depracated::messages::ServerSetupMessage& serverSetupMessage,
+            ds::ChunkSpan& span,
+            NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    std::uint64_t selectedVersion;
+    deserializedBytes += deserialize<ds::quic_var_int>(selectedVersion, span);
+    serverSetupMessage.selectedVersion_ = selectedVersion;
+
+    std::uint64_t numParameters;
+    deserializedBytes += deserialize<ds::quic_var_int>(numParameters, span);
+    serverSetupMessage.parameters_.resize(numParameters);
+    for (auto& parameter : serverSetupMessage.parameters_)
+    {
+        std::uint64_t parameterType;
+        deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
+        parameter.parameterType_ =
+        static_cast<depracated::messages::ParameterType>(parameterType);
+
+        std::uint64_t parameterLength;
+        deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
+        parameter.parameterValue_.resize(parameterLength);
+
+        span.copy_to(parameter.parameterValue_.data(), parameterLength);
+        deserializedBytes += parameterLength;
+    }
+
+    return deserializedBytes;
+}
 } // namespace rvn::serialization::detail

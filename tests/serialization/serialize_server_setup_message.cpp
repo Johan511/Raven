@@ -1,4 +1,5 @@
 #include "test_serialization_utils.hpp"
+#include "utilities.hpp"
 #include <serialization/chunk.hpp>
 #include <serialization/deserialization_impl.hpp>
 #include <serialization/messages.hpp>
@@ -7,21 +8,20 @@
 using namespace rvn;
 using namespace rvn::serialization;
 
+
 void test1()
 {
-    depracated::messages::ClientSetupMessage msg;
-    msg.supportedVersions_.push_back(0x12345678);
-    msg.supportedVersions_.push_back(0x87654321);
+    depracated::messages::ServerSetupMessage msg;
+    msg.selectedVersion_ = 0x12345678;
 
     ds::chunk c;
     detail::serialize(c, msg);
-
     // clang-format off
-    //  [ 01000000 01000000 ]      00001110          00000010            [ 10010010 00110100 01010110 01111000 ] [ 11000000 00000000 00000000 00000000 10000111 01100101 01000011 00100001 ]     00000000
-    // ( quic_msg_type: 0x40 )  (msglen = 14)  (num supported versions)            (supported version 1)                              (supported version 2)                                   (num parameters)
-    std::string expectedSerializationString = "[01000000 01000000] [00001110] [00000010] [10010010 00110100 01010110 01111000] [11000000 00000000 00000000 00000000 10000111 01100101 01000011 00100001] [00000000]";
+    // [ 01000000 01000001 ]    [ 00000101 ] [ 10010010 00110100 01010110 01111000 ]     [ 00000000 ]
+    // (quic_msg_type: 0x41)    (msglen = 5)          (selected version)               (num parameters)
+    std::string expectedSerializationString = "[01000000 01000001][00000101][10010010 00110100 01010110 01111000][00000000]";
     // clang-format on
-
+    
     auto expectedSerialization = binary_string_to_vector(expectedSerializationString);
     utils::ASSERT_LOG_THROW(c.size() == expectedSerialization.size(), "Size mismatch\n",
                             "Expected size: ", expectedSerialization.size(),
@@ -30,24 +30,23 @@ void test1()
         utils::ASSERT_LOG_THROW(c[i] == expectedSerialization[i], "Mismatch at index: ", i,
                                 "\n", "Expected: ", expectedSerialization[i],
                                 "\n", "Actual: ", c[i], "\n");
-    ds::ChunkSpan span(c);
 
+    ds::ChunkSpan span(c);
 
     depracated::messages::ControlMessageHeader header;
     detail::deserialize(header, span);
 
-    utils::ASSERT_LOG_THROW(header.messageType_ ==
-                            rvn::depracated::messages::MoQtMessageType::CLIENT_SETUP,
-                            "Header type mismatch\n", "Expected: ",
-                            utils::to_underlying(rvn::depracated::messages::MoQtMessageType::CLIENT_SETUP),
+    utils::ASSERT_LOG_THROW(header.messageType_ == depracated::messages::MoQtMessageType::SERVER_SETUP,
+                            "Message type mismatch\n", "Expected: ",
+                            utils::to_underlying(depracated::messages::MoQtMessageType::SERVER_SETUP),
                             "\n", "Actual: ", utils::to_underlying(header.messageType_),
                             "\n");
 
-    depracated::messages::ClientSetupMessage deserialized;
-    detail::deserialize(deserialized, span);
+    depracated::messages::ServerSetupMessage deserializedMsg;
+    detail::deserialize(deserializedMsg, span);
 
-    utils::ASSERT_LOG_THROW(msg == deserialized, "Deserialization failed", "\n",
-                            "Expected: ", msg, "\n", "Actual: ", deserialized, "\n");
+    utils::ASSERT_LOG_THROW(msg == deserializedMsg, "Deserialization failed\n",
+                            "Expected: ", msg, "\n", "Actual: ", deserializedMsg, "\n");
 }
 
 void tests()
