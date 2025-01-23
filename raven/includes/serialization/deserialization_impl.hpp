@@ -203,4 +203,93 @@ deserialize(rvn::depracated::messages::ServerSetupMessage& serverSetupMessage,
 
     return deserializedBytes;
 }
+
+static inline deserialize_return_t
+deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
+            ds::ChunkSpan& span,
+            NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeMessage.subscribeId_, span);
+    deserializedBytes += deserialize<ds::quic_var_int>(subscribeMessage.trackAlias_, span);
+
+    std::uint64_t numTrackNamespace;
+    deserializedBytes += deserialize<ds::quic_var_int>(numTrackNamespace, span);
+    subscribeMessage.trackNamespace_.resize(numTrackNamespace);
+    for (auto& ns : subscribeMessage.trackNamespace_)
+    {
+        std::uint64_t nsLength;
+        deserializedBytes += deserialize<ds::quic_var_int>(nsLength, span);
+        ns.resize(nsLength);
+        span.copy_to(ns.data(), nsLength);
+        deserializedBytes += nsLength;
+    }
+
+    std::uint64_t trackNameLength;
+    deserializedBytes += deserialize<ds::quic_var_int>(trackNameLength, span);
+    subscribeMessage.trackName_.resize(trackNameLength);
+    span.copy_to(subscribeMessage.trackName_.data(), trackNameLength);
+
+    deserializedBytes +=
+    deserialize_trivial<std::uint8_t>(subscribeMessage.subscriberPriority_, span);
+    deserializedBytes +=
+    deserialize_trivial<std::uint8_t>(subscribeMessage.groupOrder_, span);
+
+    std::uint64_t filterType;
+    deserializedBytes += deserialize<ds::quic_var_int>(filterType, span);
+    subscribeMessage.filterType_ =
+    static_cast<depracated::messages::SubscribeMessage::FilterType>(filterType);
+    subscribeMessage.filterType_ =
+    static_cast<depracated::messages::SubscribeMessage::FilterType>(filterType);
+
+    if ((subscribeMessage.filterType_ ==
+         rvn::depracated::messages::SubscribeMessage::FilterType::AbsoluteStart) |
+        (subscribeMessage.filterType_ ==
+         rvn::depracated::messages::SubscribeMessage::FilterType::AbsoluteRange))
+    {
+        subscribeMessage.start_.emplace();
+        deserializedBytes +=
+        deserialize<ds::quic_var_int>(subscribeMessage.start_->group_, span);
+        deserializedBytes +=
+        deserialize<ds::quic_var_int>(subscribeMessage.start_->object_, span);
+
+        subscribeMessage.end_.emplace();
+        deserializedBytes +=
+        deserialize<ds::quic_var_int>(subscribeMessage.end_->group_, span);
+        deserializedBytes +=
+        deserialize<ds::quic_var_int>(subscribeMessage.end_->object_, span);
+    }
+
+    if (subscribeMessage.filterType_ ==
+        rvn::depracated::messages::SubscribeMessage::FilterType::AbsoluteRange)
+    {
+        subscribeMessage.end_.emplace();
+        deserializedBytes +=
+        deserialize<ds::quic_var_int>(subscribeMessage.end_->group_, span);
+        deserializedBytes +=
+        deserialize<ds::quic_var_int>(subscribeMessage.end_->object_, span);
+    }
+
+    std::uint64_t numParameters;
+    deserializedBytes += deserialize<ds::quic_var_int>(numParameters, span);
+    subscribeMessage.parameters_.resize(numParameters);
+    for (auto& parameter : subscribeMessage.parameters_)
+    {
+        std::uint64_t parameterType;
+        deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
+        parameter.parameterType_ =
+        static_cast<depracated::messages::ParameterType>(parameterType);
+
+        std::uint64_t parameterLength;
+        deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
+        parameter.parameterValue_.resize(parameterLength);
+
+        span.copy_to(parameter.parameterValue_.data(), parameterLength);
+        deserializedBytes += parameterLength;
+    }
+
+    return deserializedBytes;
+}
 } // namespace rvn::serialization::detail

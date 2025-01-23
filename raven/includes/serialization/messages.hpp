@@ -76,6 +76,20 @@ struct Parameter
 };
 
 ///////////////////////////// Messages ///////////////////////////////
+struct ControlMessageBase
+{
+    MoQtMessageType messageType_;
+
+    ControlMessageBase(MoQtMessageType messageType) : messageType_(messageType)
+    {
+    }
+
+    virtual ~ControlMessageBase() = default;
+
+    bool operator==(const ControlMessageBase&) const = default;
+};
+
+
 /*
     CLIENT_SETUP Message {
       Type (i) = 0x40,
@@ -86,7 +100,7 @@ struct Parameter
       Setup Parameters (..) ...,
     }
 */
-struct ClientSetupMessage
+struct ClientSetupMessage : ControlMessageBase
 {
     /*
         MoQ Transport versions are a 32-bit unsigned integer, encoded as a
@@ -96,6 +110,10 @@ struct ClientSetupMessage
     */
     std::vector<MOQTVersion> supportedVersions_;
     std::vector<Parameter> parameters_;
+
+    ClientSetupMessage() : ControlMessageBase(MoQtMessageType::CLIENT_SETUP)
+    {
+    }
 
     bool operator==(const ClientSetupMessage&) const = default;
 
@@ -120,10 +138,14 @@ struct ClientSetupMessage
       Setup Parameters (..) ...,
     }
 */
-struct ServerSetupMessage
+struct ServerSetupMessage : ControlMessageBase
 {
     MOQTVersion selectedVersion_;
     std::vector<Parameter> parameters_;
+
+    ServerSetupMessage() : ControlMessageBase(MoQtMessageType::SERVER_SETUP)
+    {
+    }
 
     bool operator==(const ServerSetupMessage&) const = default;
 
@@ -138,10 +160,13 @@ struct ServerSetupMessage
 
 /*
     SUBSCRIBE Message {
+      Type (i) = 0x3,
+      Length (i),
       Subscribe ID (i),
       Track Alias (i),
-      Track Namespace (b),
-      Track Name (b),
+      Track Namespace (tuple),
+      Track Name Length (i),
+      Track Name (..),
       Subscriber Priority (8),
       Group Order (8),
       Filter Type (i),
@@ -153,9 +178,9 @@ struct ServerSetupMessage
       Subscribe Parameters (..) ...
     }
 */
-struct SubscribeMessage : public ControlMessageHeader
+struct SubscribeMessage : public ControlMessageBase
 {
-    enum class FilterType
+    enum class FilterType : std::uint64_t
     {
         LatestGroup = 0x1, // Specifies an open-ended subscription with objects
                            // from the beginning of the current group.
@@ -179,10 +204,14 @@ struct SubscribeMessage : public ControlMessageHeader
     {
         std::uint64_t group_;
         std::uint64_t object_;
+
+        bool operator==(const GroupObjectPair& rhs) const = default;
     };
 
     std::uint64_t subscribeId_;
     std::uint64_t trackAlias_;
+    // encoding moqt tuple as vector<string>
+    std::vector<std::string> trackNamespace_;
     std::string trackName_;
     std::uint8_t subscriberPriority_;
     std::uint8_t groupOrder_;
@@ -190,6 +219,50 @@ struct SubscribeMessage : public ControlMessageHeader
     std::optional<GroupObjectPair> start_;
     std::optional<GroupObjectPair> end_;
     std::vector<Parameter> parameters_;
+
+    SubscribeMessage() : ControlMessageBase(MoQtMessageType::SUBSCRIBE)
+    {
+    }
+
+    bool operator==(const SubscribeMessage& rhs) const
+    {
+        bool isEqual = true;
+
+        isEqual &= subscribeId_ == rhs.subscribeId_;
+        isEqual &= trackAlias_ == rhs.trackAlias_;
+        isEqual &= trackNamespace_ == rhs.trackNamespace_;
+        isEqual &= trackName_ == rhs.trackName_;
+        isEqual &= subscriberPriority_ == rhs.subscriberPriority_;
+        isEqual &= groupOrder_ == rhs.groupOrder_;
+        isEqual &= filterType_ == rhs.filterType_;
+        isEqual &= utils::optional_equality(start_, rhs.start_);
+        isEqual &= utils::optional_equality(end_, rhs.end_);
+        isEqual &= parameters_ == rhs.parameters_;
+
+        return isEqual;
+    }
+
+    friend inline std::ostream& operator<<(std::ostream& os, const SubscribeMessage& msg)
+    {
+        os << "SubscribeId: " << msg.subscribeId_
+           << " TrackAlias: " << msg.trackAlias_ << " TrackNamespace: ";
+        for (const auto& ns : msg.trackNamespace_)
+            os << ns << " ";
+        os << " TrackName: " << msg.trackName_ << " SubscriberPriority: " << msg.subscriberPriority_
+           << " GroupOrder: " << msg.groupOrder_
+           << " FilterType: " << utils::to_underlying(msg.filterType_) << " Start: "
+           << (msg.start_.has_value() ? std::to_string(msg.start_->group_) + " " +
+                                        std::to_string(msg.start_->object_) :
+                                        "None")
+           << " End: "
+           << (msg.end_.has_value() ? std::to_string(msg.end_->group_) + " " +
+                                      std::to_string(msg.end_->object_) :
+                                      "None")
+           << " Parameters: ";
+        for (const auto& parameter : msg.parameters_)
+            os << parameter;
+        return os;
+    }
 };
 
 /*
@@ -296,18 +369,18 @@ enum class ObjectStatus : iType
                      // will not be published in the future. This SHOULD be
                      // cached and have empty payload.
 
-    END_OF_GROUP = 0x3, // Indicates end of Group. ObjectId is one greater that
-                        // the largest object produced in the group identified
-                        // by the GroupID. This is sent right after the last
-                        // object in the group. This SHOULD be cached and have
-                        // empty payload.
+    END_OF_GROUP = 0x3, // Indicates end of Group. ObjectId is one greater
+                        // that the largest object produced in the group
+                        // identified by the GroupID. This is sent right
+                        // after the last object in the group. This SHOULD
+                        // be cached and have empty payload.
 
     END_OF_TRACK = 0x4, // Indicates end of Track and Group. GroupID is one
-                        // greater than the largest group produced in this track
-                        // and the ObjectId is one greater than the largest
-                        // object produced in that group. This is sent right
-                        // after the last object in the track. This SHOULD be
-                        // cached and have empty payload.
+                        // greater than the largest group produced in this
+                        // track and the ObjectId is one greater than the
+                        // largest object produced in that group. This is
+                        // sent right after the last object in the track.
+                        // This SHOULD be cached and have empty payload.
 };
 
 /*

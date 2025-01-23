@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <ostream>
 #include <source_location>
 #include <sstream>
@@ -189,6 +190,18 @@ static inline void wait_for(std::atomic_bool& flag)
     {
 
     } while (!flag.load(std::memory_order_acquire));
+}
+
+template <typename T>
+bool optional_equality(const std::optional<T>& lhs, const std::optional<T>& rhs)
+{
+    if (lhs.has_value() && rhs.has_value())
+        return lhs.value() == rhs.value();
+
+    else if (!lhs.has_value() && !rhs.has_value())
+        return true;
+
+    return false;
 }
 
 } // namespace rvn::utils
