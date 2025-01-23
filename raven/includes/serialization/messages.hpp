@@ -2,8 +2,10 @@
 
 #pragma once
 ////////////////////////////////////////////
+#include "utilities.hpp"
 #include <msquic.h>
 ////////////////////////////////////////////
+#include <ostream>
 #include <serialization/quic_var_int.hpp>
 ////////////////////////////////////////////
 #include <optional>
@@ -62,6 +64,15 @@ struct Parameter
 {
     ParameterType parameterType_;
     std::string parameterValue_;
+
+    bool operator==(const Parameter&) const = default;
+
+    friend inline std::ostream& operator<<(std::ostream& os, const Parameter& parameter)
+    {
+        os << "ParameterType: " << utils::to_underlying(parameter.parameterType_)
+           << " ParameterValue: " << parameter.parameterValue_;
+        return os;
+    }
 };
 
 ///////////////////////////// Messages ///////////////////////////////
@@ -75,7 +86,7 @@ struct Parameter
       Setup Parameters (..) ...,
     }
 */
-struct ClientSetupMessage : public ControlMessageHeader
+struct ClientSetupMessage
 {
     /*
         MoQ Transport versions are a 32-bit unsigned integer, encoded as a
@@ -85,6 +96,19 @@ struct ClientSetupMessage : public ControlMessageHeader
     */
     std::vector<MOQTVersion> supportedVersions_;
     std::vector<Parameter> parameters_;
+
+    bool operator==(const ClientSetupMessage&) const = default;
+
+    friend inline std::ostream& operator<<(std::ostream& os, const ClientSetupMessage& msg)
+    {
+        os << "SupportedVersions: ";
+        for (const auto& version : msg.supportedVersions_)
+            os << version << " ";
+        os << "Parameters: ";
+        for (const auto& parameter : msg.parameters_)
+            os << parameter;
+        return os;
+    }
 };
 
 /*

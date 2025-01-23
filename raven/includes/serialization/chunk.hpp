@@ -1,11 +1,11 @@
 #pragma once
 
+#include <bitset>
 #include <cstdint>
 #include <cstring>
 #include <memory>
 #include <ostream>
 #include <utilities.hpp>
-#include <bitset>
 
 namespace rvn::ds
 {
@@ -100,6 +100,11 @@ public:
             return false;
 
         return std::memcmp(data_, other.data_, currSize_) == 0;
+    }
+
+    std::uint8_t& operator[](std::uint64_t index) noexcept
+    {
+        return data_[index];
     }
 
     chunk(chunk&& other) noexcept

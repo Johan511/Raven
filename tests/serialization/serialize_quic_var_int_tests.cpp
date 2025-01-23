@@ -1,3 +1,4 @@
+#include "serialization/chunk.hpp"
 #include "serialization/quic_var_int.hpp"
 #include "utilities.hpp"
 #include <cstdint>
@@ -23,8 +24,9 @@ void byte_sized_tests(std::size_t from, std::size_t to) // [from, to)
             std::uint64_t i = value;
             detail::serialize<ds::quic_var_int>(c, i);
 
+            ds::ChunkSpan span(c);
             std::uint64_t deserialized;
-            detail::deserialize<ds::quic_var_int>(deserialized, c);
+            detail::deserialize<ds::quic_var_int>(deserialized, span);
 
             utils::ASSERT_LOG_THROW(value == deserialized,
                                     "Failed to deserialize value: ", value,
@@ -49,8 +51,9 @@ void bit_64_test_impl(std::uint64_t value)
         ds::quic_var_int i = value;
         detail::serialize<ds::quic_var_int>(c, i);
 
-        std::uint64_t deserialized(0);
-        detail::deserialize<ds::quic_var_int>(deserialized, c);
+        ds::ChunkSpan span(c);
+        std::uint64_t deserialized;
+        detail::deserialize<ds::quic_var_int>(deserialized, span);
 
         utils::ASSERT_LOG_THROW(value == deserialized, "Failed to deserialize value: ", value,
                                 "Deserialized to ", deserialized);

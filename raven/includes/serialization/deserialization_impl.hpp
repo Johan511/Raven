@@ -1,8 +1,8 @@
 #pragma once
 
-#include "serialization/messages.hpp"
 #include <serialization/chunk.hpp>
 #include <serialization/endianness.hpp>
+#include <serialization/messages.hpp>
 #include <serialization/quic_var_int.hpp>
 
 namespace rvn::serialization::detail
@@ -15,7 +15,7 @@ using deserialize_return_t = std::uint64_t;
 
 template <typename T, Endianness FromEndianness = NetworkEndian>
 deserialize_return_t
-deserialize_trivial(auto& t, ds::ChunkSpan c, FromEndianness = network_endian)
+deserialize_trivial(auto& t, ds::ChunkSpan& c, FromEndianness = network_endian)
 {
     auto* beginPtr = c.data();
     if constexpr (std::is_same_v<FromEndianness, NativeEndian> || sizeof(T) == 1)
@@ -58,7 +58,7 @@ deserialize_trivial(auto& t, ds::ChunkSpan c, FromEndianness = network_endian)
 */
 template <typename T>
 deserialize_return_t
-deserialize(std::uint64_t& i, ds::ChunkSpan chunk, NetworkEndian = network_endian)
+deserialize(std::uint64_t& i, ds::ChunkSpan& chunk, NetworkEndian = network_endian)
 {
     static_assert(std::is_same_v<T, ds::quic_var_int>);
 
@@ -73,7 +73,6 @@ deserialize(std::uint64_t& i, ds::ChunkSpan chunk, NetworkEndian = network_endia
             std::uint64_t numBytesDeserialized =
             deserialize_trivial<t00>(prefixedValue, chunk, NetworkEndian{});
             i = prefixedValue & ~(t00(0b11) << 6);
-            chunk.advance_begin(numBytesDeserialized);
             return numBytesDeserialized;
         }
         case 0b01:
@@ -84,7 +83,6 @@ deserialize(std::uint64_t& i, ds::ChunkSpan chunk, NetworkEndian = network_endia
             std::uint64_t numBytesDeserialized =
             deserialize_trivial<t01>(prefixedValue, chunk, NetworkEndian{});
             i = prefixedValue & ~(t01(0b11) << 14);
-            chunk.advance_begin(numBytesDeserialized);
             return numBytesDeserialized;
         }
         case 0b10:
@@ -95,7 +93,6 @@ deserialize(std::uint64_t& i, ds::ChunkSpan chunk, NetworkEndian = network_endia
             std::uint64_t numBytesDeserialized =
             deserialize_trivial<t10>(prefixedValue, chunk, NetworkEndian{});
             i = prefixedValue & ~(t10(0b11) << 30);
-            chunk.advance_begin(numBytesDeserialized);
             return numBytesDeserialized;
         }
         case 0b11:
@@ -106,7 +103,6 @@ deserialize(std::uint64_t& i, ds::ChunkSpan chunk, NetworkEndian = network_endia
             std::uint64_t numBytesDeserialized =
             deserialize_trivial<t11>(prefixedValue, chunk, NetworkEndian{});
             i = prefixedValue & ~(t11(0b11) << 62);
-            chunk.advance_begin(numBytesDeserialized);
             return numBytesDeserialized;
         }
     }
@@ -117,39 +113,62 @@ deserialize(std::uint64_t& i, ds::ChunkSpan chunk, NetworkEndian = network_endia
 ///////////////////////////////////////////////////////////////////////////////////
 // Message Deserialization
 // precondition: span is from start of message to end of message
-deserialize_return_t static inline deserialize(rvn::depracated::messages::ClientSetupMessage& clientSetupMessage,
-                                               ds::ChunkSpan span,
-                                               NetworkEndian = network_endian)
+static inline deserialize_return_t
+deserialize(rvn::depracated::messages::ClientSetupMessage& clientSetupMessage,
+            ds::ChunkSpan& span,
+            NetworkEndian = network_endian)
 {
+    std::uint64_t deserializedBytes = 0;
+
     std::uint64_t numSupportedVersions;
-    deserialize<ds::quic_var_int>(numSupportedVersions, span);
+    deserializedBytes += deserialize<ds::quic_var_int>(numSupportedVersions, span);
     clientSetupMessage.supportedVersions_.resize(numSupportedVersions);
     for (auto& version : clientSetupMessage.supportedVersions_)
     {
         std::uint64_t version64Bit;
         deserialize<ds::quic_var_int>(version64Bit, span);
-        // We can safely cast to uint32
+        // We can safely cast to uint32 as version is 32 bit uint
+        // https://www.ietf.org/archive/id/draft-ietf-moq-transport-07.html#section-6.2.1
         version = static_cast<std::uint32_t>(version64Bit);
     }
 
     std::uint64_t numParameters;
-    deserialize<ds::quic_var_int>(numParameters, span);
+    deserializedBytes += deserialize<ds::quic_var_int>(numParameters, span);
     clientSetupMessage.parameters_.resize(numParameters);
     for (auto& parameter : clientSetupMessage.parameters_)
     {
         std::uint64_t parameterType;
-        deserialize<ds::quic_var_int>(parameterType, span);
+        deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
         parameter.parameterType_ =
         static_cast<depracated::messages::ParameterType>(parameterType);
 
         std::uint64_t parameterLength;
-        deserialize<ds::quic_var_int>(parameterLength, span);
+        deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
         parameter.parameterValue_.resize(parameterLength);
 
         span.copy_to(parameter.parameterValue_.data(), parameterLength);
+        deserializedBytes += parameterLength;
     }
 
-    // TODO: figure out deserialize return type
-    return 0;
+    return deserializedBytes;
+}
+
+static inline deserialize_return_t
+deserialize(rvn::depracated::messages::ControlMessageHeader& controlMessageHeader,
+            ds::ChunkSpan& span,
+            NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    std::uint64_t messageType;
+    deserializedBytes += deserialize<ds::quic_var_int>(messageType, span);
+    controlMessageHeader.messageType_ =
+    static_cast<depracated::messages::MoQtMessageType>(messageType);
+
+    std::uint64_t length;
+    deserializedBytes += deserialize<ds::quic_var_int>(length, span);
+    controlMessageHeader.length_ = length;
+
+    return deserializedBytes;
 }
 } // namespace rvn::serialization::detail

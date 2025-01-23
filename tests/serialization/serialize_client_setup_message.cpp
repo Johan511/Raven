@@ -63,22 +63,47 @@ void test1()
     //  [ 01000000 01000000 ]      00001110          00000010            [ 10010010 00110100 01010110 01111000 ] [ 11000000 00000000 00000000 00000000 10000111 01100101 01000011 00100001 ]     00000000
     // ( quic_msg_type: 0x40 )  (msglen = 14)  (num supported versions)            (supported version 1)                              (supported version 2)                                   (num parameters)
     std::string expectedSerializationString = "[01000000 01000000] [00001110] [00000010] [10010010 00110100 01010110 01111000] [11000000 00000000 00000000 00000000 10000111 01100101 01000011 00100001] [00000000]";
-    auto expectedSerialization = binary_string_to_vector(expectedSerializationString);
     // clang-format on
 
-    assert(c.size() == expectedSerialization.size());
+    auto expectedSerialization = binary_string_to_vector(expectedSerializationString);
+    utils::ASSERT_LOG_THROW(c.size() == expectedSerialization.size(), "Size mismatch\n",
+                            "Expected size: ", expectedSerialization.size(),
+                            "\n", "Actual size: ", c.size(), "\n");
     for (std::size_t i = 0; i < c.size(); i++)
-    assert(c[i] == expectedSerialization[i]);
+        utils::ASSERT_LOG_THROW(c[i] == expectedSerialization[i], "Mismatch at index: ", i,
+                                "\n", "Expected: ", expectedSerialization[i],
+                                "\n", "Actual: ", c[i], "\n");
+    ds::ChunkSpan span(c);
+
+
+    depracated::messages::ControlMessageHeader header;
+    detail::deserialize(header, span);
+
+    utils::ASSERT_LOG_THROW(header.messageType_ ==
+                            rvn::depracated::messages::MoQtMessageType::CLIENT_SETUP,
+                            "Header type mismatch\n", "Expected: ",
+                            utils::to_underlying(rvn::depracated::messages::MoQtMessageType::CLIENT_SETUP),
+                            "\n", "Actual: ", utils::to_underlying(header.messageType_),
+                            "\n");
 
     depracated::messages::ClientSetupMessage deserialized;
-    detail::deserialize(deserialized, c);
+    detail::deserialize(deserialized, span);
 
-    assert(msg == deserialized);
+    utils::ASSERT_LOG_THROW(msg == deserialized, "Deserialization failed", "\n",
+                            "Expected: ", msg, "\n", "Actual: ", deserialized, "\n");
 }
 
 void tests()
 {
-    test1();
+    try
+    {
+        test1();
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Test failed\n";
+        std::cerr << e.what() << std::endl;
+    }
 }
 
 

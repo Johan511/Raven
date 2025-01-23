@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <queue>
 //////////////////////////////
 #include <definitions.hpp>
 #include <protobuf_messages.hpp>

@@ -1,8 +1,9 @@
 #include <cstdint>
 #include <iostream>
 #include <limits>
-#include <serialization/serialization_impl.hpp>
 #include <serialization/deserialization_impl.hpp>
+#include <serialization/serialization_impl.hpp>
+#include <utilities.hpp>
 
 using namespace rvn::serialization;
 
@@ -15,27 +16,47 @@ template <typename IntegralType> void byte_sized_tests()
     rvn::ds::chunk c(sizeof(IntegralType));
     do
     {
+        try
+        {
+            detail::serialize_trivial<IntegralType>(c, value);
 
-        detail::serialize_trivial<IntegralType>(c, value);
+            rvn::ds::ChunkSpan span(c);
+            std::uint64_t deserialized;
+            detail::deserialize_trivial<IntegralType>(deserialized, span);
 
-        IntegralType deserialized;
-        detail::deserialize_trivial<IntegralType>(deserialized, c);
+            rvn::utils::ASSERT_LOG_THROW(value == deserialized, "Value: ", value,
+                                         " Deserialized: ", deserialized);
 
-        assert(value == deserialized);
-        c.clear();
+            c.clear();
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Failed to serialize/deserialize value: " << value << std::endl;
+            std::cerr << e.what() << std::endl;
+        }
     } while (value++ != std::numeric_limits<IntegralType>::max());
 }
 
 void bit_64_test_impl(std::uint64_t value)
 {
-    std::cout << "Testing " << sizeof(value) << " byte value: " << value << std::endl;
-    rvn::ds::chunk c(sizeof(std::uint64_t));
-    detail::serialize_trivial<std::uint64_t>(c, value);
+    try
+    {
+        std::cout << "Testing " << sizeof(value) << " byte value: " << value << std::endl;
+        rvn::ds::chunk c(sizeof(std::uint64_t));
+        detail::serialize_trivial<std::uint64_t>(c, value);
 
-    std::uint64_t deserialized;
-    detail::deserialize_trivial<std::uint64_t>(deserialized, c);
+        rvn::ds::ChunkSpan span(c);
+        std::uint64_t deserialized;
+        detail::deserialize_trivial<std::uint64_t>(deserialized, span);
 
-    assert(value == deserialized);
+        rvn::utils::ASSERT_LOG_THROW(value == deserialized, "Value: ", value,
+                                     " Deserialized: ", deserialized);
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Failed to serialize/deserialize value: " << value << std::endl;
+        std::cerr << e.what() << std::endl;
+    }
 }
 
 void bit_64_test()
