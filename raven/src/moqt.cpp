@@ -1,6 +1,7 @@
+#include <memory>
 #include <moqt.hpp>
 #include <protobuf_messages.hpp>
-#include <serialization.hpp>
+#include <serialization/serialization.hpp>
 #include <utilities.hpp>
 
 namespace rvn
@@ -73,7 +74,8 @@ MOQT& MOQT::set_dataStreamCb(stream_cb_lamda_t dataStreamCb_)
     return *this;
 }
 
-MOQT::MOQT() : tbl(rvn::make_unique_quic_table())
+MOQT::MOQT(HostType hostType)
+: hostType_(hostType), tbl(rvn::make_unique_quic_table())
 {
     secondaryCounter = 0;
     version = 0;
@@ -82,6 +84,56 @@ MOQT::MOQT() : tbl(rvn::make_unique_quic_table())
 const QUIC_API_TABLE* MOQT::get_tbl()
 {
     return tbl.get();
+}
+
+ConnectionState* MOQT::get_connectionState(HQUIC connectionHandle)
+{
+    if (hostType_ == HostType::CLIENT)
+    {
+        MOQTClient* thisClient = static_cast<MOQTClient*>(this);
+        utils::ASSERT_LOG_THROW(connectionHandle ==
+                                thisClient->connectionState->connection_.get(),
+                                "Connection handle does not match");
+
+        return std::addressof(*thisClient->connectionState);
+    }
+    else
+    {
+        MOQTServer* thisServer = static_cast<MOQTServer*>(this);
+        auto iter = thisServer->connectionStateMap.find(connectionHandle);
+        if (iter == thisServer->connectionStateMap.end())
+            return nullptr;
+        return std::addressof(iter->second);
+    }
+}
+StreamState* MOQT::get_stream_state(HQUIC connectionHandle, HQUIC streamHandle)
+{
+    if (hostType_ == HostType::CLIENT)
+    {
+        MOQTClient* thisClient = static_cast<MOQTClient*>(this);
+        return thisClient->get_stream_state(connectionHandle, streamHandle);
+    }
+    else
+    {
+        MOQTServer* thisServer = static_cast<MOQTServer*>(this);
+        return thisServer->get_stream_state(connectionHandle, streamHandle);
+    }
+}
+
+void MOQT::handle_message(ConnectionState& connectionState,
+                          HQUIC streamHandle,
+                          std::stringstream& iStringStream)
+{
+    if (hostType_ == HostType::SERVER)
+    {
+        MOQTServer* thisServer = static_cast<MOQTServer*>(this);
+        return thisServer->handle_message_internal(connectionState, streamHandle, iStringStream);
+    }
+    else
+    {
+        MOQTClient* thisClient = static_cast<MOQTClient*>(this);
+        return thisClient->handle_message_internal(connectionState, streamHandle, iStringStream);
+    }
 }
 
 } // namespace rvn

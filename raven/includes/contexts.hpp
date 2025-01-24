@@ -5,10 +5,11 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <queue>
 //////////////////////////////
 #include <definitions.hpp>
 #include <protobuf_messages.hpp>
-#include <serialization.hpp>
+#include <serialization/serialization.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
 //////////////////////////////
@@ -124,25 +125,26 @@ struct ConnectionState
     void send_control_buffer();
     /////////////////////////////////////////////////////////////////////////////
 
-
-    HQUIC connection = nullptr;
+    unique_connection connection_;
     class MOQT* moqtObject = nullptr;
 
     std::string path;
     protobuf_messages::Role peerRole;
-    bool expectControlStreamShutdown = true;
+
+    // Only for Subscribers
+    // TODO: We can have multiple subscriptions
     StableContainer<MPMCQueue<std::string>>::iterator objectQueue;
 
 
-    ConnectionState(HQUIC connection_, class MOQT* moqtObject_)
-    : connection(connection_), moqtObject(moqtObject_)
+    ConnectionState(unique_connection&& connection, class MOQT* moqtObject_)
+    : connection_(std::move(connection)), moqtObject(moqtObject_)
     {
     }
 
     bool check_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage);
+
     const std::vector<StreamState>& get_data_streams() const;
     std::vector<StreamState>& get_data_streams();
-
     std::optional<StreamState>& get_control_stream();
     const std::optional<StreamState>& get_control_stream() const;
 
@@ -151,10 +153,7 @@ struct ConnectionState
 
     QUIC_STATUS accept_control_stream(HQUIC controlStreamHandle);
 
-    StreamState& reset_control_stream();
-
-    void register_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage,
-                               std::string&& payload);
+    StreamState& establish_control_stream();
 
     void add_to_queue(const std::string& objectPayload)
     {

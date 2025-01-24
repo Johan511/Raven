@@ -1,11 +1,9 @@
-#include <memory>
 #include <msquic.h>
 
 #include <contexts.hpp>
 #include <moqt.hpp>
 #include <protobuf_messages.hpp>
-#include <serialization.hpp>
-#include <string>
+#include <serialization/serialization.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
@@ -102,7 +100,7 @@ static constexpr auto server_control_stream_callback =
         {
             try
             {
-                auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
+                auto& connectionState = *moqtObject->get_connectionState(connection);
                 moqtObject->handle_message(connectionState, controlStream,
                                            &(event->RECEIVE));
             }
@@ -170,8 +168,8 @@ static constexpr auto server_data_stream_callback =
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         {
-            ConnectionState& connectionState =
-            moqtObject->get_connectionStateMap().at(connection);
+            ConnectionState& connectionState = *moqtObject->get_connectionState(connection);
+
             connectionState.delete_data_stream(dataStream);
             break;
         }
@@ -222,7 +220,7 @@ static constexpr auto client_data_stream_callback =
             moqtObject->get_stream_state(connectionHandle, dataStream);
 
             ConnectionState& connectionState =
-            moqtObject->get_connectionStateMap().at(connectionHandle);
+            *moqtObject->get_connectionState(connectionHandle);
 
             moqtObject->handle_message(connectionState, dataStream, streamState->messageSS);
 
@@ -257,7 +255,7 @@ static constexpr auto client_control_stream_callback =
             // auto receiveInformation = event->RECEIVE;
             try
             {
-                auto& connectionState = moqtObject->get_connectionStateMap().at(connection);
+                auto& connectionState = *moqtObject->get_connectionState(connection);
                 moqtObject->handle_message(connectionState, controlStream,
                                            &(event->RECEIVE));
             }
@@ -299,10 +297,7 @@ static constexpr auto client_connection_callback =
     MOQTClient* moqtClient = static_cast<MOQTClient*>(Context);
     const QUIC_API_TABLE* MsQuic = moqtClient->get_tbl();
 
-    do
-    {
-
-    } while (moqtClient->connectionSetupFlag.load(std::memory_order_acquire));
+    utils::wait_for(moqtClient->quicConnectionStateSetupFlag_);
     // wait until setup is done, once setup is done, flag is reset to false
 
     switch (event->Type)
@@ -312,8 +307,9 @@ static constexpr auto client_connection_callback =
             //
             // The handshake has completed for the connection.
             //
-            ConnectionState& connectionState =
-            moqtClient->get_connectionStateMap().at(connectionHandle);
+
+            ConnectionState& connectionState = *moqtClient->connectionState;
+            connectionState.establish_control_stream();
 
             protobuf_messages::MessageHeader messageHeader;
             messageHeader.set_messagetype(protobuf_messages::MoQtMessageType::CLIENT_SETUP);

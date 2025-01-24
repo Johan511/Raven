@@ -7,9 +7,6 @@
 #include <memory>
 #include <moqt.hpp>
 
-#include <sanitizer/lsan_interface.h>
-#include <signal.h>
-
 void handler(int signum)
 {
     // __lsan_do_leak_check();

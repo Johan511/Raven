@@ -4,7 +4,6 @@
 ////////////////////////////////////////////
 #include <memory>
 #include <stdexcept>
-#include <type_traits>
 ////////////////////////////////////////////
 #include <utilities.hpp>
 ////////////////////////////////////////////
@@ -49,7 +48,6 @@ protected:
         if (this == &rhs)
             return;
 
-        reset();
         // take ownership
         handler = rhs.handler;
         open = rhs.open;
@@ -101,9 +99,6 @@ public:
 template <typename Open, typename Close, typename Start, typename Stop = decltype(&utils::NoOpVoid<HQUIC>)>
 class unique_handler2
 {
-    // Pointer to QUIC_HANDLER owned by unique_handler2
-    HQUIC handler;
-
     // non owning callable (function pointor)
     Open open_func;
     Close close_func;
@@ -127,6 +122,9 @@ class unique_handler2
     }
 
 protected:
+    // Pointer to QUIC_HANDLER owned by unique_handler2
+    HQUIC handler;
+
     unique_handler2(Open open_, Close close_, Start start_, Stop stop_ = &utils::NoOpVoid<HQUIC>) noexcept
     : handler(NULL)
     {
@@ -146,7 +144,6 @@ protected:
         if (this == &rhs)
             return;
 
-        reset();
         // take ownership
         handler = rhs.handler;
         open_func = rhs.open_func;
@@ -311,6 +308,7 @@ public:
                       ConnectionOpenParams openParams,
                       ConnectionStartParams startParams);
     unique_connection();
+    unique_connection(const QUIC_API_TABLE* tbl_, HQUIC connectionHandle);
 };
 
 /*-------------MsQuic->Config open and load--------------*/

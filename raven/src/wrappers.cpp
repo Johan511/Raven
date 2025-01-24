@@ -64,6 +64,13 @@ unique_connection::unique_connection() : unique_handler2()
 {
 }
 
+unique_connection::unique_connection(const QUIC_API_TABLE* tbl_, HQUIC connectionHandle)
+: unique_handler2(tbl_->ConnectionOpen, tbl_->ConnectionClose, tbl_->ConnectionStart)
+{
+    this->handler = connectionHandle;
+}
+
+
 /*-------------MsQuic->Config open and load--------------*/
 
 unique_configuration::unique_configuration(const QUIC_API_TABLE* tbl_,

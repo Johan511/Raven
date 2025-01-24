@@ -1,7 +1,8 @@
 #pragma once
 
+#include "utilities.hpp"
 #include <moqt.hpp>
-#include <serialization.hpp>
+#include <serialization/serialization.hpp>
 
 namespace rvn
 {
@@ -45,7 +46,6 @@ template <typename MOQTObject> class MessageHandler
 
         QUIC_BUFFER* quicBuffer =
         serialization::serialize(serverSetupHeader, serverSetupMessage);
-        connectionState.expectControlStreamShutdown = false;
 
         connectionState.enqueue_control_buffer(quicBuffer);
 
@@ -67,7 +67,6 @@ template <typename MOQTObject> class MessageHandler
                          serverSetupMessage.DebugString());
 
         connectionState.peerRole = serverSetupMessage.parameters()[0].role().role();
-        connectionState.expectControlStreamShutdown = true;
 
         return QUIC_STATUS_SUCCESS;
     }
@@ -112,8 +111,7 @@ template <typename MOQTObject> class MessageHandler
         utils::LOG_EVENT(std::cout, "Subscribe Message received: \n",
                          subscribeMessage.DebugString());
 
-        auto err =
-        moqt.try_register_subscription(connectionState, std::move(subscribeMessage));
+        moqt.register_subscription(connectionState, std::move(subscribeMessage));
 
         return QUIC_STATUS_SUCCESS;
     }
@@ -122,6 +120,8 @@ template <typename MOQTObject> class MessageHandler
     handle_message(ConnectionState& connectionState,
                    protobuf_messages::ObjectStreamMessage&& objectStreamMessage)
     {
+        utils::LOG_EVENT(std::cout, "Object Stream Message received: \n",
+                         objectStreamMessage.DebugString());
         std::uint64_t subscribeId = objectStreamMessage.subscribeid();
         connectionState.add_to_queue(objectStreamMessage.objectpayload());
 

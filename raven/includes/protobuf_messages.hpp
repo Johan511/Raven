@@ -41,11 +41,6 @@ enum class MoQtMessageType
     STREAM_HEADER_GROUP = 0x51
 };
 
-struct ControlMessageHeader
-{
-    MoQtMessageType messageType;
-};
-
 using namespace protobuf_messages;
 
 }; // namespace rvn::messages

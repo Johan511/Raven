@@ -1,15 +1,21 @@
 #pragma once
 
-#include "serialization.hpp"
-#include "utilities.hpp"
 #include <boost/functional/hash.hpp>
 #include <contexts.hpp>
 #include <filesystem>
 #include <fstream>
-#include <queue>
+#include <limits>
+#include <optional>
+#include <ostream>
+#include <serialization/serialization.hpp>
 #include <sstream>
 #include <string>
+#include <subscribe_messages.pb.h>
 #include <unordered_map>
+#include <utilities.hpp>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 
 namespace rvn
 {
@@ -43,21 +49,14 @@ struct ObjectIdentifier : public GroupIdentifier
     {
         return GroupIdentifier::operator==(other) && objectId == other.objectId;
     }
+
+    friend inline std::ostream& operator<<(std::ostream& os, const ObjectIdentifier& oid)
+    {
+        return os << oid.tracknamespace << " " << oid.trackname << " "
+                  << oid.groupId << " " << oid.objectId << " ";
+    }
 };
 
-static inline std::size_t hash_value(const ObjectIdentifier& b)
-{
-    std::size_t seed = 0;
-    boost::hash_combine(seed, b.tracknamespace);
-    boost::hash_combine(seed, b.trackname);
-    boost::hash_combine(seed, b.groupId);
-    boost::hash_combine(seed, b.objectId);
-    return seed;
-}
-
-struct RegisterSubscriptionErr
-{
-};
 
 struct SubscriptionState
 {
@@ -70,12 +69,11 @@ struct SubscriptionState
 class DataManager
 {
     friend class SubscriptionManager;
-    const std::string dataPath = DATA_DIRECTORY;
 
     std::string get_path_string(const TrackIdentifier& trackIdentifier)
     {
-        return dataPath + trackIdentifier.tracknamespace + "/" +
-               trackIdentifier.trackname + "/";
+        return std::string(DATA_DIRECTORY) + trackIdentifier.tracknamespace +
+               "/" + trackIdentifier.trackname + "/";
     }
 
     std::string get_path_string(const GroupIdentifier& groupIdentifier)
@@ -90,12 +88,28 @@ class DataManager
                std::to_string(objectIdentifier.objectId);
     }
 
-    std::optional<std::string> get_object(ObjectIdentifier objectIdentifier)
-    {
-        std::ifstream file(get_path_string(objectIdentifier));
-        if (!file.is_open())
-            return {};
 
+public:
+    /*
+        * @brief Get the object from the file system
+        * @param objectIdentifier
+        * @return absl::StatusOr<std::string>, possible error codes are
+                                        NotFoundError: object does not
+                                        exist InternalError: otherwise
+    */
+    absl::StatusOr<std::string> get_object(ObjectIdentifier objectIdentifier)
+    {
+        std::string objectLocation = get_path_string(objectIdentifier);
+        utils::LOG_EVENT(std::cout, "Reading object from: ", objectLocation);
+
+        if (!std::filesystem::exists(objectLocation))
+        {
+            utils::ASSERT_LOG_THROW(false, "Object: ", objectIdentifier,
+                                    "\ndoes not exist at location\n", objectLocation);
+            return absl::NotFoundError("Object does not exist");
+        }
+
+        std::ifstream file(std::move(objectLocation));
         std::stringstream ss;
         ss << file.rdbuf();
 
@@ -104,14 +118,14 @@ class DataManager
 
     std::uint64_t first_object_id(const GroupIdentifier& groupIdentifier)
     {
-        std::uint64_t firstObjectId = INT_MAX;
+        std::uint64_t firstObjectId = std::numeric_limits<std::uint64_t>::max();
         std::filesystem::path directoryPath = get_path_string(groupIdentifier);
         for (const auto& entry : std::filesystem::directory_iterator(directoryPath))
         {
             firstObjectId = std::min(firstObjectId, std::stoul(*--entry.path().end()));
         }
 
-        return ++firstObjectId;
+        return firstObjectId;
     }
 
     std::uint64_t latest_object_id(const GroupIdentifier& groupIdentifier)
@@ -125,7 +139,7 @@ class DataManager
         return std::stoull(lastEntry->path().filename());
     }
 
-    void next_subscription_state(SubscriptionState& subscriptionState)
+    void next(SubscriptionState& subscriptionState)
     {
         subscriptionState.objectToSend->objectId++;
     }
@@ -218,17 +232,6 @@ public:
     }
 
 
-    bool failed(RegisterSubscriptionErr)
-    {
-        return false;
-    }
-
-    RegisterSubscriptionErr
-    authentication(ConnectionState&, const protobuf_messages::SubscribeMessage& subscribeMessage)
-    {
-        return {};
-    }
-
     void update_subscription_state(
     ConnectionState* connectionState,
     std::unordered_map<protobuf_messages::SubscribeMessage, SubscriptionState>::iterator iter)
@@ -239,20 +242,13 @@ public:
                                            subscriptionState.objectToSend->trackname,
                                            subscriptionState.objectToSend->groupId,
                                            subscriptionState.objectToSend->objectId };
-        // check if object is already in cache
-        std::optional<std::string> objectPayloadOpt = DataManagerHandle
+
+        auto objectPayloadOpt = DataManagerHandle
         {
         } -> get_object(objectIdentifier);
 
-        // utils::ASSERT_LOG_THROW(objectPayloadOpt.has_value(),
-        //                         "Buffer for object not found");
-        if (!objectPayloadOpt.has_value())
-        {
-            using namespace std::chrono_literals;
-            std::this_thread::sleep_for(50ms);
-            update_subscription_state(connectionState, iter);
-            return;
-        }
+        utils::ASSERT_LOG_THROW(objectPayloadOpt.ok(),
+                                "Buffer for object not found");
 
         protobuf_messages::MessageHeader header;
         header.set_messagetype(protobuf_messages::MoQtMessageType::OBJECT_STREAM);
@@ -269,22 +265,35 @@ public:
 
 
         QUIC_BUFFER* quicBuffer = serialization::serialize(header, objectStreamMessage);
+
         connectionState->enqueue_data_buffer(quicBuffer);
 
         DataManagerHandle
         {
-        } -> next_subscription_state(subscriptionState);
+        } -> next(subscriptionState);
+    }
+
+    bool verify_validity(const protobuf_messages::SubscribeMessage& subscribeMessage)
+    {
+        return true;
+    }
+
+
+    using RegisterSubscriptionErr = std::optional<protobuf_messages::SubscribeErrorMessage>;
+
+    RegisterSubscriptionErr
+    build_subscribe_error_message(const protobuf_messages::SubscribeMessage& subscribeMessage)
+    {
+        return {};
     }
 
     RegisterSubscriptionErr
     try_register_subscription(ConnectionState& connectionState,
                               protobuf_messages::SubscribeMessage&& subscribeMessage)
     {
-        RegisterSubscriptionErr errorInfo =
-        authentication(connectionState, subscribeMessage);
+        if (verify_validity(subscribeMessage) == false)
+            return build_subscribe_error_message(subscribeMessage);
 
-        if (this->failed(errorInfo))
-            return errorInfo;
 
         SubscriptionState subscriptionState = build_subscription_state(subscribeMessage);
         auto [iter, inserted] =
@@ -295,7 +304,7 @@ public:
 
         update_subscription_state(&connectionState, iter);
 
-        return errorInfo;
+        return std::nullopt;
     }
     ~SubscriptionManager() = default;
 };

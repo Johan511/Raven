@@ -2,12 +2,16 @@
 
 #pragma once
 ////////////////////////////////////////////
+#include "utilities.hpp"
 #include <msquic.h>
 ////////////////////////////////////////////
-#include <setup_messages.pb.h>
+#include <ostream>
+#include <serialization/quic_var_int.hpp>
 ////////////////////////////////////////////
 #include <optional>
+#include <string>
 #include <variant>
+#include <vector>
 ////////////////////////////////////////////
 
 namespace rvn::depracated::messages
@@ -16,12 +20,12 @@ namespace rvn::depracated::messages
 // bytes of data.
 using BinaryBufferData = std::string;
 using iType = std::uint64_t; // variable size integer, check QUIC RFC
-using MOQTVersionT = iType;
+using MOQTVersion = std::uint32_t;
 
 enum class MoQtMessageType
 {
-    OBJECT_STREAM = 0x0,
-    OBJECT_DATAGRAM = 0x1,
+    // not in draft v7 // OBJECT_STREAM = 0x0,
+    // not in draft v7 // OBJECT_DATAGRAM = 0x1,
     SUBSCRIBE_UPDATE = 0x2,
     SUBSCRIBE = 0x3,
     SUBSCRIBE_OK = 0x4,
@@ -38,113 +42,131 @@ enum class MoQtMessageType
     GOAWAY = 0x10,
     CLIENT_SETUP = 0x40,
     SERVER_SETUP = 0x41,
-    STREAM_HEADER_TRACK = 0x50,
-    STREAM_HEADER_GROUP = 0x51
+    // not in draft v7 // STREAM_HEADER_TRACK = 0x50,
+    // not in draft v7 // STREAM_HEADER_GROUP = 0x51
 };
 
 struct ControlMessageHeader
 {
-    MoQtMessageType messageType;
+    MoQtMessageType messageType_;
+    std::uint64_t length_;
 };
 
 ///////////////////////////// Parameters ///////////////////////////////
 
-enum class ParameterType
+enum class ParameterType : std::uint64_t
 {
-    RoleParameter = 0x00,
-    PathParameter = 0x01
+
 };
 
-enum class Role
+// Only one parameter of each type should be sent
+struct Parameter
 {
-    Publisher = 0x00,
-    Subscriber = 0x01,
-    PubSub = 0x02,
+    ParameterType parameterType_;
+    std::string parameterValue_;
+
+    bool operator==(const Parameter&) const = default;
+
+    friend inline std::ostream& operator<<(std::ostream& os, const Parameter& parameter)
+    {
+        os << "ParameterType: " << utils::to_underlying(parameter.parameterType_)
+           << " ParameterValue: " << parameter.parameterValue_;
+        return os;
+    }
 };
-struct RoleParameter
+
+///////////////////////////// Messages ///////////////////////////////
+struct ControlMessageBase
 {
-    Role role;
+    MoQtMessageType messageType_;
 
-    static constexpr ParameterType parameterType = ParameterType::RoleParameter;
-    static constexpr std::uint32_t parameterLenth = sizeof(role);
+    ControlMessageBase(MoQtMessageType messageType) : messageType_(messageType)
+    {
+    }
+
+    virtual ~ControlMessageBase() = default;
+
+    bool operator==(const ControlMessageBase&) const = default;
 };
 
-// only to be used by the client
-// should not be used by server or when using WebTransport
-// specifies MoQ URI when using native QUIC
-struct PathParameter
-{
-    /*
-     * TODO : To keep in note when serializaation, deserialization
-     * When connecting to a server using a URI with the "moq" scheme, the client
-     * MUST set the PATH parameter to the path-abempty portion of the URI; if
-     * query is present, the client MUST concatenate ?, followed by the query
-     * portion of the URI to the parameter.
-     */
-    std::string path;
-
-    static constexpr ParameterType parameterType = ParameterType::PathParameter;
-    static constexpr std::uint32_t parameterLenth = sizeof(path);
-};
 
 /*
-    CLIENT_SETUP Message Payload {
+    CLIENT_SETUP Message {
+      Type (i) = 0x40,
+      Length (i),
       Number of Supported Versions (i),
       Supported Version (i) ...,
       Number of Parameters (i) ...,
       Setup Parameters (..) ...,
     }
 */
-struct ClientSetupMessage
+struct ClientSetupMessage : ControlMessageBase
 {
-    struct ParamT
-    {
-        RoleParameter role;
-        PathParameter path;
-    };
+    /*
+        MoQ Transport versions are a 32-bit unsigned integer, encoded as a
+       varint. This version of the specification is identified by the number
+       0x00000001. Versions with the most significant 16 bits of the version
+       number cleared are reserved for use in future IETF consensus documents.
+    */
+    std::vector<MOQTVersion> supportedVersions_;
+    std::vector<Parameter> parameters_;
 
-    iType numSupportedVersions;
-    std::vector<MOQTVersionT> supportedVersions;
-    std::vector<iType> numberOfParameters;
-    std::vector<ParamT> parameters;
+    ClientSetupMessage() : ControlMessageBase(MoQtMessageType::CLIENT_SETUP)
+    {
+    }
+
+    bool operator==(const ClientSetupMessage&) const = default;
+
+    friend inline std::ostream& operator<<(std::ostream& os, const ClientSetupMessage& msg)
+    {
+        os << "SupportedVersions: ";
+        for (const auto& version : msg.supportedVersions_)
+            os << version << " ";
+        os << "Parameters: ";
+        for (const auto& parameter : msg.parameters_)
+            os << parameter;
+        return os;
+    }
 };
 
 /*
-    multiple number parameters in case client is using extensions
-    SERVER_SETUP Message Payload {
+    SERVER_SETUP Message {
+      Type (i) = 0x41,
+      Length (i),
       Selected Version (i),
       Number of Parameters (i) ...,
       Setup Parameters (..) ...,
     }
 */
-struct ServerSetupMessage
+struct ServerSetupMessage : ControlMessageBase
 {
-    struct ParamT
+    MOQTVersion selectedVersion_;
+    std::vector<Parameter> parameters_;
+
+    ServerSetupMessage() : ControlMessageBase(MoQtMessageType::SERVER_SETUP)
     {
-        RoleParameter role;
-    };
-
-    MOQTVersionT selectedVersion;
-    iType numberOfParameters;
-    std::vector<ParamT> parameters;
-};
-
-/*
-    GOAWAY Message {
-      New Session URI (b)
     }
-*/
-struct GoAwayMessage
-{
-    BinaryBufferData newSessionURI;
+
+    bool operator==(const ServerSetupMessage&) const = default;
+
+    friend inline std::ostream& operator<<(std::ostream& os, const ServerSetupMessage& msg)
+    {
+        os << "SelectedVersion: " << msg.selectedVersion_ << " Parameters: ";
+        for (const auto& parameter : msg.parameters_)
+            os << parameter;
+        return os;
+    }
 };
 
 /*
     SUBSCRIBE Message {
+      Type (i) = 0x3,
+      Length (i),
       Subscribe ID (i),
       Track Alias (i),
-      Track Namespace (b),
-      Track Name (b),
+      Track Namespace (tuple),
+      Track Name Length (i),
+      Track Name (..),
       Subscriber Priority (8),
       Group Order (8),
       Filter Type (i),
@@ -156,10 +178,9 @@ struct GoAwayMessage
       Subscribe Parameters (..) ...
     }
 */
-
-struct SubscribeMessage
+struct SubscribeMessage : public ControlMessageBase
 {
-    enum class FilterType : iType
+    enum class FilterType : std::uint64_t
     {
         LatestGroup = 0x1, // Specifies an open-ended subscription with objects
                            // from the beginning of the current group.
@@ -179,19 +200,79 @@ struct SubscribeMessage
                              // StartGroup and StartObject.
     };
 
-    using Parameter = std::variant<>;
+    struct GroupObjectPair
+    {
+        std::uint64_t group_;
+        std::uint64_t object_;
 
-    iType subscribeId;
-    iType trackAlias;
-    BinaryBufferData trackNamespace;
-    BinaryBufferData trackName;
-    std::uint8_t subscriberPriority;
-    std::uint8_t groupOrder;
-    FilterType filterType;
-    std::optional<std::pair<iType, iType>> startGroupObjectPair;
-    std::optional<std::pair<iType, iType>> endGroupObjectPair;
-    // iType numberOfParameters;
-    std::vector<Parameter> params;
+        bool operator==(const GroupObjectPair& rhs) const = default;
+    };
+
+    std::uint64_t subscribeId_;
+    std::uint64_t trackAlias_;
+    // encoding moqt tuple as vector<string>
+    std::vector<std::string> trackNamespace_;
+    std::string trackName_;
+    std::uint8_t subscriberPriority_;
+    std::uint8_t groupOrder_;
+    FilterType filterType_;
+    std::optional<GroupObjectPair> start_;
+    std::optional<GroupObjectPair> end_;
+    std::vector<Parameter> parameters_;
+
+    SubscribeMessage() : ControlMessageBase(MoQtMessageType::SUBSCRIBE)
+    {
+    }
+
+    bool operator==(const SubscribeMessage& rhs) const
+    {
+        bool isEqual = true;
+
+        isEqual &= subscribeId_ == rhs.subscribeId_;
+        isEqual &= trackAlias_ == rhs.trackAlias_;
+        isEqual &= trackNamespace_ == rhs.trackNamespace_;
+        isEqual &= trackName_ == rhs.trackName_;
+        isEqual &= subscriberPriority_ == rhs.subscriberPriority_;
+        isEqual &= groupOrder_ == rhs.groupOrder_;
+        isEqual &= filterType_ == rhs.filterType_;
+        isEqual &= utils::optional_equality(start_, rhs.start_);
+        isEqual &= utils::optional_equality(end_, rhs.end_);
+        isEqual &= parameters_ == rhs.parameters_;
+
+        return isEqual;
+    }
+
+    friend inline std::ostream& operator<<(std::ostream& os, const SubscribeMessage& msg)
+    {
+        os << "SubscribeId: " << msg.subscribeId_
+           << " TrackAlias: " << msg.trackAlias_ << " TrackNamespace: ";
+        for (const auto& ns : msg.trackNamespace_)
+            os << ns << " ";
+        os << " TrackName: " << msg.trackName_ << " SubscriberPriority: " << msg.subscriberPriority_
+           << " GroupOrder: " << msg.groupOrder_
+           << " FilterType: " << utils::to_underlying(msg.filterType_) << " Start: "
+           << (msg.start_.has_value() ? std::to_string(msg.start_->group_) + " " +
+                                        std::to_string(msg.start_->object_) :
+                                        "None")
+           << " End: "
+           << (msg.end_.has_value() ? std::to_string(msg.end_->group_) + " " +
+                                      std::to_string(msg.end_->object_) :
+                                      "None")
+           << " Parameters: ";
+        for (const auto& parameter : msg.parameters_)
+            os << parameter;
+        return os;
+    }
+};
+
+/*
+    GOAWAY Message {
+      New Session URI (b)
+    }
+*/
+struct GoAwayMessage
+{
+    BinaryBufferData newSessionURI;
 };
 
 /*
@@ -213,7 +294,7 @@ struct SubscribeUpdateMessage
     iType group;
     iType object;
     // iType numberOfParameters;
-    std::vector<SubscribeMessage::Parameter> params;
+    std::vector<Parameter> params;
 };
 
 /*
@@ -288,18 +369,18 @@ enum class ObjectStatus : iType
                      // will not be published in the future. This SHOULD be
                      // cached and have empty payload.
 
-    END_OF_GROUP = 0x3, // Indicates end of Group. ObjectId is one greater that
-                        // the largest object produced in the group identified
-                        // by the GroupID. This is sent right after the last
-                        // object in the group. This SHOULD be cached and have
-                        // empty payload.
+    END_OF_GROUP = 0x3, // Indicates end of Group. ObjectId is one greater
+                        // that the largest object produced in the group
+                        // identified by the GroupID. This is sent right
+                        // after the last object in the group. This SHOULD
+                        // be cached and have empty payload.
 
     END_OF_TRACK = 0x4, // Indicates end of Track and Group. GroupID is one
-                        // greater than the largest group produced in this track
-                        // and the ObjectId is one greater than the largest
-                        // object produced in that group. This is sent right
-                        // after the last object in the track. This SHOULD be
-                        // cached and have empty payload.
+                        // greater than the largest group produced in this
+                        // track and the ObjectId is one greater than the
+                        // largest object produced in that group. This is
+                        // sent right after the last object in the track.
+                        // This SHOULD be cached and have empty payload.
 };
 
 /*

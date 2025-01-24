@@ -121,16 +121,20 @@ int main()
 
         using namespace std::chrono_literals;
         // Make sure server is alive until client is setup and requests
-        std::this_thread::sleep_for(1.5s);
+        std::this_thread::sleep_for(3s);
     }
     else
     {
+        using namespace std::chrono_literals;
+        // Make sure server is alive until client is setup and requests
+        std::this_thread::sleep_for(1s);
+
         // child process
         std::unique_ptr<MOQTClient> moqtClient = client_setup();
 
         SubscriptionBuilder subscriptionBuilder;
-        subscriptionBuilder.set_data_range<SubscriptionBuilder::Filter::LatestGroup>(
-        std::size_t(0));
+        subscriptionBuilder.set_data_range<SubscriptionBuilder::Filter::AbsoluteRange>(
+        std::size_t(0), std::size_t(0), std::size_t(0), std::size_t(1));
         subscriptionBuilder.set_track_alias(0);
         subscriptionBuilder.set_track_namespace("tnamespace");
         subscriptionBuilder.set_track_name("tname");
