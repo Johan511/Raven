@@ -226,11 +226,6 @@ public:
         return chunk_.data()[beginOffset_ + index];
     }
 
-    void copy_to(void* dest, std::uint64_t size) const
-    {
-        std::memcpy(dest, data(), size);
-    }
-
     void advance_begin(std::uint64_t size)
     {
         beginOffset_ += size;

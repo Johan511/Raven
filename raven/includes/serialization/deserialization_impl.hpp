@@ -4,6 +4,7 @@
 #include <serialization/endianness.hpp>
 #include <serialization/messages.hpp>
 #include <serialization/quic_var_int.hpp>
+#include <string>
 
 namespace rvn::serialization::detail
 {
@@ -110,6 +111,34 @@ deserialize(std::uint64_t& i, ds::ChunkSpan& chunk, NetworkEndian = network_endi
     assert(false);
     return 42;
 }
+
+static inline deserialize_return_t
+deserialize_params(std::vector<depracated::messages::Parameter>& parameters,
+                   ds::ChunkSpan& span,
+                   NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    std::uint64_t numParameters;
+    deserializedBytes += deserialize<ds::quic_var_int>(numParameters, span);
+    parameters.resize(numParameters);
+    for (auto& parameter : parameters)
+    {
+        std::uint64_t parameterType;
+        deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
+        parameter.parameterType_ =
+        static_cast<depracated::messages::ParameterType>(parameterType);
+
+        std::uint64_t parameterLength;
+        deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
+
+        parameter.parameterValue_ = std::string(span.data(), span.data() + parameterLength);
+        span.advance_begin(parameterLength);
+        deserializedBytes += parameterLength;
+    }
+
+    return deserializedBytes;
+}
 ///////////////////////////////////////////////////////////////////////////////////
 // Message Deserialization
 // precondition: span is from start of message to end of message
@@ -132,23 +161,7 @@ deserialize(rvn::depracated::messages::ClientSetupMessage& clientSetupMessage,
         version = static_cast<std::uint32_t>(version64Bit);
     }
 
-    std::uint64_t numParameters;
-    deserializedBytes += deserialize<ds::quic_var_int>(numParameters, span);
-    clientSetupMessage.parameters_.resize(numParameters);
-    for (auto& parameter : clientSetupMessage.parameters_)
-    {
-        std::uint64_t parameterType;
-        deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
-        parameter.parameterType_ =
-        static_cast<depracated::messages::ParameterType>(parameterType);
-
-        std::uint64_t parameterLength;
-        deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
-        parameter.parameterValue_.resize(parameterLength);
-
-        span.copy_to(parameter.parameterValue_.data(), parameterLength);
-        deserializedBytes += parameterLength;
-    }
+    deserializedBytes += deserialize_params(clientSetupMessage.parameters_, span);
 
     return deserializedBytes;
 }
@@ -183,23 +196,7 @@ deserialize(rvn::depracated::messages::ServerSetupMessage& serverSetupMessage,
     deserializedBytes += deserialize<ds::quic_var_int>(selectedVersion, span);
     serverSetupMessage.selectedVersion_ = selectedVersion;
 
-    std::uint64_t numParameters;
-    deserializedBytes += deserialize<ds::quic_var_int>(numParameters, span);
-    serverSetupMessage.parameters_.resize(numParameters);
-    for (auto& parameter : serverSetupMessage.parameters_)
-    {
-        std::uint64_t parameterType;
-        deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
-        parameter.parameterType_ =
-        static_cast<depracated::messages::ParameterType>(parameterType);
-
-        std::uint64_t parameterLength;
-        deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
-        parameter.parameterValue_.resize(parameterLength);
-
-        span.copy_to(parameter.parameterValue_.data(), parameterLength);
-        deserializedBytes += parameterLength;
-    }
+    deserializedBytes += deserialize_params(serverSetupMessage.parameters_, span);
 
     return deserializedBytes;
 }
@@ -222,15 +219,16 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
     {
         std::uint64_t nsLength;
         deserializedBytes += deserialize<ds::quic_var_int>(nsLength, span);
-        ns.resize(nsLength);
-        span.copy_to(ns.data(), nsLength);
+
+        ns = std::string(span.data(), span.data() + nsLength);
         deserializedBytes += nsLength;
+        span.advance_begin(nsLength);
     }
 
     std::uint64_t trackNameLength;
     deserializedBytes += deserialize<ds::quic_var_int>(trackNameLength, span);
-    subscribeMessage.trackName_.resize(trackNameLength);
-    span.copy_to(subscribeMessage.trackName_.data(), trackNameLength);
+    subscribeMessage.trackName_ = std::string(span.data(), span.data() + trackNameLength);
+    span.advance_begin(trackNameLength);
 
     deserializedBytes +=
     deserialize_trivial<std::uint8_t>(subscribeMessage.subscriberPriority_, span);
@@ -272,23 +270,7 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
         deserialize<ds::quic_var_int>(subscribeMessage.end_->object_, span);
     }
 
-    std::uint64_t numParameters;
-    deserializedBytes += deserialize<ds::quic_var_int>(numParameters, span);
-    subscribeMessage.parameters_.resize(numParameters);
-    for (auto& parameter : subscribeMessage.parameters_)
-    {
-        std::uint64_t parameterType;
-        deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
-        parameter.parameterType_ =
-        static_cast<depracated::messages::ParameterType>(parameterType);
-
-        std::uint64_t parameterLength;
-        deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
-        parameter.parameterValue_.resize(parameterLength);
-
-        span.copy_to(parameter.parameterValue_.data(), parameterLength);
-        deserializedBytes += parameterLength;
-    }
+    deserializedBytes += deserialize_params(subscribeMessage.parameters_, span);
 
     return deserializedBytes;
 }

@@ -5,12 +5,12 @@
 namespace rvn::ds
 {
 /*
-// integer which is variable length encoded
-Length determination based on the top two bits of the first byte:
-00 => 1 byte total (6 bits of payload)
-01 => 2 bytes total (14 bits of payload)
-10 => 4 bytes total (30 bits of payload)
-11 => 8 bytes total (62 bits of payload)
+    // integer which is variable length encoded
+    Length determination based on the top two bits of the first byte:
+    00 => 1 byte total (6 bits of payload)
+    01 => 2 bytes total (14 bits of payload)
+    10 => 4 bytes total (30 bits of payload)
+    11 => 8 bytes total (62 bits of payload)
 */
 class quic_var_int
 {
