@@ -24,6 +24,14 @@ template <UnsignedInteger T, Endianness ToEndianness = NetworkEndian>
 serialize_return_t
 serialize_trivial(ds::chunk& c, const auto& value, ToEndianness = network_endian)
 {
+    static_assert(std::is_same_v<T, std::uint8_t> || std::is_same_v<T, std::uint16_t> ||
+                  std::is_same_v<T, std::uint32_t> || std::is_same_v<T, std::uint64_t>,
+                  "Unsupported type, only 8, 16, 32, 64 bit "
+                  "unsigned integers supported");
+    static_assert(std::is_same_v<ToEndianness, BigEndian> ||
+                  std::is_same_v<ToEndianness, LittleEndian>,
+                  "Unsupported endianness");
+
     auto requiredSize = c.size() + sizeof(T);
     c.reserve(requiredSize);
 
@@ -41,26 +49,18 @@ serialize_trivial(ds::chunk& c, const auto& value, ToEndianness = network_endian
             valueModifiedEndianness = htobe16(valueCastToT);
         else if constexpr (std::is_same_v<T, std::uint32_t>)
             valueModifiedEndianness = htobe32(valueCastToT);
-        else if constexpr (std::is_same_v<T, std::uint64_t>)
+        else /* if constexpr (std::is_same_v<T, std::uint64_t>) */
             valueModifiedEndianness = htobe64(valueCastToT);
-        else
-            static_assert(false, "Unsupported type, only 16, 32, 64 bit "
-                                 "unsigned integers supported");
     }
-    else if constexpr (std::is_same_v<ToEndianness, LittleEndian>)
+    else /* if constexpr (std::is_same_v<ToEndianness, LittleEndian>) */
     {
         if constexpr (std::is_same_v<T, std::uint16_t>)
             valueModifiedEndianness = htole16(valueCastToT);
         else if constexpr (std::is_same_v<T, std::uint32_t>)
             valueModifiedEndianness = htole32(valueCastToT);
-        else if constexpr (std::is_same_v<T, std::uint64_t>)
+        else /* if constexpr (std::is_same_v<T, std::uint64_t>) */
             valueModifiedEndianness = htole64(valueCastToT);
-        else
-            static_assert(false, "Unsupported type, only 16, 32, 64 bit "
-                                 "unsigned integers supported");
     }
-    else
-        static_assert(false, "Unsupported endianness");
 
     c.append(&valueModifiedEndianness, sizeof(T));
 

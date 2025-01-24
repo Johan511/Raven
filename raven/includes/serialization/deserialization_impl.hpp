@@ -18,6 +18,11 @@ template <typename T, Endianness FromEndianness = NetworkEndian>
 deserialize_return_t
 deserialize_trivial(auto& t, ds::ChunkSpan& c, FromEndianness = network_endian)
 {
+    static_assert(std::is_same_v<T, std::uint8_t> || std::is_same_v<T, std::uint16_t> ||
+                  std::is_same_v<T, std::uint32_t> || std::is_same_v<T, std::uint64_t>);
+    static_assert(std::is_same_v<FromEndianness, BigEndian> ||
+                  std::is_same_v<FromEndianness, LittleEndian>);
+
     auto* beginPtr = c.data();
     if constexpr (std::is_same_v<FromEndianness, NativeEndian> || sizeof(T) == 1)
         t = *reinterpret_cast<const T*>(beginPtr);
@@ -27,26 +32,18 @@ deserialize_trivial(auto& t, ds::ChunkSpan& c, FromEndianness = network_endian)
             t = be16toh(*reinterpret_cast<const std::uint16_t*>(beginPtr));
         else if constexpr (std::is_same_v<T, std::uint32_t>)
             t = be32toh(*reinterpret_cast<const std::uint32_t*>(beginPtr));
-        else if constexpr (std::is_same_v<T, std::uint64_t>)
+        else /* if constexpr (std::is_same_v<T, std::uint64_t>) */
             t = be64toh(*reinterpret_cast<const std::uint64_t*>(beginPtr));
-        else
-            static_assert(false, "Unsupported type, only 16, 32, 64 bit "
-                                 "unsigned integers supported");
     }
-    else if constexpr (std::is_same_v<FromEndianness, LittleEndian>)
+    else /* if constexpr (std::is_same_v<FromEndianness, LittleEndian>) */
     {
         if constexpr (std::is_same_v<T, std::uint16_t>)
             t = le16toh(*reinterpret_cast<const std::uint16_t*>(beginPtr));
         else if constexpr (std::is_same_v<T, std::uint32_t>)
             t = le32toh(*reinterpret_cast<const std::uint32_t*>(beginPtr));
-        else if constexpr (std::is_same_v<T, std::uint64_t>)
+        else /* if constexpr (std::is_same_v<T, std::uint64_t>) */
             t = le64toh(*reinterpret_cast<const std::uint64_t*>(beginPtr));
-        else
-            static_assert(false, "Unsupported type, only 16, 32, 64 bit "
-                                 "unsigned integers supported");
     }
-    else
-        static_assert(false, "Unsupported endianness");
 
     c.advance_begin(sizeof(T));
     return sizeof(T);
