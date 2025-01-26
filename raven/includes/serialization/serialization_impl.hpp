@@ -100,7 +100,7 @@ serialize(ds::chunk& c, ds::quic_var_int i, ToEndianess = network_endian)
         }
         case 8:
         {
-            // 10xxxxxx xxxxxxxx ...
+            // 11xxxxxx xxxxxxxx ...
             std::uint64_t value = (std::uint64_t(0b11) << 62) | i.value();
             return serialize_trivial<std::uint64_t>(c, value, ToEndianess{});
         }
@@ -176,7 +176,6 @@ serialize(ds::chunk& c,
             msgLen += mock_serialize<ds::quic_var_int>(
             static_cast<std::uint32_t>(parameter.parameterType_));
             msgLen += mock_serialize<ds::quic_var_int>(parameter.parameterValue_.size());
-            // c.append(parameter.parameterValue_.data(), parameter.parameterValue_.size());
             msgLen += parameter.parameterValue_.size();
         }
     }
@@ -225,7 +224,6 @@ serialize(ds::chunk& c,
             msgLen += mock_serialize<ds::quic_var_int>(
             static_cast<std::uint32_t>(parameter.parameterType_));
             msgLen += mock_serialize<ds::quic_var_int>(parameter.parameterValue_.size());
-            // c.append(parameter.parameterValue_.data(), parameter.parameterValue_.size());
             msgLen += parameter.parameterValue_.size();
         }
     }
@@ -264,7 +262,10 @@ serialize(ds::chunk& c,
         msgLen +=
         mock_serialize<ds::quic_var_int>(subscribeMessage.trackNamespace_.size());
         for (const auto& ns : subscribeMessage.trackNamespace_)
+        {
             msgLen += mock_serialize<ds::quic_var_int>(ns.size());
+            msgLen += ns.size();
+        }
 
         msgLen += mock_serialize<ds::quic_var_int>(subscribeMessage.trackName_.size());
         msgLen += subscribeMessage.trackName_.size();
