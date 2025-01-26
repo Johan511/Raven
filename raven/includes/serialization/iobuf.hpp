@@ -15,13 +15,12 @@ namespace rvn::ds
 
 class IOBuf
 {
-    // TODO: replace with small vector
     boost::container::small_vector<chunk, 5> chunks_;
 
 public:
     IOBuf() = default;
 
-    // TOOD: check if move should be defined as noexcept
+    // TOOD: check if move should be defined explicitly as noexcept
 
     // allocated and used length is assumed to be len
     void append(std::unique_ptr<std::uint8_t[]>&& buffer, std::uint64_t len)
@@ -56,62 +55,5 @@ public:
         chunks_.clear();
         chunks_.emplace_back(std::move(newChunk));
     }
-};
-
-
-class IOBufOutputArchive : public IOBuf
-{
-    // loading => output archive
-    using is_loading = boost::mpl::bool_<true>;
-    using is_saving = boost::mpl::bool_<false>;
-
-    template <typename T> void register_type()
-    {
-        // yet to implement register type
-        assert(false);
-    }
-
-    template <class T> IOBufOutputArchive& operator<<(const T& t)
-    {
-        return *this;
-    }
-    template <class T> IOBufOutputArchive& operator&(const T& t)
-    {
-        return *this << t;
-    }
-
-    void save_binary(void* address, std::size_t count)
-    {
-        // should not be using save_binarhy
-        assert(false);
-    };
-};
-
-class IOBufInputArchive : public IOBuf
-{
-    using is_loading = boost::mpl::bool_<false>;
-    // input archive => saves data
-    using is_saving = boost::mpl::bool_<true>;
-
-    template <typename T> void register_type()
-    {
-        // yet to implement register type
-        assert(false);
-    }
-
-    template <class T> IOBufInputArchive& operator>>(const T& t)
-    {
-        return *this;
-    }
-    template <class T> IOBufInputArchive& operator&(const T& t)
-    {
-        return *this << t;
-    }
-
-    void save_binary(void* address, std::size_t count)
-    {
-        // should not be using save_binarhy
-        assert(false);
-    };
 };
 } // namespace rvn::ds

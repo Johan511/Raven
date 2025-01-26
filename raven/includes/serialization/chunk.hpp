@@ -150,21 +150,17 @@ public:
         {
             std::uint64_t requiredSizeMin = currSize_ + size;
             // we allocate next power of 2 to required size min
-            std::uint64_t allocatedSize = utils::next_power_of_2(requiredSizeMin);
+            std::uint64_t toAllocSize = utils::next_power_of_2(requiredSizeMin);
 
-            void* reallocedData = realloc(data_, allocatedSize);
+            void* reallocedData = realloc(data_, toAllocSize);
             if (reallocedData == nullptr)
                 throw std::bad_alloc();
 
             data_ = static_cast<std::uint8_t*>(reallocedData);
-            maxSize_ = allocatedSize;
-            currSize_ = requiredSizeMin;
+            maxSize_ = toAllocSize;
         }
-        else
-        {
-            std::memcpy(data_ + currSize_, src, size);
-            currSize_ += size;
-        }
+        std::memcpy(data_ + currSize_, src, size);
+        currSize_ += size;
     }
 
     void reserve(std::uint64_t size)
@@ -209,6 +205,13 @@ public:
         utils::ASSERT_LOG_THROW(endOffset_ <= chunk_.size(),
                                 "endOffset must be less than or equal to chunk "
                                 "size");
+    }
+
+    void copy_to(void* dest, std::uint64_t size) const
+    {
+        utils::ASSERT_LOG_THROW(size <= this->size(),
+                                "size must be less than or equal to span size");
+        std::memcpy(dest, data(), size);
     }
 
     const std::uint8_t* data() const noexcept
