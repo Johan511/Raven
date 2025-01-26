@@ -153,7 +153,8 @@ deserialize_params(std::vector<depracated::messages::Parameter>& parameters,
         std::uint64_t parameterLength;
         deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
 
-        parameter.parameterValue_ = std::string(span.data(), span.data() + parameterLength);
+        parameter.parameterValue_ = std::string(parameterLength, '\0');
+        span.copy_to(parameter.parameterValue_.data(), parameterLength);
         span.advance_begin(parameterLength);
         deserializedBytes += parameterLength;
     }
@@ -177,7 +178,7 @@ deserialize(rvn::depracated::messages::ClientSetupMessage& clientSetupMessage,
     for (auto& version : clientSetupMessage.supportedVersions_)
     {
         std::uint64_t version64Bit;
-        deserialize<ds::quic_var_int>(version64Bit, span);
+        deserializedBytes += deserialize<ds::quic_var_int>(version64Bit, span);
         // We can safely cast to uint32 as version is 32 bit uint
         // https://www.ietf.org/archive/id/draft-ietf-moq-transport-07.html#section-6.2.1
         version = static_cast<std::uint32_t>(version64Bit);
@@ -245,14 +246,16 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
         std::uint64_t nsLength;
         deserializedBytes += deserialize<ds::quic_var_int>(nsLength, span);
 
-        ns = std::string(span.data(), span.data() + nsLength);
+        ns = std::string(nsLength, '\0');
+        span.copy_to(ns.data(), nsLength);
         deserializedBytes += nsLength;
         span.advance_begin(nsLength);
     }
 
     std::uint64_t trackNameLength;
     deserializedBytes += deserialize<ds::quic_var_int>(trackNameLength, span);
-    subscribeMessage.trackName_ = std::string(span.data(), span.data() + trackNameLength);
+    subscribeMessage.trackName_ = std::string(trackNameLength, '\0');
+    span.copy_to(subscribeMessage.trackName_.data(), trackNameLength);
     span.advance_begin(trackNameLength);
 
     deserializedBytes +=

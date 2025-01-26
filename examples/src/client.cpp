@@ -15,6 +15,7 @@ void handler(int signum)
 
 using namespace rvn;
 const char* Target = "127.0.0.1";
+const char* data = "Hello World!";
 const uint16_t UdpPort = 4567;
 const uint64_t IdleTimeoutMs = 0;
 
