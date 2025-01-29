@@ -346,4 +346,58 @@ serialize(ds::chunk& c,
 
     return headerLen + msgLen;
 }
+template <typename ToEndianess = NetworkEndian>
+serialize_return_t
+serialize(ds::chunk& c,
+          const rvn::depracated::messages::TrackStatusMessage& trackStatusMessage,
+          ToEndianess = network_endian)
+{
+    std::uint64_t msgLen = 0;
+    // we need to find out length of the message we would be serializing
+
+    {
+        msgLen +=
+        mock_serialize<ds::quic_var_int>(trackStatusMessage.trackNamespace_.size());
+        for (const auto& ns : trackStatusMessage.trackNamespace_)
+        {
+            msgLen += mock_serialize<ds::quic_var_int>(ns.size());
+            msgLen += ns.size();
+        }
+
+        msgLen += mock_serialize<ds::quic_var_int>(trackStatusMessage.trackName_.size());
+        msgLen += trackStatusMessage.trackName_.size();
+
+        msgLen += mock_serialize<ds::quic_var_int>(
+        utils::to_underlying(trackStatusMessage.statusCode_));
+
+        msgLen += mock_serialize<ds::quic_var_int>(trackStatusMessage.lastgroupId_);
+        msgLen += mock_serialize<ds::quic_var_int>(trackStatusMessage.lastobjectId_);
+    }
+
+    // header
+    std::uint64_t headerLen = 0;
+    headerLen +=
+    serialize<ds::quic_var_int>(c, utils::to_underlying(depracated::messages::MoQtMessageType::TRACK_STATUS),
+                                ToEndianess{});
+    headerLen += serialize<ds::quic_var_int>(c, msgLen, ToEndianess{});
+
+    // body
+    serialize<ds::quic_var_int>(c, trackStatusMessage.trackNamespace_.size(), ToEndianess{});
+    for (const auto& ns : trackStatusMessage.trackNamespace_)
+    {
+        serialize<ds::quic_var_int>(c, ns.size(), ToEndianess{});
+        c.append(ns.data(), ns.size());
+    }
+
+    serialize<ds::quic_var_int>(c, trackStatusMessage.trackName_.size(), ToEndianess{});
+    c.append(trackStatusMessage.trackName_.data(), trackStatusMessage.trackName_.size());
+
+    serialize<ds::quic_var_int>(c, utils::to_underlying(trackStatusMessage.statusCode_),
+                                ToEndianess{});
+
+    serialize<ds::quic_var_int>(c, trackStatusMessage.lastgroupId_, ToEndianess{});
+    serialize<ds::quic_var_int>(c, trackStatusMessage.lastobjectId_, ToEndianess{});
+
+    return headerLen + msgLen;
+}
 } // namespace rvn::serialization::detail

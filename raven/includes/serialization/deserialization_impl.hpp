@@ -296,4 +296,42 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
 
     return deserializedBytes;
 }
+
+static inline deserialize_return_t
+deserialize(rvn::depracated::messages::TrackStatusMessage& trackStatusMessage,
+            ds::ChunkSpan& span,
+            NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    std::uint64_t numTrackNamespace;
+    deserializedBytes += deserialize<ds::quic_var_int>(numTrackNamespace, span);
+    trackStatusMessage.trackNamespace_.resize(numTrackNamespace);
+    for (auto& ns : trackStatusMessage.trackNamespace_)
+    {
+        std::uint64_t nsLength;
+        deserializedBytes += deserialize<ds::quic_var_int>(nsLength, span);
+
+        ns = std::string(span.data(), span.data() + nsLength);
+        deserializedBytes += nsLength;
+        span.advance_begin(nsLength);
+    }
+
+    std::uint64_t trackNameLength;
+    deserializedBytes += deserialize<ds::quic_var_int>(trackNameLength, span);
+    trackStatusMessage.trackName_ = std::string(span.data(), span.data() + trackNameLength);
+    span.advance_begin(trackNameLength);
+
+    std::uint64_t statusCode;
+    deserializedBytes += deserialize<ds::quic_var_int>(statusCode, span);
+    trackStatusMessage.statusCode_ =
+    static_cast<depracated::messages::TrackStatusMessage::StatusCode>(statusCode);
+
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(trackStatusMessage.lastgroupId_, span);
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(trackStatusMessage.lastobjectId_, span);
+
+    return deserializedBytes;
+}
 } // namespace rvn::serialization::detail

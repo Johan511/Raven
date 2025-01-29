@@ -8,7 +8,7 @@
 namespace rvn
 {
 
-MOQTServer::MOQTServer() : MOQT(HostType::SERVER) {};
+MOQTServer::MOQTServer() : MOQT(HostType::SERVER){};
 
 void MOQTServer::start_listener(QUIC_ADDR* LocalAddress)
 {

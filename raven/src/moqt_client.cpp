@@ -8,7 +8,7 @@
 
 namespace rvn
 {
-MOQTClient::MOQTClient() : MOQT(HostType::CLIENT) {};
+MOQTClient::MOQTClient() : MOQT(HostType::CLIENT){};
 
 void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* ServerName, uint16_t ServerPort)
 {
