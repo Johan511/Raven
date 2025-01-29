@@ -29,7 +29,7 @@ struct StreamContext
     class MOQT* moqtObject;
     HQUIC connection;
     StreamContext(MOQT* moqtObject_, HQUIC connection_)
-    : moqtObject(moqtObject_), connection(connection_) {};
+    : moqtObject(moqtObject_), connection(connection_){};
 };
 
 class StreamSendContext

@@ -25,7 +25,7 @@ Indicates that x is L bits long
 x (i): -> quic_var_int
 Indicates that x holds an integer value using the variable-length encoding as described in ([RFC9000], Section 16)
 
-x (..): 
+x (..):
 Indicates that x can be any length including zero bits long. Values in this format always end on a byte boundary.
 
 [x (L)]: -> std::optional<quic_var_int>

@@ -28,7 +28,7 @@ public:
     {
         auto subscriptionState = SubscriptionManagerHandle
         {
-        } -> try_register_subscription(connectionState, std::move(subscribeMessage));
+            } -> try_register_subscription(connectionState, std::move(subscribeMessage));
     }
 
     void handle_message_internal(ConnectionState& connectionState,

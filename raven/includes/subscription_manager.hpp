@@ -183,7 +183,7 @@ public:
             {
                 GroupIdentifier latestGroup{ track, currentGroup };
                 ObjectIdentifier latestObject{ latestGroup, DataManagerHandle{}
-                                               -> first_object_id(latestGroup) };
+                                                            -> first_object_id(latestGroup) };
 
                 subscriptionState.objectToSend = latestObject;
 
@@ -193,7 +193,7 @@ public:
             {
                 GroupIdentifier latestGroup{ track, currentGroup };
                 ObjectIdentifier latestObject{ latestGroup, DataManagerHandle{}
-                                               -> latest_object_id(latestGroup) };
+                                                            -> latest_object_id(latestGroup) };
 
                 subscriptionState.objectToSend = latestObject;
 
@@ -245,7 +245,7 @@ public:
 
         auto objectPayloadOpt = DataManagerHandle
         {
-        } -> get_object(objectIdentifier);
+            } -> get_object(objectIdentifier);
 
         utils::ASSERT_LOG_THROW(objectPayloadOpt.ok(),
                                 "Buffer for object not found");
@@ -270,7 +270,7 @@ public:
 
         DataManagerHandle
         {
-        } -> next(subscriptionState);
+            } -> next(subscriptionState);
     }
 
     bool verify_validity(const protobuf_messages::SubscribeMessage& subscribeMessage)

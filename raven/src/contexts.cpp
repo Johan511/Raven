@@ -32,13 +32,13 @@ void ConnectionState::send_data_buffer()
     {
         auto iter = SubscriptionManagerHandle
         {
-        } -> subscriptionStates[this].begin();
+            } -> subscriptionStates[this].begin();
         if (iter == SubscriptionManagerHandle {} -> subscriptionStates[this].end())
             return;
 
         return SubscriptionManagerHandle
         {
-        } -> update_subscription_state(this, iter);
+            } -> update_subscription_state(this, iter);
     }
 
     QUIC_BUFFER* buffer = dataBuffersToSend.front();

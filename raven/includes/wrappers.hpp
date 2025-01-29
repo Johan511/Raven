@@ -38,7 +38,7 @@ protected:
         close = close_;
     }
 
-    unique_handler1() : handler(NULL) {};
+    unique_handler1() : handler(NULL){};
 
     unique_handler1(const unique_handler1&) = delete;
     unique_handler1& operator=(const unique_handler1&) = delete;
@@ -134,7 +134,7 @@ protected:
         start_func = start_;
         stop_func = stop_;
     }
-    unique_handler2() : handler(NULL) {};
+    unique_handler2() : handler(NULL){};
 
     unique_handler2(const unique_handler2&) = delete;
     unique_handler2& operator=(const unique_handler2&) = delete;

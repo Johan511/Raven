@@ -67,7 +67,7 @@ template <typename DeserializedMessageHandler> class Deserializer
     void read_message_type()
     {
         // Read first byte of buffer and determine length of the quic_var_int message type
-        if(size() == 0)
+        if (size() == 0)
             return;
 
         std::uint8_t prefix2Bits = at(0) >> 6;

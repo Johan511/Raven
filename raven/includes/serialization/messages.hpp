@@ -563,20 +563,50 @@ struct UnannounceMessage
 };
 
 /*
-    TRACK_STATUS Message {
-      Track Namespace (b),
-      Track Name (b),
-      Status Code (i),
-      Last Group ID (i),
-      Last Object ID (i),
-    }
+TRACK_STATUS Message {
+  Type (i) = 0xE,
+  Length (i),
+  Track Namespace (tuple),
+  Track Name Length(i),
+  Track Name (..),
+  Status Code (i),
+  Last Group ID (i),
+  Last Object ID (i),
+}
 */
-struct TrackStatusMessage
+struct TrackStatusMessage : ControlMessageBase
 {
-    BinaryBufferData trackNamespace;
-    BinaryBufferData trackName;
-    iType statusCode;
-    iType lastGroupId;
-    iType lastObjectId;
+    enum class StatusCode : std::uint64_t
+    {
+        InProgress = 0x0,
+        DoesNotExist = 0x1,
+        NotBegun = 0x2,
+        Finished = 0x3,
+        Relay = 0x4,
+    };
+
+    std::vector<std::string> trackNamespace_;
+    std::string trackName_;
+    StatusCode statusCode_;
+    std::uint64_t lastgroupId_;
+    std::uint64_t lastobjectId_;
+
+    TrackStatusMessage() : ControlMessageBase(MoQtMessageType::TRACK_STATUS)
+    {
+    }
+
+    bool operator==(const TrackStatusMessage&) const = default;
+
+    friend inline std::ostream& operator<<(std::ostream& os, const TrackStatusMessage& msg)
+    {
+        os << " TrackNamespace: ";
+        for (const auto& ns : msg.trackNamespace_)
+            os << ns << " ";
+        os << " TrackName: " << msg.trackName_
+           << " FilterType: " << utils::to_underlying(msg.statusCode_)
+           << " LastGroupId: " << msg.lastgroupId_
+           << "LastObjectId: " << msg.lastobjectId_;
+        return os;
+    }
 };
 } // namespace rvn::depracated::messages
