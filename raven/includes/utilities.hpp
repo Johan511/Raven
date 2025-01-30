@@ -184,7 +184,7 @@ static inline void thread_set_max_priority(std::thread& th)
     }
 }
 
-static inline void wait_for(std::atomic_bool& flag)
+static inline void wait_for(const std::atomic_bool& flag)
 {
     do
     {

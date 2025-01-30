@@ -158,17 +158,12 @@ template <typename DeserializedMessageHandler> class Deserializer
 
 public:
     Deserializer(DeserializedMessageHandler&& msgHandler)
-    : messageHandler_(msgHandler)
+    : messageHandler_(std::move(msgHandler))
     {
     }
 
     Deserializer(const DeserializedMessageHandler& msgHandler)
     : messageHandler_(msgHandler)
-    {
-    }
-
-    template <typename... Args>
-    Deserializer(Args... args) : messageHandler_(std::forward<Args>(args)...)
     {
     }
 

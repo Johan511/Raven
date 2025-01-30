@@ -27,11 +27,28 @@ enum class StreamType
 
 struct StreamContext
 {
-    class MOQT* moqtObject;
-    HQUIC connection;
-    serialization::Deserializer<NewMessageHandler> deserializer_;
-    StreamContext(MOQT* moqtObject_, HQUIC connection_)
-    : moqtObject(moqtObject_), connection(connection_) {};
+    std::atomic_bool streamHasBeenConstructed{};
+    class MOQT& moqtObject_;
+    /*  We can not have reference to StreamState
+        StreamState constructor takes rvn::unique_stream which requires
+        StreamContext to be constructed
+        Constructors can not have cyclical dependency
+     */
+    class ConnectionState& connectionState_;
+    /*
+        We can not have operator= for Deserializer because it contains
+        a non movable object (std::mutex)
+        We can not construct it in constructor because it requires
+        StreamState which requires rvn::unique_stream which requires StreamContext
+    */
+    std::optional<serialization::Deserializer<MessageHandler>> deserializer_;
+    StreamContext(MOQT& moqtObject, ConnectionState& connectionState)
+    : moqtObject_(moqtObject), connectionState_(connectionState) {};
+
+    void construct_deserializer(StreamState &streamState)
+    {
+        deserializer_.emplace(MessageHandler(streamState));   
+    }
 };
 
 class StreamSendContext
@@ -87,16 +104,15 @@ public:
 struct StreamState
 {
     rvn::unique_stream stream;
+    class ConnectionState& connectionState_;
     std::unique_ptr<StreamContext> streamContext{};
-    std::stringstream messageSS;
 
-    template <typename... Args> void set_stream_context(Args&&... args)
+    StreamState(rvn::unique_stream&& stream_, class ConnectionState& connectionState_)
+    : stream(std::move(stream_)), connectionState_(connectionState_)
     {
-        this->streamContext =
-        std::make_unique<StreamContext>(std::forward<Args>(args)...);
     }
 
-    void set_stream_context(std::unique_ptr<StreamContext>&& streamContext_)
+    void set_stream_context(std::unique_ptr<StreamContext> streamContext_)
     {
         this->streamContext = std::move(streamContext_);
     }
@@ -109,25 +125,24 @@ struct ConnectionState
     static constexpr std::size_t MAX_DATA_STREAMS = 8;
 
     std::queue<QUIC_BUFFER*> dataBuffersToSend;
-    std::vector<StreamState> dataStreams; // they are sending/receiving data
+    StableContainer<StreamState> dataStreams; // they are sending/receiving data
 
-    std::queue<QUIC_BUFFER*> controlBuffersToSend;
     std::optional<StreamState> controlStream{};
 
 
     void delete_data_stream(HQUIC streamHandle);
 
     void enqueue_data_buffer(QUIC_BUFFER* buffer);
-    void enqueue_control_buffer(QUIC_BUFFER* buffer);
 
     StreamState& create_data_stream();
 
     void send_data_buffer();
     void send_control_buffer();
+    void send_control_buffer(QUIC_BUFFER* buffer, QUIC_SEND_FLAGS flags = QUIC_SEND_FLAG_NONE);
     /////////////////////////////////////////////////////////////////////////////
 
     unique_connection connection_;
-    class MOQT* moqtObject = nullptr;
+    MOQT& moqtObject_;
 
     std::string path;
     // TODO: role
@@ -137,13 +152,13 @@ struct ConnectionState
     StableContainer<MPMCQueue<std::string>>::iterator objectQueue;
 
 
-    ConnectionState(unique_connection&& connection, class MOQT* moqtObject_)
-    : connection_(std::move(connection)), moqtObject(moqtObject_)
+    ConnectionState(unique_connection&& connection, class MOQT& moqtObject)
+    : connection_(std::move(connection)), moqtObject_(moqtObject)
     {
     }
 
-    const std::vector<StreamState>& get_data_streams() const;
-    std::vector<StreamState>& get_data_streams();
+    const StableContainer<StreamState>& get_data_streams() const;
+    StableContainer<StreamState>& get_data_streams();
     std::optional<StreamState>& get_control_stream();
     const std::optional<StreamState>& get_control_stream() const;
 

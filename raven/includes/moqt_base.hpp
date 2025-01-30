@@ -123,14 +123,14 @@ public:
     control_stream_cb_wrapper(HQUIC stream, void* context, QUIC_STREAM_EVENT* event)
     {
         StreamContext* thisObject = static_cast<StreamContext*>(context);
-        return thisObject->moqtObject->control_stream_cb_lamda(stream, context, event);
+        return thisObject->moqtObject_.control_stream_cb_lamda(stream, context, event);
     }
 
     static QUIC_STATUS
     data_stream_cb_wrapper(HQUIC stream, void* context, QUIC_STREAM_EVENT* event)
     {
         StreamContext* thisObject = static_cast<StreamContext*>(context);
-        return thisObject->moqtObject->data_stream_cb_lamda(stream, context, event);
+        return thisObject->moqtObject_.data_stream_cb_lamda(stream, context, event);
     }
 
     // Setters

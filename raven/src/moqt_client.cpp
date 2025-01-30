@@ -32,7 +32,7 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
 
 
     // connection state is optional
-    connectionState.emplace(std::move(connection), this);
+    connectionState.emplace(std::move(connection), *this);
 
     quicConnectionStateSetupFlag_.store(true, std::memory_order_release);
 

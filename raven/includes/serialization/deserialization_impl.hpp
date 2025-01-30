@@ -256,6 +256,7 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
     deserializedBytes += deserialize<ds::quic_var_int>(trackNameLength, span);
     subscribeMessage.trackName_ = std::string(trackNameLength, '\0');
     span.copy_to(subscribeMessage.trackName_.data(), trackNameLength);
+    deserializedBytes += trackNameLength;
     span.advance_begin(trackNameLength);
 
     deserializedBytes +=

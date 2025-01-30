@@ -80,15 +80,8 @@ public:
     */
     QUIC_STATUS accept_new_connection(HQUIC listener, auto newConnectionInfo)
     {
-        QUIC_STATUS status = QUIC_STATUS_NOT_SUPPORTED;
         HQUIC connectionHandle = newConnectionInfo.Connection;
-        status =
         get_tbl()->ConnectionSetConfiguration(connectionHandle, configuration.get());
-
-        if (QUIC_FAILED(status))
-        {
-            return status;
-        }
 
         get_tbl()->SetCallbackHandler(newConnectionInfo.Connection,
                                       (void*)(this->connection_cb_wrapper),
@@ -102,9 +95,9 @@ public:
         unique_connection connection = unique_connection(tbl.get(), connectionHandle);
 
         connectionStateMap.emplace(connectionHandle,
-                                   ConnectionState{ std::move(connection), this });
+                                   ConnectionState{ std::move(connection), *this });
 
-        return status;
+        return QUIC_STATUS_SUCCESS;
     }
 
     /*

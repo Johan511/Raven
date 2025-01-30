@@ -27,7 +27,7 @@ static constexpr auto server_listener_callback =
             break;
         default: break;
     }
-    return status;
+    return QUIC_STATUS_SUCCESS;
 };
 
 static constexpr auto server_connection_callback =
@@ -84,9 +84,10 @@ static constexpr auto server_control_stream_callback =
 []([[maybe_unused]] HQUIC controlStream, void* context, QUIC_STREAM_EVENT* event)
 {
     StreamContext* streamContext = static_cast<StreamContext*>(context);
-    HQUIC connection = streamContext->connection;
-    MOQT* moqtObject = streamContext->moqtObject;
+    MOQT& moqtObject = streamContext->moqtObject_;
     auto& deserializer = streamContext->deserializer_;
+
+    utils::wait_for(streamContext->streamHasBeenConstructed);
 
     switch (event->Type)
     {
@@ -103,10 +104,10 @@ static constexpr auto server_control_stream_callback =
                  bufferIndex < event->RECEIVE.BufferCount; bufferIndex++)
             {
                 const QUIC_BUFFER* buffer = &event->RECEIVE.Buffers[bufferIndex];
-                deserializer.append_buffer(
+                deserializer->append_buffer(
                 SharedQuicBuffer(buffer,
                                  rvn::QUIC_BUFFERDeleter(controlStream,
-                                                         moqtObject->get_tbl()->StreamReceiveComplete)));
+                                                         moqtObject.get_tbl()->StreamReceiveComplete)));
             }
 
             // https://github.com/microsoft/msquic/blob/f96015560399d60cbdd8608b6fa2120560118500/docs/Streams.md#synchronous-vs-asynchronous
@@ -145,9 +146,11 @@ static constexpr auto server_data_stream_callback =
 [](HQUIC dataStream, void* context, QUIC_STREAM_EVENT* event)
 {
     StreamContext* streamContext = static_cast<StreamContext*>(context);
-    HQUIC connection = streamContext->connection;
-    MOQT* moqtObject = streamContext->moqtObject;
+    ConnectionState& connectionState = streamContext->connectionState_;
+    HQUIC connectionHandle = connectionState.connection_.get();
+    MOQT& moqtObject = streamContext->moqtObject_;
 
+    // TODO: wait for streamSetup
     switch (event->Type)
     {
         case QUIC_STREAM_EVENT_START_COMPLETE:
@@ -163,8 +166,6 @@ static constexpr auto server_data_stream_callback =
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         {
-            ConnectionState& connectionState = *moqtObject->get_connectionState(connection);
-
             connectionState.delete_data_stream(dataStream);
             break;
         }
@@ -181,9 +182,11 @@ static constexpr auto client_data_stream_callback =
 [](HQUIC dataStream, void* context, QUIC_STREAM_EVENT* event)
 {
     StreamContext* streamContext = static_cast<StreamContext*>(context);
-    HQUIC connectionHandle = streamContext->connection;
-    MOQT* moqtObject = streamContext->moqtObject;
+    ConnectionState& connectionState = streamContext->connectionState_;
+    HQUIC connectionHandle = streamContext->connectionState_.connection_.get();
+    MOQT& moqtObject = streamContext->moqtObject_;
 
+    // TODO: wait for stream setup
     switch (event->Type)
     {
         case QUIC_STREAM_EVENT_START_COMPLETE:
@@ -195,17 +198,17 @@ static constexpr auto client_data_stream_callback =
         {
             // Received Data Message
             StreamState* streamState =
-            moqtObject->get_stream_state(connectionHandle, dataStream);
+            moqtObject.get_stream_state(connectionHandle, dataStream);
 
             // accumulate all data messages received and read them when closing stream
             for (std::uint64_t bufferIndex = 0;
                  bufferIndex < event->RECEIVE.BufferCount; bufferIndex++)
             {
                 const QUIC_BUFFER* buffer = &event->RECEIVE.Buffers[bufferIndex];
-                streamContext->deserializer_.append_buffer(
+                streamContext->deserializer_->append_buffer(
                 SharedQuicBuffer(buffer,
                                  rvn::QUIC_BUFFERDeleter(dataStream,
-                                                         moqtObject->get_tbl()->StreamReceiveComplete)));
+                                                         moqtObject.get_tbl()->StreamReceiveComplete)));
             }
 
             // https://github.com/microsoft/msquic/blob/f96015560399d60cbdd8608b6fa2120560118500/docs/Streams.md#synchronous-vs-asynchronous
@@ -214,9 +217,6 @@ static constexpr auto client_data_stream_callback =
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         {
-            ConnectionState& connectionState =
-            *moqtObject->get_connectionState(connectionHandle);
-
             connectionState.delete_data_stream(dataStream);
             break;
         }
@@ -232,8 +232,10 @@ static constexpr auto client_control_stream_callback =
 []([[maybe_unused]] HQUIC controlStream, void* context, QUIC_STREAM_EVENT* event)
 {
     StreamContext* streamContext = static_cast<StreamContext*>(context);
-    HQUIC connection = streamContext->connection;
-    MOQT* moqtObject = streamContext->moqtObject;
+    ConnectionState& connectionState = streamContext->connectionState_;
+    MOQT& moqtObject = streamContext->moqtObject_;
+
+    utils::wait_for(streamContext->streamHasBeenConstructed);
 
     switch (event->Type)
     {
@@ -244,16 +246,15 @@ static constexpr auto client_control_stream_callback =
         }
         case QUIC_STREAM_EVENT_RECEIVE:
         {
-            auto& connectionState = *moqtObject->get_connectionState(connection);
             const QUIC_BUFFER* buffer = event->RECEIVE.Buffers;
             for (std::uint64_t bufferIndex = 0;
                  bufferIndex < event->RECEIVE.BufferCount; bufferIndex++)
             {
                 const QUIC_BUFFER* buffer = &event->RECEIVE.Buffers[bufferIndex];
-                streamContext->deserializer_.append_buffer(
+                streamContext->deserializer_->append_buffer(
                 SharedQuicBuffer(buffer,
                                  rvn::QUIC_BUFFERDeleter(controlStream,
-                                                         moqtObject->get_tbl()->StreamReceiveComplete)));
+                                                         moqtObject.get_tbl()->StreamReceiveComplete)));
             }
 
             // https://github.com/microsoft/msquic/blob/f96015560399d60cbdd8608b6fa2120560118500/docs/Streams.md#synchronous-vs-asynchronous
@@ -284,16 +285,14 @@ static constexpr auto client_connection_callback =
     MOQTClient* moqtClient = static_cast<MOQTClient*>(Context);
     const QUIC_API_TABLE* MsQuic = moqtClient->get_tbl();
 
-    utils::wait_for(moqtClient->quicConnectionStateSetupFlag_);
     // wait until setup is done, once setup is done, flag is reset to false
+    utils::wait_for(moqtClient->quicConnectionStateSetupFlag_);
 
     switch (event->Type)
     {
         case QUIC_CONNECTION_EVENT_CONNECTED:
         {
-            //
             // The handshake has completed for the connection.
-            //
 
             ConnectionState& connectionState = *moqtClient->connectionState;
             connectionState.establish_control_stream();
@@ -301,16 +300,14 @@ static constexpr auto client_connection_callback =
 
             auto clientSetupMessage = moqtClient->get_clientSetupMessage();
             QUIC_BUFFER* quicBuffer = serialization::serialize(clientSetupMessage);
-            connectionState.enqueue_control_buffer(quicBuffer);
+            connectionState.send_control_buffer(quicBuffer);
 
             break;
         }
         case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
         {
-            //
             // The connection has completed the shutdown process and is
             // ready to be safely cleaned up.
-            //
             printf("[conn][%p] All done\n", connectionHandle);
             if (!event->SHUTDOWN_COMPLETE.AppCloseInProgress)
             {

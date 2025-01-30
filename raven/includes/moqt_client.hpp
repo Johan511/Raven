@@ -63,7 +63,7 @@ public:
 
         QUIC_BUFFER* quicBuffer = serialization::serialize(subscribeMessage);
 
-        connectionState->enqueue_control_buffer(quicBuffer);
+        connectionState->send_control_buffer(quicBuffer);
 
         return connectionState->objectQueue;
     }
