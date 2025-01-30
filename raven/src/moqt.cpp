@@ -1,6 +1,7 @@
 #include <memory>
 #include <moqt.hpp>
-#include <protobuf_messages.hpp>
+#include <moqt_client.hpp>
+#include <moqt_server.hpp>
 #include <serialization/serialization.hpp>
 #include <utilities.hpp>
 
@@ -119,21 +120,4 @@ StreamState* MOQT::get_stream_state(HQUIC connectionHandle, HQUIC streamHandle)
         return thisServer->get_stream_state(connectionHandle, streamHandle);
     }
 }
-
-void MOQT::handle_message(ConnectionState& connectionState,
-                          HQUIC streamHandle,
-                          std::stringstream& iStringStream)
-{
-    if (hostType_ == HostType::SERVER)
-    {
-        MOQTServer* thisServer = static_cast<MOQTServer*>(this);
-        return thisServer->handle_message_internal(connectionState, streamHandle, iStringStream);
-    }
-    else
-    {
-        MOQTClient* thisClient = static_cast<MOQTClient*>(this);
-        return thisClient->handle_message_internal(connectionState, streamHandle, iStringStream);
-    }
-}
-
 } // namespace rvn

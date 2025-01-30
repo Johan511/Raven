@@ -13,9 +13,9 @@ add_executable(server_ex1 src/server.cpp)
 add_executable(client_ex1 src/client.cpp)
 
 target_include_directories(server_ex1 PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(server_ex1 PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR} ${PROTOBUF_MESSAGES_INCLUDE_DIR})
+target_include_directories(server_ex1 PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR})
 target_link_libraries(server_ex1 PUBLIC raven)
 
 target_include_directories(client_ex1 PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(client_ex1 PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR} ${PROTOBUF_MESSAGES_INCLUDE_DIR})
+target_include_directories(client_ex1 PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR})
 target_link_libraries(client_ex1 PUBLIC raven)

@@ -119,14 +119,6 @@ void ConnectionState::send_control_buffer()
         throw std::runtime_error("Failed to send control message");
 }
 
-
-bool ConnectionState::check_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage)
-{
-    // TODO: check if subscription data exists and if we are authenticated
-    // to get it
-    return true;
-}
-
 const std::vector<StreamState>& ConnectionState::get_data_streams() const
 {
     return dataStreams;

@@ -1,8 +1,8 @@
-#include <msquic.h>
+#pragma once
 
 #include <contexts.hpp>
 #include <moqt.hpp>
-#include <protobuf_messages.hpp>
+#include <msquic.h>
 #include <serialization/serialization.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
@@ -86,6 +86,7 @@ static constexpr auto server_control_stream_callback =
     StreamContext* streamContext = static_cast<StreamContext*>(context);
     HQUIC connection = streamContext->connection;
     MOQT* moqtObject = streamContext->moqtObject;
+    auto& deserializer = streamContext->deserializer_;
 
     switch (event->Type)
     {
@@ -98,24 +99,18 @@ static constexpr auto server_control_stream_callback =
         }
         case QUIC_STREAM_EVENT_RECEIVE:
         {
-            try
+            for (std::uint64_t bufferIndex = 0;
+                 bufferIndex < event->RECEIVE.BufferCount; bufferIndex++)
             {
-                auto& connectionState = *moqtObject->get_connectionState(connection);
-                moqtObject->handle_message(connectionState, controlStream,
-                                           &(event->RECEIVE));
-            }
-            catch (const std::out_of_range& e)
-            {
-                // connection was removed from connection map
-                LOGE("Connection not found in connectionStateMap");
-                // TODO: close connection
-            }
-            catch (const rvn::exception::parsing_exception& e)
-            {
-                LOGE("Failure while trying to parse: ", e.what());
-                // TODO: close connection
+                const QUIC_BUFFER* buffer = &event->RECEIVE.Buffers[bufferIndex];
+                deserializer.append_buffer(
+                SharedQuicBuffer(buffer,
+                                 rvn::QUIC_BUFFERDeleter(controlStream,
+                                                         moqtObject->get_tbl()->StreamReceiveComplete)));
             }
 
+            // https://github.com/microsoft/msquic/blob/f96015560399d60cbdd8608b6fa2120560118500/docs/Streams.md#synchronous-vs-asynchronous
+            return QUIC_STATUS_PENDING;
             break;
         }
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
@@ -207,22 +202,20 @@ static constexpr auto client_data_stream_callback =
                  bufferIndex < event->RECEIVE.BufferCount; bufferIndex++)
             {
                 const QUIC_BUFFER* buffer = &event->RECEIVE.Buffers[bufferIndex];
-                streamState->messageSS.write(reinterpret_cast<const char*>(
-                                             buffer->Buffer),
-                                             buffer->Length);
+                streamContext->deserializer_.append_buffer(
+                SharedQuicBuffer(buffer,
+                                 rvn::QUIC_BUFFERDeleter(dataStream,
+                                                         moqtObject->get_tbl()->StreamReceiveComplete)));
             }
 
+            // https://github.com/microsoft/msquic/blob/f96015560399d60cbdd8608b6fa2120560118500/docs/Streams.md#synchronous-vs-asynchronous
+            return QUIC_STATUS_PENDING;
             break;
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         {
-            StreamState* streamState =
-            moqtObject->get_stream_state(connectionHandle, dataStream);
-
             ConnectionState& connectionState =
             *moqtObject->get_connectionState(connectionHandle);
-
-            moqtObject->handle_message(connectionState, dataStream, streamState->messageSS);
 
             connectionState.delete_data_stream(dataStream);
             break;
@@ -251,26 +244,20 @@ static constexpr auto client_control_stream_callback =
         }
         case QUIC_STREAM_EVENT_RECEIVE:
         {
-            // Received Control Message
-            // auto receiveInformation = event->RECEIVE;
-            try
+            auto& connectionState = *moqtObject->get_connectionState(connection);
+            const QUIC_BUFFER* buffer = event->RECEIVE.Buffers;
+            for (std::uint64_t bufferIndex = 0;
+                 bufferIndex < event->RECEIVE.BufferCount; bufferIndex++)
             {
-                auto& connectionState = *moqtObject->get_connectionState(connection);
-                moqtObject->handle_message(connectionState, controlStream,
-                                           &(event->RECEIVE));
-            }
-            catch (const std::out_of_range& e)
-            {
-                // connection was removed from connection map
-                LOGE("Connection not found in connectionStateMap");
-                // TODO: close connection
-            }
-            catch (const rvn::exception::parsing_exception& e)
-            {
-                LOGE("Failure while trying to parse: ", e.what());
-                // TODO: close connection
+                const QUIC_BUFFER* buffer = &event->RECEIVE.Buffers[bufferIndex];
+                streamContext->deserializer_.append_buffer(
+                SharedQuicBuffer(buffer,
+                                 rvn::QUIC_BUFFERDeleter(controlStream,
+                                                         moqtObject->get_tbl()->StreamReceiveComplete)));
             }
 
+            // https://github.com/microsoft/msquic/blob/f96015560399d60cbdd8608b6fa2120560118500/docs/Streams.md#synchronous-vs-asynchronous
+            return QUIC_STATUS_PENDING;
             break;
         }
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
@@ -311,15 +298,9 @@ static constexpr auto client_connection_callback =
             ConnectionState& connectionState = *moqtClient->connectionState;
             connectionState.establish_control_stream();
 
-            protobuf_messages::MessageHeader messageHeader;
-            messageHeader.set_messagetype(protobuf_messages::MoQtMessageType::CLIENT_SETUP);
 
-            protobuf_messages::ClientSetupMessage clientSetupMessage =
-            moqtClient->get_clientSetupMessage();
-
-
-            QUIC_BUFFER* quicBuffer =
-            serialization::serialize(messageHeader, clientSetupMessage);
+            auto clientSetupMessage = moqtClient->get_clientSetupMessage();
+            QUIC_BUFFER* quicBuffer = serialization::serialize(clientSetupMessage);
             connectionState.enqueue_control_buffer(quicBuffer);
 
             break;

@@ -10,19 +10,16 @@
 #include <serialization/serialization.hpp>
 #include <sstream>
 #include <string>
-#include <subscribe_messages.pb.h>
 #include <unordered_map>
 #include <utilities.hpp>
-
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
+#include "serialization/messages.hpp"
 
 namespace rvn
 {
 
 struct TrackIdentifier
 {
-    std::string tracknamespace;
+    std::vector<std::string> tracknamespace;
     std::string trackname;
 
     bool operator==(const TrackIdentifier& other) const
@@ -52,8 +49,10 @@ struct ObjectIdentifier : public GroupIdentifier
 
     friend inline std::ostream& operator<<(std::ostream& os, const ObjectIdentifier& oid)
     {
-        return os << oid.tracknamespace << " " << oid.trackname << " "
-                  << oid.groupId << " " << oid.objectId << " ";
+        for (const auto& ns : oid.tracknamespace)
+            os << ns << "/";
+        os << oid.trackname << " " << oid.groupId << " " << oid.objectId << " ";
+        return os;
     }
 };
 
@@ -72,8 +71,11 @@ class DataManager
 
     std::string get_path_string(const TrackIdentifier& trackIdentifier)
     {
-        return std::string(DATA_DIRECTORY) + trackIdentifier.tracknamespace +
-               "/" + trackIdentifier.trackname + "/";
+        std::string pathString = DATA_DIRECTORY;
+        for (const auto& ns : trackIdentifier.tracknamespace)
+            pathString += ns + "/";
+        pathString += trackIdentifier.trackname + "/";
+        return pathString;
     }
 
     std::string get_path_string(const GroupIdentifier& groupIdentifier)
@@ -93,11 +95,8 @@ public:
     /*
         * @brief Get the object from the file system
         * @param objectIdentifier
-        * @return absl::StatusOr<std::string>, possible error codes are
-                                        NotFoundError: object does not
-                                        exist InternalError: otherwise
     */
-    absl::StatusOr<std::string> get_object(ObjectIdentifier objectIdentifier)
+    std::optional<std::string> get_object(ObjectIdentifier objectIdentifier)
     {
         std::string objectLocation = get_path_string(objectIdentifier);
         utils::LOG_EVENT(std::cout, "Reading object from: ", objectLocation);
@@ -106,7 +105,7 @@ public:
         {
             utils::ASSERT_LOG_THROW(false, "Object: ", objectIdentifier,
                                     "\ndoes not exist at location\n", objectLocation);
-            return absl::NotFoundError("Object does not exist");
+            return {};
         }
 
         std::ifstream file(std::move(objectLocation));
@@ -151,35 +150,35 @@ DECLARE_SINGLETON(DataManager);
 #ifndef __clang__
 WEAK_LINKAGE // weak linkage required only in g++ compiler, check reason
 #endif
-auto SubscriptionMessageHash = [](const protobuf_messages::SubscribeMessage& subscribeMessage)
-{ return subscribeMessage.subscribeid(); };
+auto SubscriptionMessageHash = [](const depracated::messages::SubscribeMessage& subscribeMessage)
+{ return subscribeMessage.subscribeId_; };
 
 #ifndef __clang__
 WEAK_LINKAGE // weak linkage required only in g++ compiler, check reason
 #endif
-auto SubscriptionMessageKeyEqual = [](const protobuf_messages::SubscribeMessage& lhs,
-                                      const protobuf_messages::SubscribeMessage& rhs)
-{ return lhs.subscribeid() == rhs.subscribeid(); };
+auto SubscriptionMessageKeyEqual = [](const depracated::messages::SubscribeMessage& lhs,
+                                      const depracated::messages::SubscribeMessage& rhs)
+{ return lhs.subscribeId_ == rhs.subscribeId_; };
 
 
 class SubscriptionManager
 {
 public:
-    std::unordered_map<ConnectionState*, std::unordered_map<protobuf_messages::SubscribeMessage, SubscriptionState, decltype(SubscriptionMessageHash), decltype(SubscriptionMessageKeyEqual)>>
+    std::unordered_map<ConnectionState*, std::unordered_map<depracated::messages::SubscribeMessage, SubscriptionState, decltype(SubscriptionMessageHash), decltype(SubscriptionMessageKeyEqual)>>
     subscriptionStates;
 
     static SubscriptionState
-    build_subscription_state(protobuf_messages::SubscribeMessage& subscribeMessage)
+    build_subscription_state(depracated::messages::SubscribeMessage& subscribeMessage)
     {
         SubscriptionState subscriptionState;
 
-        TrackIdentifier track{ subscribeMessage.tracknamespace(),
-                               subscribeMessage.trackname() };
+        TrackIdentifier track{ subscribeMessage.trackNamespace_,
+                               subscribeMessage.trackName_ };
 
         std::uint64_t currentGroup = 0; // TODO what is current group
-        switch (subscribeMessage.filtertype())
+        switch (subscribeMessage.filterType_)
         {
-            case protobuf_messages::SubscribeFilter::LatestGroup:
+            case depracated::messages::SubscribeMessage::FilterType::LatestGroup:
             {
                 GroupIdentifier latestGroup{ track, currentGroup };
                 ObjectIdentifier latestObject{ latestGroup, DataManagerHandle{}
@@ -189,7 +188,7 @@ public:
 
                 break;
             }
-            case protobuf_messages::SubscribeFilter::LatestObject:
+            case depracated::messages::SubscribeMessage::FilterType::LatestObject:
             {
                 GroupIdentifier latestGroup{ track, currentGroup };
                 ObjectIdentifier latestObject{ latestGroup, DataManagerHandle{}
@@ -199,22 +198,27 @@ public:
 
                 break;
             }
-            case protobuf_messages::SubscribeFilter::AbsoluteStart:
+            case depracated::messages::SubscribeMessage::FilterType::AbsoluteStart:
             {
-                GroupIdentifier startGroup{ track, subscribeMessage.startgroup() };
-                ObjectIdentifier startObject{ startGroup, subscribeMessage.startobject() };
+                auto [startGroupUint, startObjectUint] = *subscribeMessage.start_;
+
+                GroupIdentifier startGroup{ track, startGroupUint };
+                ObjectIdentifier startObject{ startGroup, startObjectUint };
 
                 subscriptionState.objectToSend = startObject;
 
                 break;
             }
-            case protobuf_messages::SubscribeFilter::AbsoluteRange:
+            case depracated::messages::SubscribeMessage::FilterType::AbsoluteRange:
             {
-                GroupIdentifier startGroup{ track, subscribeMessage.startgroup() };
-                ObjectIdentifier startObject{ startGroup, subscribeMessage.startobject() };
+                auto [startGroupUint, startObjectUint] = *subscribeMessage.start_;
+                auto [endGroupUint, endObjectUint] = *subscribeMessage.start_;
 
-                GroupIdentifier endGroup{ track, subscribeMessage.endgroup() };
-                ObjectIdentifier endObject{ endGroup, subscribeMessage.endobject() };
+                GroupIdentifier startGroup{ track, startGroupUint };
+                ObjectIdentifier startObject{ startGroup, startObjectUint };
+
+                GroupIdentifier endGroup{ track, endGroupUint };
+                ObjectIdentifier endObject{ endGroup, endObjectUint };
 
                 subscriptionState.objectToSend = startObject;
                 subscriptionState.lastObjectToSend = endObject;
@@ -224,7 +228,7 @@ public:
             default:
             {
                 utils::ASSERT_LOG_THROW(false, "Unknown filter type of: ",
-                                        subscribeMessage.filtertype());
+                                        utils::to_underlying(subscribeMessage.filterType_));
             }
         }
 
@@ -234,62 +238,28 @@ public:
 
     void update_subscription_state(
     ConnectionState* connectionState,
-    std::unordered_map<protobuf_messages::SubscribeMessage, SubscriptionState>::iterator iter)
+    std::unordered_map<depracated::messages::SubscribeMessage, SubscriptionState>::iterator iter)
     {
-        auto& [subscribeMessage, subscriptionState] = *iter;
-
-        ObjectIdentifier objectIdentifier{ subscriptionState.objectToSend->tracknamespace,
-                                           subscriptionState.objectToSend->trackname,
-                                           subscriptionState.objectToSend->groupId,
-                                           subscriptionState.objectToSend->objectId };
-
-        auto objectPayloadOpt = DataManagerHandle
-        {
-        } -> get_object(objectIdentifier);
-
-        utils::ASSERT_LOG_THROW(objectPayloadOpt.ok(),
-                                "Buffer for object not found");
-
-        protobuf_messages::MessageHeader header;
-        header.set_messagetype(protobuf_messages::MoQtMessageType::OBJECT_STREAM);
-
-        protobuf_messages::ObjectStreamMessage objectStreamMessage;
-        objectStreamMessage.set_subscribeid(subscribeMessage.subscribeid());
-        objectStreamMessage.set_trackalias(subscribeMessage.trackalias());
-        objectStreamMessage.set_groupid(0);
-        objectStreamMessage.set_objectid(0);
-        objectStreamMessage.set_publisherpriority(0);
-        // TODO: Object Status Cache
-        objectStreamMessage.set_objectstatus(protobuf_messages::ObjectStatus::Normal);
-        objectStreamMessage.set_objectpayload(std::move(objectPayloadOpt).value());
-
-
-        QUIC_BUFFER* quicBuffer = serialization::serialize(header, objectStreamMessage);
-
-        connectionState->enqueue_data_buffer(quicBuffer);
-
-        DataManagerHandle
-        {
-        } -> next(subscriptionState);
     }
 
-    bool verify_validity(const protobuf_messages::SubscribeMessage& subscribeMessage)
+    bool verify_validity(const depracated::messages::SubscribeMessage& subscribeMessage)
     {
         return true;
     }
 
 
-    using RegisterSubscriptionErr = std::optional<protobuf_messages::SubscribeErrorMessage>;
+    using RegisterSubscriptionErr =
+    std::optional<depracated::messages::SubscribeErrorMessage>;
 
     RegisterSubscriptionErr
-    build_subscribe_error_message(const protobuf_messages::SubscribeMessage& subscribeMessage)
+    build_subscribe_error_message(const depracated::messages::SubscribeMessage& subscribeMessage)
     {
         return {};
     }
 
     RegisterSubscriptionErr
     try_register_subscription(ConnectionState& connectionState,
-                              protobuf_messages::SubscribeMessage&& subscribeMessage)
+                              depracated::messages::SubscribeMessage&& subscribeMessage)
     {
         if (verify_validity(subscribeMessage) == false)
             return build_subscribe_error_message(subscribeMessage);

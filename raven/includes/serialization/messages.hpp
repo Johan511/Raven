@@ -579,4 +579,36 @@ struct TrackStatusMessage
     iType lastGroupId;
     iType lastObjectId;
 };
+
+// Data Stream messages
+enum class DataStreamType
+{
+    OBJECT_DATAGRAM = 0x1,
+    STREAM_HEADER_SUBGROUP = 0x4,
+    FETCH_HEADER = 0x5
+};
+
+/*
+    STREAM_HEADER_SUBGROUP Message {
+      Track Alias (i),
+      Group ID (i),
+      Subgroup ID (i),
+      Publisher Priority (8),
+    }
+*/
+struct StreamHeaderSubgroupMessage
+{
+    std::uint64_t trackAlias_;
+    std::uint64_t groupId_;
+    std::uint64_t subgroupId_;
+    std::uint8_t publisherPriority_;
+};
+
+// Object type sent on StreamHeaderSubgroup data streams
+struct StreamHeaderSubgroupObject
+{
+    std::uint64_t objectId_;
+    std::uint64_t objectPayloadLength_;
+    std::string payload_;
+};
 } // namespace rvn::depracated::messages

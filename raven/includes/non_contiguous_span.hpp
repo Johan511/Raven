@@ -6,14 +6,14 @@
 #include <msquic.h>
 #include <span>
 #include <utilities.hpp>
+#include <wrappers.hpp>
 
 namespace rvn::serialization
 {
 
-template <bool IsConst = false> class NonContiguousSpanTemplate
+class NonContiguousSpan
 {
-    using QUIC_BUFFER_T = std::conditional_t<IsConst, const QUIC_BUFFER, QUIC_BUFFER>;
-    std::span<std::shared_ptr<QUIC_BUFFER_T>> buffers_;
+    std::span<SharedQuicBuffer> buffers_;
     // where is begins in the first QUIC_BUFFER
     std::uint64_t beginIdx_;
 
@@ -24,9 +24,7 @@ template <bool IsConst = false> class NonContiguousSpanTemplate
     boost::container::small_vector<std::uint64_t, 5> cumulativeSize_;
 
 public:
-    NonContiguousSpanTemplate(std::span<std::shared_ptr<QUIC_BUFFER_T>> buffers,
-                              std::uint64_t beginIdx,
-                              std::uint64_t endIdx)
+    NonContiguousSpan(std::span<SharedQuicBuffer> buffers, std::uint64_t beginIdx, std::uint64_t endIdx)
     : buffers_(buffers), beginIdx_(beginIdx), endIdx_(endIdx)
     {
         utils::ASSERT_LOG_THROW(buffers_[0]->Length > beginIdx_,
@@ -49,14 +47,13 @@ public:
     }
 
 
-    NonContiguousSpanTemplate(std::span<std::shared_ptr<QUIC_BUFFER_T>> buffers,
-                              std::uint64_t beginIdx)
-    : NonContiguousSpanTemplate(buffers, beginIdx, buffers.back()->Length)
+    NonContiguousSpan(std::span<SharedQuicBuffer> buffers, std::uint64_t beginIdx)
+    : NonContiguousSpan(buffers, beginIdx, buffers.back()->Length)
     {
     }
 
-    NonContiguousSpanTemplate(std::span<std::shared_ptr<QUIC_BUFFER_T>> buffers)
-    : NonContiguousSpanTemplate(buffers, 0, buffers.back()->Length)
+    NonContiguousSpan(std::span<SharedQuicBuffer> buffers)
+    : NonContiguousSpan(buffers, 0, buffers.back()->Length)
     {
     }
 
@@ -83,8 +80,7 @@ public:
 
     std::uint8_t& operator[](std::uint64_t index) noexcept
     {
-        return const_cast<std::uint8_t&>(
-        static_cast<const NonContiguousSpanTemplate&>(*this)[index]);
+        return const_cast<std::uint8_t&>(static_cast<const NonContiguousSpan&>(*this)[index]);
     }
 
     const std::uint8_t& operator[](std::uint64_t index) const noexcept
@@ -151,7 +147,4 @@ public:
         copy_to(dst, numBytes, 0);
     };
 };
-
-using NonContiguousConstSpan = NonContiguousSpanTemplate<true>;
-using NonContiguousSpan = NonContiguousSpanTemplate<false>;
 } // namespace rvn::serialization

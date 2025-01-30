@@ -1,7 +1,6 @@
 #pragma once
 
 #include "serialization/quic_var_int.hpp"
-#include <memory>
 #include <msquic.h>
 #include <non_contiguous_span.hpp>
 #include <serialization/deserialization_impl.hpp>
@@ -10,10 +9,11 @@
 #include <shared_mutex>
 #include <stdexcept>
 #include <utilities.hpp>
+#include <utility>
+#include <wrappers.hpp>
 
 namespace rvn::serialization
 {
-
 
 /*
     As we get buffers from the network, we append them to the
@@ -23,7 +23,7 @@ namespace rvn::serialization
 */
 template <typename DeserializedMessageHandler> class Deserializer
 {
-    std::vector<std::shared_ptr<QUIC_BUFFER>> quicBuffers_;
+    std::vector<SharedQuicBuffer> quicBuffers_;
     std::shared_mutex quicBuffersMutex_;
 
     // begin index in first buffer
@@ -67,7 +67,7 @@ template <typename DeserializedMessageHandler> class Deserializer
     void read_message_type()
     {
         // Read first byte of buffer and determine length of the quic_var_int message type
-        if(size() == 0)
+        if (size() == 0)
             return;
 
         std::uint8_t prefix2Bits = at(0) >> 6;
@@ -127,19 +127,19 @@ template <typename DeserializedMessageHandler> class Deserializer
         {
             depracated::messages::ClientSetupMessage msg;
             numBytesDeserialized = detail::deserialize(msg, span);
-            messageHandler_(msg);
+            messageHandler_(std::move(msg));
         }
         else if (messageType_ == depracated::messages::MoQtMessageType::SERVER_SETUP)
         {
             depracated::messages::ServerSetupMessage msg;
             numBytesDeserialized = detail::deserialize(msg, span);
-            messageHandler_(msg);
+            messageHandler_(std::move(msg));
         }
         else if (messageType_ == depracated::messages::MoQtMessageType::SUBSCRIBE)
         {
             depracated::messages::SubscribeMessage msg;
             numBytesDeserialized = detail::deserialize(msg, span);
-            messageHandler_(msg);
+            messageHandler_(std::move(msg));
         }
         else
         {
@@ -167,7 +167,16 @@ public:
     {
     }
 
-    void append_buffer(std::shared_ptr<QUIC_BUFFER> buffer)
+    template <typename... Args>
+    Deserializer(Args... args) : messageHandler_(std::forward<Args>(args)...)
+    {
+    }
+
+    Deserializer()
+    {
+    }
+
+    void append_buffer(SharedQuicBuffer buffer)
     {
         {
             // writer lock
@@ -209,7 +218,6 @@ public:
         totalLen -= beginIndex_;
         return totalLen;
     }
-
 
     void process_state_machine_input()
     {

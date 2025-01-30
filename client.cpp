@@ -6,15 +6,6 @@
 #include <memory>
 #include <moqt.hpp>
 #include <subscription_builder.hpp>
-#include <thread>
-
-#include <sanitizer/lsan_interface.h>
-#include <signal.h>
-void handler(int signum)
-{
-    // __lsan_do_leak_check();
-}
-
 
 using namespace rvn;
 const char* Target = "127.0.0.1";
@@ -47,8 +38,6 @@ int main()
 
     Settings.IdleTimeoutMs = IdleTimeoutMs;
     Settings.IsSet.IdleTimeoutMs = TRUE;
-    Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
-    Settings.StreamMultiReceiveEnabled = TRUE;
     Settings.PeerUnidiStreamCount = (static_cast<uint16_t>(1) << 15) - 1;
     Settings.IsSet.PeerUnidiStreamCount = TRUE;
 
@@ -73,10 +62,11 @@ int main()
     std::uint64_t startObject = 0;
     std::uint64_t endGroup = 0;
     std::uint64_t endObject = 1;
-    subscriptionBuilder.set_data_range<SubscriptionBuilder::Filter::AbsoluteRange>(startGroup, startObject,
-                                                                                   endGroup, endObject);
+    subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::absoluteRange,
+                                       { startGroup, startObject },
+                                       { endGroup, endObject });
     subscriptionBuilder.set_track_alias(0);
-    subscriptionBuilder.set_track_namespace("tnamespace");
+    subscriptionBuilder.set_track_namespace({"tnamespace"});
     subscriptionBuilder.set_track_name("tname");
     subscriptionBuilder.set_subscriber_priority(0);
     subscriptionBuilder.set_group_order(0);

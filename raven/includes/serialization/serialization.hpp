@@ -1,18 +1,15 @@
 #pragma once
 
 ///////////////////////////////////c
+#include "serialization/serialization_impl.hpp"
 #include <cassert>
 #include <cstdint>
 #include <exceptions.hpp>
 #include <msquic.h>
-#include <protobuf_messages.hpp>
 #include <serialization/chunk.hpp>
 #include <serialization/quic_var_int.hpp>
 #include <type_traits>
 #include <utilities.hpp>
-///////////////////////////////////
-#include <google/protobuf/util/delimited_message_util.h>
-#include <setup_messages.pb.h>
 ///////////////////////////////////
 
 namespace rvn::serialization
@@ -25,7 +22,7 @@ Indicates that x is L bits long
 x (i): -> quic_var_int
 Indicates that x holds an integer value using the variable-length encoding as described in ([RFC9000], Section 16)
 
-x (..): 
+x (..):
 Indicates that x can be any length including zero bits long. Values in this format always end on a byte boundary.
 
 [x (L)]: -> std::optional<quic_var_int>
@@ -92,38 +89,21 @@ constexpr guess_size_t guess_size(const std::string& s)
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-using namespace protobuf_messages;
-
 template <typename... Args> QUIC_BUFFER* serialize(Args&&... args)
 {
-    std::size_t requiredBufferSize = 0;
-    std::ostringstream oss;
-    (google::protobuf::util::SerializeDelimitedToOstream(args, &oss), ...);
 
-    static constexpr std::uint32_t bufferCount = 1;
-    std::string buffer = std::move(oss).str();
+    ds::chunk c;
+    (detail::serialize(c, args), ...);
 
-    void* sendBufferRaw = malloc(sizeof(QUIC_BUFFER) + buffer.size());
-    utils::ASSERT_LOG_THROW(sendBufferRaw != nullptr,
-                            "Could not allocate memory for buffer");
+    QUIC_BUFFER* totalQuicBuffer =
+    static_cast<QUIC_BUFFER*>(malloc(sizeof(QUIC_BUFFER) + c.size()));
 
+    totalQuicBuffer->Length = c.size();
+    totalQuicBuffer->Buffer =
+    reinterpret_cast<uint8_t*>(totalQuicBuffer) + sizeof(QUIC_BUFFER);
 
-    QUIC_BUFFER* sendBuffer = (QUIC_BUFFER*)sendBufferRaw;
-    sendBuffer->Buffer = (uint8_t*)sendBufferRaw + sizeof(QUIC_BUFFER);
-    sendBuffer->Length = buffer.size();
+    memcpy(totalQuicBuffer->Buffer, c.data(), c.size());
 
-    std::memcpy(sendBuffer->Buffer, buffer.c_str(), buffer.size());
-
-    return sendBuffer;
+    return totalQuicBuffer;
 }
-
-template <typename T, typename InputStream> T deserialize(InputStream& istream)
-{
-    T t;
-    bool clean_eof;
-    google::protobuf::util::ParseDelimitedFromZeroCopyStream(&t, &istream, &clean_eof);
-    if (clean_eof)
-        throw rvn::exception::parsing_exception();
-    return t;
-};
 } // namespace rvn::serialization

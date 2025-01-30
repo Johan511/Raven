@@ -478,4 +478,25 @@ public:
     }
 };
 
+
+class QUIC_BUFFERDeleter
+{
+    HQUIC streamHandle_;
+    QUIC_STREAM_RECEIVE_COMPLETE_FN streamReceiveCompletefunction_;
+
+public:
+    void operator()(const QUIC_BUFFER* buffer)
+    {
+        streamReceiveCompletefunction_(streamHandle_, buffer->Length);
+    }
+
+    QUIC_BUFFERDeleter(HQUIC streamHandle, QUIC_STREAM_RECEIVE_COMPLETE_FN streamReceiveCompletefunction)
+    : streamHandle_(streamHandle),
+      streamReceiveCompletefunction_(streamReceiveCompletefunction)
+    {
+    }
+};
+
+using SharedQuicBuffer = std::shared_ptr<const QUIC_BUFFER>;
+
 }; // namespace rvn

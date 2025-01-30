@@ -73,8 +73,6 @@ int main()
     Settings.IsSet.ServerResumptionLevel = TRUE;
     Settings.PeerBidiStreamCount = 1;
     Settings.IsSet.PeerBidiStreamCount = TRUE;
-    Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
-    Settings.StreamMultiReceiveEnabled = TRUE;
 
     moqtServer->set_Settings(&Settings, sizeof(Settings));
     moqtServer->set_CredConfig(get_cred_config());

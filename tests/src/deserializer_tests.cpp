@@ -29,12 +29,12 @@ generate_quic_buffers(std::initializer_list<ds::chunk> chunks)
     std::vector<std::shared_ptr<QUIC_BUFFER>> quicBuffers;
     quicBuffers.reserve(totalSize / 2);
 
-    // To stress it we serialize 1 to 3 byte chunks
+    // To stress it we serialize to small chunks
     const auto serialize_chunk_into_multiple_quic_buffers = [&quicBuffers](auto&& messageChunk)
     {
         for (size_t i = 0; i != messageChunk.size();)
         {
-            std::uint64_t quicBufferSize = (i % 3) + 1; // deterministic number between [1, 3]
+            std::uint64_t quicBufferSize = (i % 3) + 1; // serialized to 1 or 2 bytes
             quicBufferSize =
             std::min(quicBufferSize, static_cast<std::uint64_t>(messageChunk.size() - i));
             quicBuffers.emplace_back(construct_quic_buffer(quicBufferSize));
@@ -60,13 +60,13 @@ void test1()
     depracated::messages::ClientSetupMessage clientSetupMessage;
     clientSetupMessage.supportedVersions_ = { 1, 2, 3 };
     ds::chunk clientSetupMessageChunk;
-    detail::serialize(clientSetupMessageChunk, clientSetupMessage);
+    serialization::detail::serialize(clientSetupMessageChunk, clientSetupMessage);
 
     // Server Setup Message
     depracated::messages::ServerSetupMessage serverSetupMessage;
     serverSetupMessage.selectedVersion_ = 1;
     ds::chunk serverSetupMessageChunk;
-    detail::serialize(serverSetupMessageChunk, serverSetupMessage);
+    serialization::detail::serialize(serverSetupMessageChunk, serverSetupMessage);
 
     auto quicBuffers =
     generate_quic_buffers({ clientSetupMessageChunk, serverSetupMessageChunk });

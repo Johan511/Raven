@@ -28,8 +28,6 @@ std::unique_ptr<MOQTClient> client_setup()
     std::memset(&Settings, 0, sizeof(Settings));
     Settings.IdleTimeoutMs = 0;
     Settings.IsSet.IdleTimeoutMs = TRUE;
-    Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
-    Settings.StreamMultiReceiveEnabled = TRUE;
     Settings.PeerUnidiStreamCount = (std::numeric_limits<std::uint16_t>::max());
     Settings.IsSet.PeerUnidiStreamCount = TRUE;
     moqtClient->set_Settings(&Settings, sizeof(Settings));
@@ -81,8 +79,6 @@ std::unique_ptr<MOQTServer> server_setup()
     Settings.IsSet.ServerResumptionLevel = TRUE;
     Settings.PeerBidiStreamCount = 1;
     Settings.IsSet.PeerBidiStreamCount = TRUE;
-    Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
-    Settings.StreamMultiReceiveEnabled = TRUE;
     moqtServer->set_Settings(&Settings, sizeof(Settings));
 
     // certificates
@@ -133,10 +129,10 @@ int main()
         std::unique_ptr<MOQTClient> moqtClient = client_setup();
 
         SubscriptionBuilder subscriptionBuilder;
-        subscriptionBuilder.set_data_range<SubscriptionBuilder::Filter::AbsoluteRange>(
-        std::size_t(0), std::size_t(0), std::size_t(0), std::size_t(1));
+        subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::absoluteRange,
+                                           { 0, 0 }, { 0, 1 });
         subscriptionBuilder.set_track_alias(0);
-        subscriptionBuilder.set_track_namespace("tnamespace");
+        subscriptionBuilder.set_track_namespace({ "tnamespace" });
         subscriptionBuilder.set_track_name("tname");
         subscriptionBuilder.set_subscriber_priority(0);
         subscriptionBuilder.set_group_order(0);

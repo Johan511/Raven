@@ -1,28 +1,35 @@
 #pragma once
 
-#include <protobuf_messages.hpp>
+#include <serialization/messages.hpp>
 #include <utilities.hpp>
 
 namespace rvn
 {
 class SubscriptionBuilder
 {
-    static std::uint64_t subscribeIDCounter;
+    static thread_local std::uint64_t subscribeIDCounter_;
     /*
-        uint64 SubscribeID = 1;
-        uint64 TrackAlias = 2;
-        string TrackNamespace = 3;
-        string TrackName = 4;
-        uint32 SubscriberPriority = 5; // should be 8 bits
-        uint32 GroupOrder = 6; // should be 8 bits
-        SubscribeFilter FilterType = 7;
-        optional uint64 StartGroup = 8;
-        optional uint64 StartObject = 9;
-        optional uint64 EndGroup = 10;
-        optional uint64 EndObject = 11;
+        SUBSCRIBE Message {
+          Type (i) = 0x3,
+          Length (i),
+          Subscribe ID (i),
+          Track Alias (i),
+          Track Namespace (tuple),
+          Track Name Length (i),
+          Track Name (..),
+          Subscriber Priority (8),
+          Group Order (8),
+          Filter Type (i),
+          [StartGroup (i),
+           StartObject (i)],
+          [EndGroup (i),
+           EndObject (i)],
+          Number of Parameters (i),
+          Subscribe Parameters (..) ...
+        }
     */
 
-    protobuf_messages::SubscribeMessage subscribeMessage;
+    depracated::messages::SubscribeMessage subscribeMessage_;
 
     enum class SetElements
     {
@@ -33,7 +40,11 @@ class SubscriptionBuilder
         GroupOrder,
         Range // Filter type and object, group start/ends
     };
-    std::uint16_t setElementsCounter;
+    std::uint16_t setElementsCounter_;
+    constexpr std::uint64_t all_elements_set()
+    {
+        return 0b111111;
+    }
 
     static constexpr std::uint16_t full_value()
     {
@@ -43,8 +54,8 @@ class SubscriptionBuilder
 
     void set_defaults()
     {
-        subscribeMessage.set_subscribeid(subscribeIDCounter++);
-        setElementsCounter = 0;
+        subscribeMessage_.subscribeId_ = subscribeIDCounter_++;
+        setElementsCounter_ = 0;
     }
 
 public:
@@ -56,56 +67,114 @@ public:
 
     SubscriptionBuilder& set_track_alias(std::uint64_t trackAlias)
     {
-        subscribeMessage.set_trackalias(trackAlias);
-        setElementsCounter |= (1 << utils::to_underlying(SetElements::TrackAlias));
+        subscribeMessage_.trackAlias_ = trackAlias;
+        setElementsCounter_ |= (1 << utils::to_underlying(SetElements::TrackAlias));
         return *this;
     }
 
-    SubscriptionBuilder& set_track_namespace(const std::string& trackNamespace)
+    SubscriptionBuilder& set_track_namespace(std::vector<std::string> trackNamespace)
     {
-        subscribeMessage.set_tracknamespace(trackNamespace);
-        setElementsCounter |= (1 << utils::to_underlying(SetElements::TrackNamespace));
+        subscribeMessage_.trackNamespace_ = std::move(trackNamespace);
+        setElementsCounter_ |= (1 << utils::to_underlying(SetElements::TrackNamespace));
         return *this;
     }
 
-    SubscriptionBuilder& set_track_name(const std::string& trackName)
+    SubscriptionBuilder& set_track_name(std::string trackName)
     {
-        subscribeMessage.set_trackname(trackName);
-        setElementsCounter |= (1 << utils::to_underlying(SetElements::TrackName));
+        subscribeMessage_.trackName_ = std::move(trackName);
+        setElementsCounter_ |= (1 << utils::to_underlying(SetElements::TrackName));
         return *this;
     }
 
     SubscriptionBuilder& set_subscriber_priority(std::uint64_t subscriberPriority)
     {
-        subscribeMessage.set_subscriberpriority(subscriberPriority);
-        setElementsCounter |=
+        subscribeMessage_.subscriberPriority_ = subscriberPriority;
+        setElementsCounter_ |=
         (1 << utils::to_underlying(SetElements::SubscriberPriority));
         return *this;
     }
 
     SubscriptionBuilder& set_group_order(std::uint64_t groupOrder)
     {
-        subscribeMessage.set_grouporder(groupOrder);
-        setElementsCounter |= (1 << utils::to_underlying(SetElements::GroupOrder));
+        subscribeMessage_.groupOrder_ = groupOrder;
+        setElementsCounter_ |= (1 << utils::to_underlying(SetElements::GroupOrder));
         return *this;
     }
 
-    struct Filter
+    class Filter
     {
-        using protobuf_messages::SubscribeFilter::AbsoluteRange;
-        using protobuf_messages::SubscribeFilter::AbsoluteStart;
-        using protobuf_messages::SubscribeFilter::LatestGroup;
-        using protobuf_messages::SubscribeFilter::LatestObject;
+        friend SubscriptionBuilder;
+        struct LatestGroup
+        {
+            static constexpr auto filterType =
+            depracated::messages::SubscribeMessage::FilterType::LatestGroup;
+        };
+        struct LatestObject
+        {
+            static constexpr auto filterType =
+            depracated::messages::SubscribeMessage::FilterType::LatestObject;
+        };
+        struct AbsoluteStart
+        {
+            static constexpr auto filterType =
+            depracated::messages::SubscribeMessage::FilterType::AbsoluteStart;
+        };
+        struct AbsoluteRange
+        {
+            static constexpr auto filterType =
+            depracated::messages::SubscribeMessage::FilterType::AbsoluteRange;
+        };
+
+
+    public:
+        static constexpr auto latestGroup = LatestGroup{};
+        static constexpr auto latestObject = LatestObject{};
+        static constexpr auto absoluteStart = AbsoluteStart{};
+        static constexpr auto absoluteRange = AbsoluteRange{};
     }; // namespace Filter
 
-    template <protobuf_messages::SubscribeFilter filter, typename... Args>
-    SubscriptionBuilder& set_data_range(Args... args);
 
-    protobuf_messages::SubscribeMessage build()
+    SubscriptionBuilder& set_data_range(Filter::LatestGroup f)
     {
-        utils::ASSERT_LOG_THROW(setElementsCounter == 0b111111,
-                                "Not all elements set in subscribe message");
-        auto message = std::move(subscribeMessage);
+        subscribeMessage_.filterType_ = f.filterType;
+        setElementsCounter_ |= (1 << utils::to_underlying(SetElements::Range));
+        return *this;
+    }
+    SubscriptionBuilder& set_data_range(Filter::LatestObject f)
+    {
+        subscribeMessage_.filterType_ = f.filterType;
+        setElementsCounter_ |= (1 << utils::to_underlying(SetElements::Range));
+        return *this;
+    }
+    SubscriptionBuilder&
+    set_data_range(Filter::AbsoluteStart f,
+                   depracated::messages::SubscribeMessage::GroupObjectPair start)
+    {
+        subscribeMessage_.filterType_ = f.filterType;
+        subscribeMessage_.start_ = start;
+        setElementsCounter_ |= (1 << utils::to_underlying(SetElements::Range));
+        return *this;
+    }
+
+
+    SubscriptionBuilder&
+    set_data_range(Filter::AbsoluteRange f,
+                   depracated::messages::SubscribeMessage::GroupObjectPair start,
+                   depracated::messages::SubscribeMessage::GroupObjectPair end)
+    {
+        subscribeMessage_.filterType_ = f.filterType;
+        subscribeMessage_.start_ = start;
+        subscribeMessage_.end_ = end;
+        setElementsCounter_ |= (1 << utils::to_underlying(SetElements::Range));
+        return *this;
+    }
+
+    depracated::messages::SubscribeMessage build()
+    {
+        utils::ASSERT_LOG_THROW(setElementsCounter_ == all_elements_set(),
+                                "Not all elements set in subscribe message",
+                                setElementsCounter_);
+        auto message = std::move(subscribeMessage_);
         set_defaults();
 
         return message;

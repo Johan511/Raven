@@ -8,7 +8,8 @@
 #include <queue>
 //////////////////////////////
 #include <definitions.hpp>
-#include <protobuf_messages.hpp>
+#include <deserializer.hpp>
+#include <message_handler.hpp>
 #include <serialization/serialization.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
@@ -28,6 +29,7 @@ struct StreamContext
 {
     class MOQT* moqtObject;
     HQUIC connection;
+    serialization::Deserializer<NewMessageHandler> deserializer_;
     StreamContext(MOQT* moqtObject_, HQUIC connection_)
     : moqtObject(moqtObject_), connection(connection_) {};
 };
@@ -100,7 +102,6 @@ struct StreamState
     }
 };
 
-
 struct ConnectionState
 {
     // StreamManager //////////////////////////////////////////////////////////////
@@ -129,7 +130,7 @@ struct ConnectionState
     class MOQT* moqtObject = nullptr;
 
     std::string path;
-    protobuf_messages::Role peerRole;
+    // TODO: role
 
     // Only for Subscribers
     // TODO: We can have multiple subscriptions
@@ -140,8 +141,6 @@ struct ConnectionState
     : connection_(std::move(connection)), moqtObject(moqtObject_)
     {
     }
-
-    bool check_subscription(const protobuf_messages::SubscribeMessage& subscribeMessage);
 
     const std::vector<StreamState>& get_data_streams() const;
     std::vector<StreamState>& get_data_streams();

@@ -1,12 +1,12 @@
 #pragma once
 ////////////////////////////////////////////
+#include <moqt_base.hpp>
 #include <msquic.h>
+#include <serialization/messages.hpp>
 ////////////////////////////////////////////
 #include <cstdint>
 ////////////////////////////////////////////
 #include <contexts.hpp>
-#include <message_handlers.hpp>
-#include <protobuf_messages.hpp>
 #include <serialization/serialization.hpp>
 #include <subscription_manager.hpp>
 #include <utilities.hpp>
@@ -24,68 +24,13 @@ public:
     std::unordered_map<HQUIC, ConnectionState> connectionStateMap;
 
     void register_subscription(ConnectionState& connectionState,
-                               protobuf_messages::SubscribeMessage&& subscribeMessage)
+                               depracated::messages::SubscribeMessage&& subscribeMessage)
     {
         auto subscriptionState = SubscriptionManagerHandle
         {
         } -> try_register_subscription(connectionState, std::move(subscribeMessage));
     }
 
-    void handle_message_internal(ConnectionState& connectionState,
-                                 HQUIC streamHandle,
-                                 const auto* receiveInformation)
-    {
-        utils::ASSERT_LOG_THROW(connectionState.get_control_stream().has_value(),
-                                "Trying to interpret control message without "
-                                "control stream");
-
-        const QUIC_BUFFER* buffers = receiveInformation->Buffers;
-
-        std::stringstream iStringStream(
-        std::string(reinterpret_cast<const char*>(buffers[0].Buffer), buffers[0].Length));
-
-        return handle_message_internal(connectionState, streamHandle, iStringStream);
-    }
-
-    void handle_message_internal(ConnectionState& connectionState,
-                                 HQUIC streamHandle,
-                                 std::stringstream& iStringStream)
-    {
-        google::protobuf::io::IstreamInputStream istream(&iStringStream);
-
-        protobuf_messages::MessageHeader header =
-        serialization::deserialize<protobuf_messages::MessageHeader>(istream);
-
-        /* TODO, split into client and server interpret functions helps reduce
-         * the number of branches NOTE: This is the message received, which
-         * means that the client will interpret the server's message and vice
-         * verse CLIENT_SETUP is received by server and SERVER_SETUP is received
-         * by client
-         */
-
-        StreamState& streamState =
-        *get_stream_state(connectionState.connection_.get(), streamHandle);
-
-        MessageHandler messageHandler(*this, connectionState);
-
-        switch (header.messagetype())
-        {
-            case protobuf_messages::MoQtMessageType::CLIENT_SETUP:
-            {
-                // CLIENT sends to SERVER
-                messageHandler.template handle_message<protobuf_messages::ClientSetupMessage>(connectionState, istream);
-                break;
-            }
-            case protobuf_messages::MoQtMessageType::SUBSCRIBE:
-            {
-                // Client to Servevr
-                messageHandler.template handle_message<protobuf_messages::SubscribeMessage>(connectionState, istream);
-
-                break;
-            }
-            default: LOGE("Unknown control message type", header.messagetype());
-        }
-    }
     // map from connection HQUIC to connection state
     std::unordered_map<HQUIC, ConnectionState>& get_connectionStateMap()
     {

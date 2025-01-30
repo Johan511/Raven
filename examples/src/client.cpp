@@ -1,5 +1,4 @@
 #include <callbacks.hpp>
-#include <chrono>
 #include <contexts.hpp>
 #include <cstdint>
 #include <limits>
@@ -34,7 +33,7 @@ QUIC_CREDENTIAL_CONFIG* get_cred_config()
 int main()
 {
 
-    std::unique_ptr<MOQTClient> moqtClient = std::make_unique<MOQTClient>(); 
+    std::unique_ptr<MOQTClient> moqtClient = std::make_unique<MOQTClient>();
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "example1", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
     moqtClient->set_regConfig(&RegConfig);
@@ -43,8 +42,6 @@ int main()
     std::memset(&Settings, 0, sizeof(Settings));
     Settings.IdleTimeoutMs = 0;
     Settings.IsSet.IdleTimeoutMs = TRUE;
-    Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
-    Settings.StreamMultiReceiveEnabled = TRUE;
     Settings.PeerUnidiStreamCount = (std::numeric_limits<std::uint16_t>::max());
     Settings.IsSet.PeerUnidiStreamCount = TRUE;
     moqtClient->set_Settings(&Settings, sizeof(Settings));
@@ -67,9 +64,9 @@ int main()
     moqtClient->start_connection(QUIC_ADDRESS_FAMILY_UNSPEC, Target, UdpPort);
 
     SubscriptionBuilder subscriptionBuilder;
-    subscriptionBuilder.set_data_range<SubscriptionBuilder::Filter::LatestGroup>(std::size_t(0));
+    subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestGroup);
     subscriptionBuilder.set_track_alias(0);
-    subscriptionBuilder.set_track_namespace("tnamespace");
+    subscriptionBuilder.set_track_namespace({ "tnamespace" });
     subscriptionBuilder.set_track_name("tname");
     subscriptionBuilder.set_subscriber_priority(0);
     subscriptionBuilder.set_group_order(0);

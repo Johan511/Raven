@@ -1,3 +1,4 @@
+#include "serialization/messages.hpp"
 #include <atomic>
 #include <msquic.h>
 
@@ -36,18 +37,15 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
     quicConnectionStateSetupFlag_.store(true, std::memory_order_release);
 
     utils::wait_for(ravenConnectionSetupFlag_);
+    utils::LOG_EVENT(std::cout, "Client QUIC setup complete");
 }
 
-protobuf_messages::ClientSetupMessage MOQTClient::get_clientSetupMessage()
+depracated::messages::ClientSetupMessage MOQTClient::get_clientSetupMessage()
 {
-    protobuf_messages::ClientSetupMessage clientSetupMessage;
-    clientSetupMessage.set_numsupportedversions(1);
-    clientSetupMessage.add_supportedversions(version);
-    clientSetupMessage.add_numberofparameters(1);
-    auto* param1 = clientSetupMessage.add_parameters();
-    param1->mutable_path()->set_path("path");
-    param1->mutable_role()->set_role(protobuf_messages::Role::Subscriber);
+    depracated::messages::ClientSetupMessage clientSetupMessage;
+    clientSetupMessage.supportedVersions_ = { 1 };
 
+    // TODO: set role and path parameters
     return clientSetupMessage;
 }
 
