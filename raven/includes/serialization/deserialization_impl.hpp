@@ -298,4 +298,28 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
 
     return deserializedBytes;
 }
+
+static inline deserialize_return_t
+deserialize(rvn::depracated::messages::SubscribeUpdateMessage& subscribeUpdateMessage,
+            ds::ChunkSpan& span,
+            NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeUpdateMessage.subscribeId_, span);
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeUpdateMessage.startGroup_, span);
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeUpdateMessage.startObject_, span);
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeUpdateMessage.endGroup_, span);
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeUpdateMessage.endObject_, span);
+    deserializedBytes +=
+    deserialize_trivial<std::uint8_t>(subscribeUpdateMessage.subscriberPriority_, span);
+    deserializedBytes += deserialize_params(subscribeUpdateMessage.parameters_, span);
+
+    return deserializedBytes;
+}
 } // namespace rvn::serialization::detail

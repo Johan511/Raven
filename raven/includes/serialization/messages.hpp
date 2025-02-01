@@ -286,14 +286,47 @@ struct GoAwayMessage
       Subscribe Parameters (..) ...
     }
 */
-struct SubscribeUpdateMessage
+struct SubscribeUpdateMessage : public ControlMessageBase
 {
-    iType subscribeId;
-    iType trackAlias;
-    iType group;
-    iType object;
-    // iType numberOfParameters;
-    std::vector<Parameter> params;
+    std::uint64_t subscribeId_;
+    std::uint64_t startGroup_;
+    std::uint64_t startObject_;
+    std::uint64_t endGroup_;
+    std::uint64_t endObject_;
+    std::uint8_t subscriberPriority_;
+    std::vector<rvn::depracated::messages::Parameter> parameters_;
+
+    SubscribeUpdateMessage()
+    : ControlMessageBase(MoQtMessageType::SUBSCRIBE_UPDATE)
+    {
+    }
+
+    bool operator==(const SubscribeUpdateMessage& rhs) const
+    {
+        bool isEqual = true;
+
+        isEqual &= subscribeId_ == rhs.subscribeId_;
+        isEqual &= startGroup_ == rhs.startGroup_;
+        isEqual &= startObject_ == rhs.startObject_;
+        isEqual &= endGroup_ == rhs.endGroup_;
+        isEqual &= endObject_ == rhs.endObject_;
+        isEqual &= subscriberPriority_ == rhs.subscriberPriority_;
+        isEqual &= parameters_ == rhs.parameters_;
+
+        return isEqual;
+    }
+
+    friend inline std::ostream&
+    operator<<(std::ostream& os, const SubscribeUpdateMessage& msg)
+    {
+        os << "SubscribeId: " << msg.subscribeId_ << " StartGroup: " << msg.startGroup_
+           << " StartObject: " << msg.startObject_
+           << " EndGroup: " << msg.endGroup_ << " EndObject: " << msg.endObject_
+           << " SubscriberPriority: " << msg.subscriberPriority_ << " Parameters: ";
+        for (const auto& parameter : msg.parameters_)
+            os << parameter;
+        return os;
+    }
 };
 
 /*
