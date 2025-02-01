@@ -299,9 +299,10 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
     return deserializedBytes;
 }
 
+template <typename ConstSpan>
 static inline deserialize_return_t
 deserialize(rvn::depracated::messages::SubscribeUpdateMessage& subscribeUpdateMessage,
-            ds::ChunkSpan& span,
+            ConstSpan& span,
             NetworkEndian = network_endian)
 {
     std::uint64_t deserializedBytes = 0;
