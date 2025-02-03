@@ -377,5 +377,29 @@ serialize(ds::chunk& c,
 
     return headerLen + msgLen;
 }
+#//GOAWAY MESSAGE SERIALISATION
+template <typename ToEndianess = NetworkEndian>
+serialize_return_t
+serialize(ds::chunk& c,
+          const rvn::depracated::messages::GoAwayMessage& goawayMessage,
+          ToEndianess = network_endian)
+{
+    std::uint64_t msgLen = 0;
+    {
+        msgLen += mock_serialize<ds::quic_var_int>(goawayMessage.newSessionURI_.size());
+        msgLen += goawayMessage.newSessionURI_.size();
 
+    }
+
+    // header
+    std::uint64_t headerLen = 0;
+    headerLen +=
+    serialize<ds::quic_var_int>(c, utils::to_underlying(depracated::messages::MoQtMessageType::GOAWAY),
+                                ToEndianess{});
+    headerLen += serialize<ds::quic_var_int>(c, msgLen, ToEndianess{});
+    // body
+    serialize<ds::quic_var_int>(c, goawayMessage.newSessionURI_.size(), ToEndianess{});
+    c.append(goawayMessage.newSessionURI_.data(), goawayMessage.newSessionURI_.size());
+    return headerLen + msgLen;
+}
 } // namespace rvn::serialization::detail

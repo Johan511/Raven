@@ -270,11 +270,27 @@ struct SubscribeMessage : public ControlMessageBase
       New Session URI (b)
     }
 */
-struct GoAwayMessage
+struct GoAwayMessage : public ControlMessageBase
 {
-    BinaryBufferData newSessionURI;
-};
+    BinaryBufferData newSessionURI_;
+    // std::uint64_t newSessionURILength_;
+    GoAwayMessage() : ControlMessageBase(MoQtMessageType::GOAWAY){
 
+    }
+    bool operator==(const GoAwayMessage& rhs) const
+    {
+        bool isEqual = true;
+
+        isEqual &= newSessionURI_ == rhs.newSessionURI_;
+        // isEqual &= newSessionURILength_ == rhs.newSessionURILength_;
+        return isEqual;
+    }
+    friend inline std::ostream& operator<<(std::ostream& os, const GoAwayMessage& msg)
+    {
+        os << "NewSessionURI: " << msg.newSessionURI_ ;
+        return os;
+    }
+};
 /*
     SUBSCRIBE_UPDATE Message {
       Subscribe ID (i),

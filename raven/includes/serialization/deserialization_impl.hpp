@@ -297,4 +297,25 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
 
     return deserializedBytes;
 }
+
+using BinaryBufferData = std::string;
+
+// Deserialisation of GOAWAY MESSAGE
+
+static inline deserialize_return_t
+deserialize(rvn::depracated::messages::GoAwayMessage& goawayMessage,
+            ds::ChunkSpan& span,
+            NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    std::uint64_t newsessionURI;
+    deserializedBytes += deserialize<ds::quic_var_int>(newsessionURI, span);
+    goawayMessage.newSessionURI_= std::string(newsessionURI, '\0');
+    span.copy_to(goawayMessage.newSessionURI_.data(),newsessionURI);
+    span.advance_begin(newsessionURI);
+    
+    return deserializedBytes;
+}
+
 } // namespace rvn::serialization::detail
