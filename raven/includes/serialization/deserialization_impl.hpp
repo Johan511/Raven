@@ -284,22 +284,25 @@ deserialize(rvn::SubscribeMessage& subscribeMessage, ConstSpan& span, NetworkEnd
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::SubscribeErrorMessage& subscribeErrorMessage,
-            ConstSpan& span,
-            NetworkEndian = network_endian)
+deserialize(rvn::SubscribeErrorMessage& subscribeErrorMessage, ConstSpan& span, NetworkEndian = network_endian)
 {
     std::uint64_t deserializedBytes = 0;
 
     // Deserialize body
-    deserializedBytes += deserialize<ds::quic_var_int>(subscribeErrorMessage.subscribeId_, span);
-    deserializedBytes += deserialize<ds::quic_var_int>(subscribeErrorMessage.errorCode_, span);
-    deserializedBytes += deserialize<ds::quic_var_int>(subscribeErrorMessage.reasonPhraseLength_, span);
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeErrorMessage.subscribeId_, span);
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeErrorMessage.errorCode_, span);
+
     std::uint64_t reasonPhraseLength;
-    deserializedBytes += deserialize<ds::quic_var_int>(reasonPhraseLength, span);   
-    subscribeErrorMessage.reasonPhrase_ = std::string(span.data(), span.data() + reasonPhraseLength);
+    deserializedBytes += deserialize<ds::quic_var_int>(reasonPhraseLength, span);
+
+    subscribeErrorMessage.reasonPhrase_.resize(reasonPhraseLength);
+    span.copy_to(subscribeErrorMessage.reasonPhrase_.data(), reasonPhraseLength);
     span.advance_begin(reasonPhraseLength);
 
-    deserializedBytes += deserialize<ds::quic_var_int>(subscribeErrorMessage.trackAlias_, span);
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeErrorMessage.trackAlias_, span);
 
     return deserializedBytes;
 }

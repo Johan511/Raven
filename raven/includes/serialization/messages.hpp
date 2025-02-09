@@ -510,36 +510,26 @@ struct SubscribeOkMessage
     } ;
  */
 
-struct SubscribeErrorMessage : public ControlMessageBase {
+struct SubscribeErrorMessage : public ControlMessageBase
+{
     std::uint64_t subscribeId_;
     std::uint64_t errorCode_;
-    std::uint64_t reasonPhraseLength_;
     std::string reasonPhrase_;
     std::uint64_t trackAlias_;
     // implement default constructor
-    SubscribeErrorMessage() : ControlMessageBase(MoQtMessageType::SUBSCRIBE_ERROR) 
-        {
-        }
-
-    bool operator==(const SubscribeErrorMessage& other) const 
+    SubscribeErrorMessage()
+    : ControlMessageBase(MoQtMessageType::SUBSCRIBE_ERROR)
     {
-        bool isEqual = true;
-        isEqual &= subscribeId_ == other.subscribeId_;
-        isEqual &= errorCode_ == other.errorCode_;
-        isEqual &= reasonPhraseLength_ == other.reasonPhraseLength_;
-        isEqual &= reasonPhrase_ == other.reasonPhrase_;
-        isEqual &= trackAlias_ == other.trackAlias_;
-        return isEqual;
     }
 
-    friend inline std::ostream& 
+    bool operator==(const SubscribeErrorMessage& other) const = default;
+
+    friend inline std::ostream&
     operator<<(std::ostream& os, const SubscribeErrorMessage& msg)
     {
         os << "SubscribeId: " << msg.subscribeId_ << " ErrorCode: " << msg.errorCode_
-           << " ReasonPhraseLength: " << msg.reasonPhraseLength_
            << " ReasonPhrase: " << msg.reasonPhrase_ << " TrackAlias: " << msg.trackAlias_;
         return os;
-        
     }
 };
 
