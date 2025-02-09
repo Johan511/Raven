@@ -22,11 +22,11 @@ void byte_sized_tests(std::size_t from, std::size_t to) // [from, to)
         try
         {
             std::uint64_t i = value;
-            detail::serialize<ds::quic_var_int>(c, i);
+            serialization::detail::serialize<ds::quic_var_int>(c, i);
 
             ds::ChunkSpan span(c);
             std::uint64_t deserialized;
-            detail::deserialize<ds::quic_var_int>(deserialized, span);
+            serialization::detail::deserialize<ds::quic_var_int>(deserialized, span);
 
             utils::ASSERT_LOG_THROW(value == deserialized,
                                     "Failed to deserialize value: ", value,
@@ -49,11 +49,11 @@ void bit_64_test_impl(std::uint64_t value)
     try
     {
         ds::quic_var_int i = value;
-        detail::serialize<ds::quic_var_int>(c, i);
+        serialization::detail::serialize<ds::quic_var_int>(c, i);
 
         ds::ChunkSpan span(c);
         std::uint64_t deserialized;
-        detail::deserialize<ds::quic_var_int>(deserialized, span);
+        serialization::detail::deserialize<ds::quic_var_int>(deserialized, span);
 
         utils::ASSERT_LOG_THROW(value == deserialized, "Failed to deserialize value: ", value,
                                 "Deserialized to ", deserialized);

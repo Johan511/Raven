@@ -257,7 +257,7 @@ serialize(ds::chunk& c,
     // we need to find out length of the message we would be serializing
     {
         msgLen += mock_serialize<ds::quic_var_int>(subscribeMessage.subscribeId_);
-        msgLen += mock_serialize<ds::quic_var_int>(subscribeMessage.trackAlias_);
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeMessage.trackAlias_.get());
 
         msgLen +=
         mock_serialize<ds::quic_var_int>(subscribeMessage.trackNamespace_.size());
@@ -277,14 +277,18 @@ serialize(ds::chunk& c,
 
         if (subscribeMessage.start_.has_value())
         {
-            msgLen += mock_serialize<ds::quic_var_int>(subscribeMessage.start_->group_);
-            msgLen += mock_serialize<ds::quic_var_int>(subscribeMessage.start_->object_);
+            msgLen +=
+            mock_serialize<ds::quic_var_int>(subscribeMessage.start_->group_.get());
+            msgLen +=
+            mock_serialize<ds::quic_var_int>(subscribeMessage.start_->object_.get());
         }
 
         if (subscribeMessage.end_.has_value())
         {
-            msgLen += mock_serialize<ds::quic_var_int>(subscribeMessage.end_->group_);
-            msgLen += mock_serialize<ds::quic_var_int>(subscribeMessage.end_->object_);
+            msgLen +=
+            mock_serialize<ds::quic_var_int>(subscribeMessage.end_->group_.get());
+            msgLen +=
+            mock_serialize<ds::quic_var_int>(subscribeMessage.end_->object_.get());
         }
 
         msgLen += mock_serialize<ds::quic_var_int>(subscribeMessage.parameters_.size());
@@ -306,7 +310,7 @@ serialize(ds::chunk& c,
 
     // body
     serialize<ds::quic_var_int>(c, subscribeMessage.subscribeId_, ToEndianess{});
-    serialize<ds::quic_var_int>(c, subscribeMessage.trackAlias_, ToEndianess{});
+    serialize<ds::quic_var_int>(c, subscribeMessage.trackAlias_.get(), ToEndianess{});
 
     serialize<ds::quic_var_int>(c, subscribeMessage.trackNamespace_.size(), ToEndianess{});
     for (const auto& ns : subscribeMessage.trackNamespace_)
@@ -325,14 +329,15 @@ serialize(ds::chunk& c,
 
     if (subscribeMessage.start_.has_value())
     {
-        serialize<ds::quic_var_int>(c, subscribeMessage.start_->group_, ToEndianess{});
-        serialize<ds::quic_var_int>(c, subscribeMessage.start_->object_, ToEndianess{});
+        serialize<ds::quic_var_int>(c, subscribeMessage.start_->group_.get(), ToEndianess{});
+        serialize<ds::quic_var_int>(c, subscribeMessage.start_->object_.get(),
+                                    ToEndianess{});
     }
 
     if (subscribeMessage.end_.has_value())
     {
-        serialize<ds::quic_var_int>(c, subscribeMessage.end_->group_, ToEndianess{});
-        serialize<ds::quic_var_int>(c, subscribeMessage.end_->object_, ToEndianess{});
+        serialize<ds::quic_var_int>(c, subscribeMessage.end_->group_.get(), ToEndianess{});
+        serialize<ds::quic_var_int>(c, subscribeMessage.end_->object_.get(), ToEndianess{});
     }
 
     serialize<ds::quic_var_int>(c, subscribeMessage.parameters_.size(), ToEndianess{});
@@ -356,9 +361,9 @@ serialize(ds::chunk& c,
     std::uint64_t msgLen = 0;
     // we need to find out length of the message we would be serializing
     {
-        msgLen += mock_serialize<ds::quic_var_int>(msg.trackAlias_);
-        msgLen += mock_serialize<ds::quic_var_int>(msg.groupId_);
-        msgLen += mock_serialize<ds::quic_var_int>(msg.subgroupId_);
+        msgLen += mock_serialize<ds::quic_var_int>(msg.trackAlias_.get());
+        msgLen += mock_serialize<ds::quic_var_int>(msg.groupId_.get());
+        msgLen += mock_serialize<ds::quic_var_int>(msg.subgroupId_.get());
         msgLen += mock_serialize<std::uint8_t>(msg.publisherPriority_);
     }
 
@@ -376,6 +381,30 @@ serialize(ds::chunk& c,
     serialize<std::uint8_t>(c, msg.publisherPriority_, ToEndianess{});
 
     return headerLen + msgLen;
+}
+
+template <typename ToEndianess = NetworkEndian>
+serialize_return_t
+serialize(ds::chunk& c,
+          const depracated::messages::StreamHeaderSubgroupObject& msg,
+          ToEndianess = network_endian)
+{
+    std::uint64_t msgLen = 0;
+    // we need to find out length of the message we would be serializing
+    {
+        msgLen += mock_serialize<ds::quic_var_int>(msg.objectId_);
+        msgLen += mock_serialize<ds::quic_var_int>(msg.payload_.size());
+        msgLen += msg.payload_.size();
+    }
+
+    // no header for object messages
+
+    // body
+    serialize<ds::quic_var_int>(c, msg.objectId_, ToEndianess{});
+    serialize<ds::quic_var_int>(c, msg.payload_.size(), ToEndianess{});
+    c.append(msg.payload_.data(), msg.payload_.size());
+
+    return msgLen;
 }
 
 } // namespace rvn::serialization::detail

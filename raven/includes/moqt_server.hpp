@@ -1,12 +1,13 @@
 #pragma once
 ////////////////////////////////////////////
+#include "data_manager.hpp"
+#include <cstdint>
+#include <fstream>
+////////////////////////////////////////////
+#include <contexts.hpp>
 #include <moqt_base.hpp>
 #include <msquic.h>
 #include <serialization/messages.hpp>
-////////////////////////////////////////////
-#include <cstdint>
-////////////////////////////////////////////
-#include <contexts.hpp>
 #include <serialization/serialization.hpp>
 #include <subscription_manager.hpp>
 #include <utilities.hpp>
@@ -19,25 +20,19 @@ namespace rvn
 class MOQTServer : public MOQT
 {
     rvn::unique_listener listener;
-
 public:
-    std::unordered_map<HQUIC, ConnectionState> connectionStateMap;
-
-    void register_subscription(ConnectionState& connectionState,
-                               depracated::messages::SubscribeMessage&& subscribeMessage)
-    {
-        auto subscriptionState = SubscriptionManagerHandle
-        {
-        } -> try_register_subscription(connectionState, std::move(subscribeMessage));
-    }
+    std::shared_ptr<DataManager> dataManager_;
+    std::shared_ptr<SubscriptionManager> subscriptionManager_;
+    std::unordered_map<HQUIC, std::shared_ptr<ConnectionState>> connectionStateMap;
 
     // map from connection HQUIC to connection state
-    std::unordered_map<HQUIC, ConnectionState>& get_connectionStateMap()
+    auto& get_connectionStateMap()
     {
         return connectionStateMap;
     }
 
-    MOQTServer();
+    MOQTServer(std::shared_ptr<DataManager> dataManager,
+               std::shared_ptr<SubscriptionManager> subscriptionManager);
 
     void start_listener(QUIC_ADDR* LocalAddress);
 
@@ -47,7 +42,7 @@ public:
 
     StreamState* get_stream_state(HQUIC connectionHandle, HQUIC streamHandle)
     {
-        ConnectionState& connectionState = connectionStateMap.at(connectionHandle);
+        ConnectionState& connectionState = *connectionStateMap.at(connectionHandle);
         if (connectionState.get_control_stream().has_value() &&
             connectionState.get_control_stream().value().stream.get() == streamHandle)
         {
@@ -95,7 +90,8 @@ public:
         unique_connection connection = unique_connection(tbl.get(), connectionHandle);
 
         connectionStateMap.emplace(connectionHandle,
-                                   ConnectionState{ std::move(connection), *this });
+                                   std::make_shared<ConnectionState>(std::move(connection),
+                                                                     *this));
 
         return QUIC_STATUS_SUCCESS;
     }
@@ -110,7 +106,7 @@ public:
     QUIC_STATUS accept_control_stream(HQUIC connection, auto newStreamInfo)
     {
         // get connection state object
-        ConnectionState& connectionState = connectionStateMap.at(connection);
+        ConnectionState& connectionState = *connectionStateMap.at(connection);
 
         return connectionState.accept_control_stream(newStreamInfo.Stream);
     }

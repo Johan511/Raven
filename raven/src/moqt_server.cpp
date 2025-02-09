@@ -8,7 +8,10 @@
 namespace rvn
 {
 
-MOQTServer::MOQTServer() : MOQT(HostType::SERVER) {};
+MOQTServer::MOQTServer(std::shared_ptr<DataManager> dataManager,
+                       std::shared_ptr<SubscriptionManager> subscriptionManager)
+: MOQT(HostType::SERVER), dataManager_(dataManager),
+  subscriptionManager_(subscriptionManager) {};
 
 void MOQTServer::start_listener(QUIC_ADDR* LocalAddress)
 {

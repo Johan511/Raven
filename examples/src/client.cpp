@@ -65,7 +65,7 @@ int main()
 
     SubscriptionBuilder subscriptionBuilder;
     subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestGroup);
-    subscriptionBuilder.set_track_alias(0);
+    subscriptionBuilder.set_track_alias(TrackAlias(0));
     subscriptionBuilder.set_track_namespace({ "tnamespace" });
     subscriptionBuilder.set_track_name("tname");
     subscriptionBuilder.set_subscriber_priority(0);

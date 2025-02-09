@@ -96,7 +96,7 @@ ConnectionState* MOQT::get_connectionState(HQUIC connectionHandle)
                                 thisClient->connectionState->connection_.get(),
                                 "Connection handle does not match");
 
-        return std::addressof(*thisClient->connectionState);
+        return thisClient->connectionState.get();
     }
     else
     {
@@ -104,7 +104,7 @@ ConnectionState* MOQT::get_connectionState(HQUIC connectionHandle)
         auto iter = thisServer->connectionStateMap.find(connectionHandle);
         if (iter == thisServer->connectionStateMap.end())
             return nullptr;
-        return std::addressof(iter->second);
+        return iter->second.get();
     }
 }
 StreamState* MOQT::get_stream_state(HQUIC connectionHandle, HQUIC streamHandle)

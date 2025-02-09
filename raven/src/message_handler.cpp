@@ -1,7 +1,6 @@
-#include "serialization/serialization.hpp"
+#include <serialization/serialization.hpp>
 #include <message_handler.hpp>
 #include <moqt.hpp>
-#include <serialization/messages.hpp>
 
 namespace rvn
 {
@@ -28,6 +27,13 @@ void MessageHandler::operator()(depracated::messages::ServerSetupMessage serverS
 void MessageHandler::operator()(depracated::messages::SubscribeMessage subscribeMessage)
 {
     utils::LOG_EVENT(std::cout, "Subscribe Message received: \n", subscribeMessage);
+    TrackIdentifier trackIdentifier(subscribeMessage.trackNamespace_,
+                                    subscribeMessage.trackName_);
+    streamState_.connectionState_.add_track_alias(std::move(trackIdentifier),
+                                                  subscribeMessage.trackAlias_);
+
+    subscriptionManager_.add_subscription(streamState_.connectionState_.weak_from_this(),
+                                          std::move(subscribeMessage));
 }
 
 void MessageHandler::operator()(const auto& unknownMessage)

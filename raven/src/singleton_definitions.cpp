@@ -4,8 +4,5 @@
 
 namespace rvn
 {
-SubscriptionManager* SubscriptionManagerHandle::instance = nullptr;
-DataManager* DataManagerHandle::instance = nullptr;
-
 
 } // namespace rvn

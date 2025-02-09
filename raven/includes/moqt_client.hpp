@@ -22,7 +22,7 @@ class MOQTClient : public MOQT
 public:
     // ConnectionState is not default constructable
     // so we need to have a optional wrapper
-    std::optional<ConnectionState> connectionState;
+    std::shared_ptr<ConnectionState> connectionState;
     StableContainer<MPMCQueue<std::string>> objectQueues;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

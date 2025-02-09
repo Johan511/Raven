@@ -1,284 +1,169 @@
 #pragma once
 
-#include <boost/functional/hash.hpp>
-#include <contexts.hpp>
-#include <filesystem>
-#include <fstream>
-#include <limits>
+#include <data_manager.hpp>
+#include <definitions.hpp>
 #include <optional>
-#include <ostream>
+#include <serialization/messages.hpp>
 #include <serialization/serialization.hpp>
-#include <sstream>
-#include <string>
-#include <unordered_map>
+#include <strong_types.hpp>
 #include <utilities.hpp>
-#include "serialization/messages.hpp"
 
 namespace rvn
 {
 
-struct TrackIdentifier
-{
-    std::vector<std::string> tracknamespace;
-    std::string trackname;
+class ConnectionState;
 
-    bool operator==(const TrackIdentifier& other) const
-    {
-        return tracknamespace == other.tracknamespace && trackname == other.trackname;
-    }
+struct SubscriptionStateErr
+{
+    // clang-format off
+    struct ConnectionExpired{};
+    struct ObjectDoesNotExist{};
+    // clang-format on
 };
 
-struct GroupIdentifier : public TrackIdentifier
+// bool is true => subscription fullfilled
+// bool is false => continue to next object
+using FullfillSomeReturn =
+std::variant<bool, SubscriptionStateErr::ConnectionExpired, SubscriptionStateErr::ObjectDoesNotExist>;
+
+// Each stream corresponds to one minor subscription state
+class MinorSubscriptionState
 {
-    std::uint64_t groupId;
-
-    bool operator==(const GroupIdentifier& other) const
-    {
-        return TrackIdentifier::operator==(other) && groupId == other.groupId;
-    }
-};
-
-struct ObjectIdentifier : public GroupIdentifier
-{
-    std::uint64_t objectId;
-
-    bool operator==(const ObjectIdentifier& other) const
-    {
-        return GroupIdentifier::operator==(other) && objectId == other.objectId;
-    }
-
-    friend inline std::ostream& operator<<(std::ostream& os, const ObjectIdentifier& oid)
-    {
-        for (const auto& ns : oid.tracknamespace)
-            os << ns << "/";
-        os << oid.trackname << " " << oid.groupId << " " << oid.objectId << " ";
-        return os;
-    }
-};
-
-
-struct SubscriptionState
-{
-    std::optional<ObjectIdentifier> objectToSend{};
-
-    std::optional<ObjectIdentifier> lastObjectToSend{};
-};
-
-
-class DataManager
-{
-    friend class SubscriptionManager;
-
-    std::string get_path_string(const TrackIdentifier& trackIdentifier)
-    {
-        std::string pathString = DATA_DIRECTORY;
-        for (const auto& ns : trackIdentifier.tracknamespace)
-            pathString += ns + "/";
-        pathString += trackIdentifier.trackname + "/";
-        return pathString;
-    }
-
-    std::string get_path_string(const GroupIdentifier& groupIdentifier)
-    {
-        return get_path_string(static_cast<TrackIdentifier>(groupIdentifier)) +
-               std::to_string(groupIdentifier.groupId) + "/";
-    }
-
-    std::string get_path_string(const ObjectIdentifier& objectIdentifier)
-    {
-        return get_path_string(static_cast<GroupIdentifier>(objectIdentifier)) +
-               std::to_string(objectIdentifier.objectId);
-    }
-
+    friend class SubscriptionState;
+    class SubscriptionState* subscriptionState_;
+    ObjectIdentifier objectToSend_;
+    std::optional<ObjectIdentifier> lastObjectToBeSent_;
 
 public:
-    /*
-        * @brief Get the object from the file system
-        * @param objectIdentifier
-    */
-    std::optional<std::string> get_object(ObjectIdentifier objectIdentifier)
+    MinorSubscriptionState(SubscriptionState& subscriptionState,
+                           ObjectIdentifier objectToSend,
+                           std::optional<ObjectIdentifier> lastObjectToBeSent);
+
+    // returs true if minor subscription state has been fulfilled
+    FullfillSomeReturn fulfill_some_minor();
+
+    ~MinorSubscriptionState()
     {
-        std::string objectLocation = get_path_string(objectIdentifier);
-        utils::LOG_EVENT(std::cout, "Reading object from: ", objectLocation);
-
-        if (!std::filesystem::exists(objectLocation))
-        {
-            utils::ASSERT_LOG_THROW(false, "Object: ", objectIdentifier,
-                                    "\ndoes not exist at location\n", objectLocation);
-            return {};
-        }
-
-        std::ifstream file(std::move(objectLocation));
-        std::stringstream ss;
-        ss << file.rdbuf();
-
-        return std::move(ss).str();
-    }
-
-    std::uint64_t first_object_id(const GroupIdentifier& groupIdentifier)
-    {
-        std::uint64_t firstObjectId = std::numeric_limits<std::uint64_t>::max();
-        std::filesystem::path directoryPath = get_path_string(groupIdentifier);
-        for (const auto& entry : std::filesystem::directory_iterator(directoryPath))
-        {
-            firstObjectId = std::min(firstObjectId, std::stoul(*--entry.path().end()));
-        }
-
-        return firstObjectId;
-    }
-
-    std::uint64_t latest_object_id(const GroupIdentifier& groupIdentifier)
-    {
-        namespace fs = std::filesystem;
-        fs::path path = get_path_string(groupIdentifier);
-        std::optional<fs::directory_entry> lastEntry;
-        for (const auto& entry : fs::directory_iterator(path))
-            lastEntry = entry;
-
-        return std::stoull(lastEntry->path().filename());
-    }
-
-    void next(SubscriptionState& subscriptionState)
-    {
-        subscriptionState.objectToSend->objectId++;
+        // TODO: notify the connection state if it exists that cleanup should be done
     }
 };
 
-DECLARE_SINGLETON(DataManager);
+// Each subscription state corresponds to one subscription message
+class SubscriptionState
+{
+    friend MinorSubscriptionState;
+    // NOTE: should be protected by checking if it actually exists
+    std::weak_ptr<ConnectionState> connectionStateWeakPtr_;
+    // can not be reference because we need Subscription State to be assignable (while removing it from vector)
+    DataManager* dataManager_;
+    class SubscriptionManager* subscriptionManager_;
+    depracated::messages::SubscribeMessage subscriptionMessage_;
 
-// Required weak linkage because I need them to have external linkage (so can not use static) (to avoid Wsubobject-linkage from its use in SubscriptionManager)
-#ifndef __clang__
-WEAK_LINKAGE // weak linkage required only in g++ compiler, check reason
-#endif
-auto SubscriptionMessageHash = [](const depracated::messages::SubscribeMessage& subscribeMessage)
-{ return subscribeMessage.subscribeId_; };
+    std::vector<MinorSubscriptionState> minorSubscriptionStates_;
 
-#ifndef __clang__
-WEAK_LINKAGE // weak linkage required only in g++ compiler, check reason
-#endif
-auto SubscriptionMessageKeyEqual = [](const depracated::messages::SubscribeMessage& lhs,
-                                      const depracated::messages::SubscribeMessage& rhs)
-{ return lhs.subscribeId_ == rhs.subscribeId_; };
+    void error_handler(SubscriptionStateErr::ConnectionExpired);
+    void error_handler(SubscriptionStateErr::ObjectDoesNotExist);
 
+public:
+    bool cleanup_;
+    SubscriptionState(std::weak_ptr<ConnectionState>&& connectionState,
+                      DataManager& dataManager,
+                      SubscriptionManager& subscriptionManager,
+                      depracated::messages::SubscribeMessage subscriptionMessage);
+
+    FullfillSomeReturn fulfill_some();
+
+    std::weak_ptr<ConnectionState>& get_connection_state_weak_ptr() noexcept
+    {
+        return connectionStateWeakPtr_;
+    }
+
+    const std::weak_ptr<ConnectionState>& get_connection_state_weak_ptr() const noexcept
+    {
+        return connectionStateWeakPtr_;
+    }
+
+    ~SubscriptionState()
+    {
+        utils::ASSERT_LOG_THROW(cleanup_, "Subscription not meant for cleanup "
+                                          "is being destroyed");
+    }
+};
 
 class SubscriptionManager
 {
-public:
-    std::unordered_map<ConnectionState*, std::unordered_map<depracated::messages::SubscribeMessage, SubscriptionState, decltype(SubscriptionMessageHash), decltype(SubscriptionMessageKeyEqual)>>
-    subscriptionStates;
+    class DataManager& dataManager_;
 
-    static SubscriptionState
-    build_subscription_state(depracated::messages::SubscribeMessage& subscribeMessage)
+    // holds subscriptions messages which need to be processed and start executing
+    MPMCQueue<std::tuple<std::weak_ptr<ConnectionState>, depracated::messages::SubscribeMessage>> subscriptionQueue_;
+    struct ThreadLocalState
     {
-        SubscriptionState subscriptionState;
+        SubscriptionManager& subscriptionManager_;
+        // subscription state which this thread is handling
+        std::vector<SubscriptionState> subscriptionStates_;
 
-        TrackIdentifier track{ subscribeMessage.trackNamespace_,
-                               subscribeMessage.trackName_ };
-
-        std::uint64_t currentGroup = 0; // TODO what is current group
-        switch (subscribeMessage.filterType_)
+        void operator()()
         {
-            case depracated::messages::SubscribeMessage::FilterType::LatestGroup:
+            while (true)
             {
-                GroupIdentifier latestGroup{ track, currentGroup };
-                ObjectIdentifier latestObject{ latestGroup, DataManagerHandle{}
-                                               -> first_object_id(latestGroup) };
+                auto& subscriptionQueue_ = subscriptionManager_.subscriptionQueue_;
 
-                subscriptionState.objectToSend = latestObject;
+                std::tuple<std::weak_ptr<ConnectionState>, depracated::messages::SubscribeMessage> subscriptionTuple;
+                while (subscriptionQueue_.try_dequeue(subscriptionTuple))
+                {
+                    auto connectionStateWeakPtr =
+                    std::move(std::get<0>(subscriptionTuple));
+                    auto subscriptionMessage = std::move(std::get<1>(subscriptionTuple));
 
-                break;
-            }
-            case depracated::messages::SubscribeMessage::FilterType::LatestObject:
-            {
-                GroupIdentifier latestGroup{ track, currentGroup };
-                ObjectIdentifier latestObject{ latestGroup, DataManagerHandle{}
-                                               -> latest_object_id(latestGroup) };
+                    subscriptionStates_.emplace_back(std::move(connectionStateWeakPtr),
+                                                     subscriptionManager_.dataManager_,
+                                                     subscriptionManager_,
+                                                     std::move(subscriptionMessage));
+                    if (subscriptionStates_.back().cleanup_)
+                        subscriptionStates_.pop_back();
+                }
 
-                subscriptionState.objectToSend = latestObject;
+                auto beginIter = subscriptionStates_.begin();
+                auto endIter = subscriptionStates_.end();
 
-                break;
-            }
-            case depracated::messages::SubscribeMessage::FilterType::AbsoluteStart:
-            {
-                auto [startGroupUint, startObjectUint] = *subscribeMessage.start_;
+                for (auto traversalIter = beginIter; traversalIter != endIter; ++traversalIter)
+                {
+                    auto fullfillReturn = traversalIter->fulfill_some();
 
-                GroupIdentifier startGroup{ track, startGroupUint };
-                ObjectIdentifier startObject{ startGroup, startObjectUint };
-
-                subscriptionState.objectToSend = startObject;
-
-                break;
-            }
-            case depracated::messages::SubscribeMessage::FilterType::AbsoluteRange:
-            {
-                auto [startGroupUint, startObjectUint] = *subscribeMessage.start_;
-                auto [endGroupUint, endObjectUint] = *subscribeMessage.start_;
-
-                GroupIdentifier startGroup{ track, startGroupUint };
-                ObjectIdentifier startObject{ startGroup, startObjectUint };
-
-                GroupIdentifier endGroup{ track, endGroupUint };
-                ObjectIdentifier endObject{ endGroup, endObjectUint };
-
-                subscriptionState.objectToSend = startObject;
-                subscriptionState.lastObjectToSend = endObject;
-
-                break;
-            }
-            default:
-            {
-                utils::ASSERT_LOG_THROW(false, "Unknown filter type of: ",
-                                        utils::to_underlying(subscribeMessage.filterType_));
+                    if (std::holds_alternative<bool>(fullfillReturn))
+                    // subscription is being fulfilled with no issues
+                    {
+                        if (!std::get<bool>(fullfillReturn))
+                            // subscription is yet to be fulfilled
+                            // all other cases the subscription state is destroyed
+                            // NOTE: destructor only called if a different subscription is moved into its place
+                            // coz Wolfgang
+                            *beginIter++ = std::move(*traversalIter);
+                    }
+                    else if (std::holds_alternative<SubscriptionStateErr::ConnectionExpired>(fullfillReturn))
+                    {
+                        // Nothing to be done
+                    }
+                    else if (std::holds_alternative<SubscriptionStateErr::ObjectDoesNotExist>(fullfillReturn))
+                        subscriptionManager_.notify_subscription_error(*traversalIter);
+                    else
+                        assert(false);
+                }
             }
         }
+    };
+    std::vector<struct ThreadLocalState> threadLocalStates_;
+    // thread pool to manage subscriptions
+    std::vector<std::jthread> threadPool_;
 
-        return subscriptionState;
-    }
-
-
-    void update_subscription_state(
-    ConnectionState* connectionState,
-    std::unordered_map<depracated::messages::SubscribeMessage, SubscriptionState>::iterator iter)
-    {
-    }
-
-    bool verify_validity(const depracated::messages::SubscribeMessage& subscribeMessage)
-    {
-        return true;
-    }
+public:
+    SubscriptionManager(DataManager& dataManager, std::size_t numThreads = 1);
+    void add_subscription(std::weak_ptr<ConnectionState> connectionStateWeakPtr,
+                          depracated::messages::SubscribeMessage subscribeMessage);
 
 
-    using RegisterSubscriptionErr =
-    std::optional<depracated::messages::SubscribeErrorMessage>;
-
-    RegisterSubscriptionErr
-    build_subscribe_error_message(const depracated::messages::SubscribeMessage& subscribeMessage)
-    {
-        return {};
-    }
-
-    RegisterSubscriptionErr
-    try_register_subscription(ConnectionState& connectionState,
-                              depracated::messages::SubscribeMessage&& subscribeMessage)
-    {
-        if (verify_validity(subscribeMessage) == false)
-            return build_subscribe_error_message(subscribeMessage);
-
-
-        SubscriptionState subscriptionState = build_subscription_state(subscribeMessage);
-        auto [iter, inserted] =
-        subscriptionStates[&connectionState].emplace(std::move(subscribeMessage),
-                                                     std::move(subscriptionState));
-
-        utils::ASSERT_LOG_THROW(inserted, "Subscription already exists");
-
-        update_subscription_state(&connectionState, iter);
-
-        return std::nullopt;
-    }
-    ~SubscriptionManager() = default;
+    // Error Handling functions
+    void mark_subscription_cleanup(SubscriptionState& subscriptionState);
+    void notify_subscription_error(SubscriptionState& subscriptionState);
 };
-
-DECLARE_SINGLETON(SubscriptionManager);
-
 } // namespace rvn

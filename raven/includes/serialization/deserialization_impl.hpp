@@ -236,7 +236,8 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
 
     deserializedBytes +=
     deserialize<ds::quic_var_int>(subscribeMessage.subscribeId_, span);
-    deserializedBytes += deserialize<ds::quic_var_int>(subscribeMessage.trackAlias_, span);
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeMessage.trackAlias_.get(), span);
 
     std::uint64_t numTrackNamespace;
     deserializedBytes += deserialize<ds::quic_var_int>(numTrackNamespace, span);
@@ -278,9 +279,9 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
     {
         subscribeMessage.start_.emplace();
         deserializedBytes +=
-        deserialize<ds::quic_var_int>(subscribeMessage.start_->group_, span);
+        deserialize<ds::quic_var_int>(subscribeMessage.start_->group_.get(), span);
         deserializedBytes +=
-        deserialize<ds::quic_var_int>(subscribeMessage.start_->object_, span);
+        deserialize<ds::quic_var_int>(subscribeMessage.start_->object_.get(), span);
     }
 
     if (subscribeMessage.filterType_ ==
@@ -288,9 +289,9 @@ deserialize(rvn::depracated::messages::SubscribeMessage& subscribeMessage,
     {
         subscribeMessage.end_.emplace();
         deserializedBytes +=
-        deserialize<ds::quic_var_int>(subscribeMessage.end_->group_, span);
+        deserialize<ds::quic_var_int>(subscribeMessage.end_->group_.get(), span);
         deserializedBytes +=
-        deserialize<ds::quic_var_int>(subscribeMessage.end_->object_, span);
+        deserialize<ds::quic_var_int>(subscribeMessage.end_->object_.get(), span);
     }
 
     deserializedBytes += deserialize_params(subscribeMessage.parameters_, span);

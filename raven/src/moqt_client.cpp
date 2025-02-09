@@ -1,8 +1,7 @@
-#include "serialization/messages.hpp"
+#include <contexts.hpp>
+#include <serialization/messages.hpp>
 #include <atomic>
 #include <msquic.h>
-
-#include <functional>
 #include <moqt.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
@@ -32,7 +31,7 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
 
 
     // connection state is optional
-    connectionState.emplace(std::move(connection), *this);
+    connectionState = std::make_shared<ConnectionState>(std::move(connection), *this);
 
     quicConnectionStateSetupFlag_.store(true, std::memory_order_release);
 

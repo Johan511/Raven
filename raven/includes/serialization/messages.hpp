@@ -2,13 +2,12 @@
 
 #pragma once
 ////////////////////////////////////////////
-#include "utilities.hpp"
-#include <msquic.h>
-////////////////////////////////////////////
-#include <ostream>
 #include <serialization/quic_var_int.hpp>
+#include <strong_types.hpp>
+#include <utilities.hpp>
 ////////////////////////////////////////////
 #include <optional>
+#include <ostream>
 #include <string>
 #include <variant>
 #include <vector>
@@ -56,7 +55,6 @@ struct ControlMessageHeader
 
 enum class ParameterType : std::uint64_t
 {
-
 };
 
 // Only one parameter of each type should be sent
@@ -202,14 +200,14 @@ struct SubscribeMessage : public ControlMessageBase
 
     struct GroupObjectPair
     {
-        std::uint64_t group_;
-        std::uint64_t object_;
+        GroupId group_;
+        ObjectId object_;
 
         bool operator==(const GroupObjectPair& rhs) const = default;
     };
 
     std::uint64_t subscribeId_;
-    std::uint64_t trackAlias_;
+    TrackAlias trackAlias_;
     // encoding moqt tuple as vector<string>
     std::vector<std::string> trackNamespace_;
     std::string trackName_;
@@ -248,17 +246,18 @@ struct SubscribeMessage : public ControlMessageBase
            << " TrackAlias: " << msg.trackAlias_ << " TrackNamespace: ";
         for (const auto& ns : msg.trackNamespace_)
             os << ns << " ";
-        os << " TrackName: " << msg.trackName_ << " SubscriberPriority: " << msg.subscriberPriority_
-           << " GroupOrder: " << msg.groupOrder_
-           << " FilterType: " << utils::to_underlying(msg.filterType_) << " Start: "
-           << (msg.start_.has_value() ? std::to_string(msg.start_->group_) + " " +
-                                        std::to_string(msg.start_->object_) :
-                                        "None")
-           << " End: "
-           << (msg.end_.has_value() ? std::to_string(msg.end_->group_) + " " +
-                                      std::to_string(msg.end_->object_) :
-                                      "None")
-           << " Parameters: ";
+        os
+        << " TrackName: " << msg.trackName_ << " SubscriberPriority: " << msg.subscriberPriority_
+        << " GroupOrder: " << msg.groupOrder_
+        << " FilterType: " << utils::to_underlying(msg.filterType_) << " Start: "
+        << (msg.start_.has_value() ? std::to_string(msg.start_->group_.get()) + " " +
+                                     std::to_string(msg.start_->object_.get()) :
+                                     "None")
+        << " End: "
+        << (msg.end_.has_value() ? std::to_string(msg.end_->group_.get()) + " " +
+                                   std::to_string(msg.end_->object_.get()) :
+                                   "None")
+        << " Parameters: ";
         for (const auto& parameter : msg.parameters_)
             os << parameter;
         return os;
@@ -598,17 +597,36 @@ enum class DataStreamType
 */
 struct StreamHeaderSubgroupMessage
 {
-    std::uint64_t trackAlias_;
-    std::uint64_t groupId_;
-    std::uint64_t subgroupId_;
+    TrackAlias trackAlias_;
+    GroupId groupId_;
+    SubGroupId subgroupId_;
     std::uint8_t publisherPriority_;
+
+    bool operator==(const StreamHeaderSubgroupMessage& rhs) const = default;
+
+    inline friend std::ostream&
+    operator<<(std::ostream& os, const StreamHeaderSubgroupMessage& msg)
+    {
+        os << "TrackAlias: " << msg.trackAlias_ << " GroupId: " << msg.groupId_
+           << " SubgroupId: " << msg.subgroupId_
+           << " PublisherPriority: " << msg.publisherPriority_;
+        return os;
+    }
 };
 
 // Object type sent on StreamHeaderSubgroup data streams
 struct StreamHeaderSubgroupObject
 {
     std::uint64_t objectId_;
-    std::uint64_t objectPayloadLength_;
     std::string payload_;
+
+    bool operator==(const StreamHeaderSubgroupObject& rhs) const = default;
+    inline friend std::ostream&
+    operator<<(std::ostream& os, const StreamHeaderSubgroupObject& msg)
+    {
+        os << "ObjectId: " << msg.objectId_
+           << " PayloadLength: " << msg.payload_.size();
+        return os;
+    }
 };
 } // namespace rvn::depracated::messages

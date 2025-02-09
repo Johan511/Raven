@@ -1,3 +1,5 @@
+#include "data_manager.hpp"
+#include "subscription_manager.hpp"
 #include <msquic.h>
 
 #include <callbacks.hpp>
@@ -47,9 +49,10 @@ QUIC_CREDENTIAL_CONFIG* get_cred_config()
 
 int main()
 {
-    // signal(SIGINT, handler);
+    auto dm = std::make_shared<DataManager>();
+    auto sm = std::make_shared<SubscriptionManager>(*dm);
 
-    std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>();
+    std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>(dm, sm);
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
     moqtServer->set_regConfig(&RegConfig);

@@ -1,11 +1,13 @@
 #pragma once
 //////////////////////////////
+#include <data_manager.hpp>
 #include <msquic.h>
+#include <serialization/messages.hpp>
+#include <strong_types.hpp>
 //////////////////////////////
 #include <functional>
 #include <memory>
 #include <optional>
-#include <queue>
 //////////////////////////////
 #include <definitions.hpp>
 #include <deserializer.hpp>
@@ -45,10 +47,8 @@ struct StreamContext
     StreamContext(MOQT& moqtObject, ConnectionState& connectionState)
     : moqtObject_(moqtObject), connectionState_(connectionState) {};
 
-    void construct_deserializer(StreamState &streamState)
-    {
-        deserializer_.emplace(MessageHandler(streamState));   
-    }
+    // deserializer can not be constructed in the constructor and has to be done seperately
+    void construct_deserializer(StreamState& streamState);
 };
 
 class StreamSendContext
@@ -118,26 +118,79 @@ struct StreamState
     }
 };
 
-struct ConnectionState
+struct ConnectionState : std::enable_shared_from_this<ConnectionState>
 {
     // StreamManager //////////////////////////////////////////////////////////////
     // TODO: Inlined into the class because of some bug, please check (457239f)
-    static constexpr std::size_t MAX_DATA_STREAMS = 8;
 
-    std::queue<QUIC_BUFFER*> dataBuffersToSend;
-    StableContainer<StreamState> dataStreams; // they are sending/receiving data
+    std::shared_mutex trackAliasMtx_;
+    std::unordered_map<TrackIdentifier, TrackAlias, TrackIdentifier::Hash, TrackIdentifier::Equal> trackAliasMap_;
+    std::unordered_map<std::uint64_t, TrackIdentifier> trackAliasRevMap_;
+
+    void add_track_alias(TrackIdentifier trackIdentifier, TrackAlias trackAlias);
+
+    // wtf is currGroup?
+    std::shared_mutex currGroupMtx_;
+    std::unordered_map<TrackIdentifier, GroupId, TrackIdentifier::Hash, TrackIdentifier::Equal> currGroupMap_;
+    std::optional<GroupId> get_current_group(const TrackIdentifier& trackIdentifier);
+    std::optional<GroupId> get_current_group(TrackAlias trackAlias);
+
+    std::optional<TrackIdentifier> alias_to_identifier(TrackAlias trackAlias);
+    std::optional<TrackAlias> identifier_to_alias(const TrackIdentifier& trackIdentifier);
+
+
+    class DataStreamState : public StreamState,
+                            public std::enable_shared_from_this<DataStreamState>
+    {
+        depracated::messages::StreamHeaderSubgroupMessage streamHeaderSubgroupMessage_;
+
+    public:
+        DataStreamState(rvn::unique_stream&& stream, class ConnectionState& connectionState)
+        : StreamState(std::move(stream), connectionState)
+        {
+        }
+
+        void set_header(depracated::messages::StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
+        {
+            streamHeaderSubgroupMessage_ = std::move(streamHeaderSubgroupMessage);
+        }
+
+        const auto& header()
+        {
+            return streamHeaderSubgroupMessage_;
+        }
+
+        bool can_send_object(const ObjectIdentifier& objectIdentifier) const
+        {
+            auto trackAliasOpt = connectionState_.identifier_to_alias(objectIdentifier);
+            if (!trackAliasOpt.has_value())
+                return false;
+
+            bool trackBoolMatch =
+            (streamHeaderSubgroupMessage_.groupId_ == objectIdentifier.groupId_) &&
+            (trackAliasOpt.value() == streamHeaderSubgroupMessage_.trackAlias_);
+
+            if (!trackBoolMatch)
+                return false;
+
+            // TODO: return true should be replaced with subgroupId match
+            return true;
+        }
+    };
+
+    StableContainer<DataStreamState> dataStreams;
 
     std::optional<StreamState> controlStream{};
 
-
     void delete_data_stream(HQUIC streamHandle);
-
     void enqueue_data_buffer(QUIC_BUFFER* buffer);
 
     StreamState& create_data_stream();
 
-    void send_data_buffer();
-    void send_control_buffer();
+    QUIC_STATUS send_object(std::weak_ptr<DataStreamState> dataStream,
+                            const ObjectIdentifier& objectIdentifier,
+                            QUIC_BUFFER* buffer);
+    QUIC_STATUS send_object(const ObjectIdentifier& objectIdentifier, QUIC_BUFFER* buffer);
     void send_control_buffer(QUIC_BUFFER* buffer, QUIC_SEND_FLAGS flags = QUIC_SEND_FLAG_NONE);
     /////////////////////////////////////////////////////////////////////////////
 
@@ -157,8 +210,8 @@ struct ConnectionState
     {
     }
 
-    const StableContainer<StreamState>& get_data_streams() const;
-    StableContainer<StreamState>& get_data_streams();
+    const StableContainer<DataStreamState>& get_data_streams() const;
+    StableContainer<DataStreamState>& get_data_streams();
     std::optional<StreamState>& get_control_stream();
     const std::optional<StreamState>& get_control_stream() const;
 

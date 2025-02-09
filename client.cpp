@@ -63,10 +63,10 @@ int main()
     std::uint64_t endGroup = 0;
     std::uint64_t endObject = 1;
     subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::absoluteRange,
-                                       { startGroup, startObject },
-                                       { endGroup, endObject });
-    subscriptionBuilder.set_track_alias(0);
-    subscriptionBuilder.set_track_namespace({"tnamespace"});
+                                       { GroupId(startGroup), ObjectId(startObject) },
+                                       { GroupId(endGroup), ObjectId(endObject) });
+    subscriptionBuilder.set_track_alias(TrackAlias(0));
+    subscriptionBuilder.set_track_namespace({ "tnamespace" });
     subscriptionBuilder.set_track_name("tname");
     subscriptionBuilder.set_subscriber_priority(0);
     subscriptionBuilder.set_group_order(0);

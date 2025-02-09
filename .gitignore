@@ -2,6 +2,6 @@
 build*
 .cache
 johan-docs/*
-data*
+data/
 compile_commands.json
 meets.md

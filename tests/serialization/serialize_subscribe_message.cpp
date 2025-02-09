@@ -1,3 +1,4 @@
+#include "strong_types.hpp"
 #include "test_serialization_utils.hpp"
 #include "utilities.hpp"
 #include <serialization/chunk.hpp>
@@ -11,21 +12,24 @@ using namespace rvn::serialization;
 
 void test1()
 {
+    // clang-format off
     depracated::messages::SubscribeMessage msg;
     msg.subscribeId_ = 0x12345678;
-    msg.trackAlias_ = 0x87654321;
+    msg.trackAlias_ = TrackAlias(0x87654321);
     msg.trackNamespace_ = { "namespace1", "namespace2" };
     msg.trackName_ = "trackName";
     msg.subscriberPriority_ = 0x12;
     msg.groupOrder_ = 0x34;
     msg.filterType_ = depracated::messages::SubscribeMessage::FilterType::AbsoluteRange;
-    msg.start_ = depracated::messages::SubscribeMessage::GroupObjectPair{ 0x5678, 0x1234 };
-    msg.end_ = depracated::messages::SubscribeMessage::GroupObjectPair{ 0x5678, 0x1234 };
+    msg.start_ = depracated::messages::SubscribeMessage::GroupObjectPair{ GroupId(0x5678), ObjectId(0x1234) };
+    msg.end_ = depracated::messages::SubscribeMessage::GroupObjectPair{ GroupId(0x5678), ObjectId(0x1234) };
+    // TODO: fix UB due to unininstalized integer values
     msg.parameters_ = { depracated::messages::Parameter{} };
+    // clang-format on
 
 
     ds::chunk c;
-    detail::serialize(c, msg);
+    serialization::detail::serialize(c, msg);
     // clang-format off
     /*   [ 00000011 ]    [ 00111111 ] [ 10010010 00110100 01010110 01111000 ] [ 11000000 00000000 00000000 00000000 10000111 01100101 01000011 00100001 ]              [ 00000010 ] 
      * (msg_type: 0x03)    (len: 63)        (subscribeId_: 0x12345678)                                  (trackAlias_: 0x87654321)                            TrackNamespace Tuple num elements
@@ -55,7 +59,7 @@ void test1()
     ds::ChunkSpan span(c);
 
     depracated::messages::ControlMessageHeader header;
-    detail::deserialize(header, span);
+    serialization::detail::deserialize(header, span);
 
     utils::ASSERT_LOG_THROW(header.messageType_ == depracated::messages::MoQtMessageType::SUBSCRIBE,
                             "Message type mismatch\n", "Expected: ",
@@ -64,7 +68,7 @@ void test1()
                             "\n");
 
     depracated::messages::SubscribeMessage deserializedMsg;
-    detail::deserialize(deserializedMsg, span);
+    serialization::detail::deserialize(deserializedMsg, span);
 
     utils::ASSERT_LOG_THROW(msg == deserializedMsg, "Deserialization failed\n",
                             "Expected: ", msg, "\n", "Actual: ", deserializedMsg, "\n");

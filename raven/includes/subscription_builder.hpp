@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <serialization/messages.hpp>
 #include <utilities.hpp>
 
@@ -7,7 +8,7 @@ namespace rvn
 {
 class SubscriptionBuilder
 {
-    static thread_local std::uint64_t subscribeIDCounter_;
+    static std::atomic_uint64_t subscribeIDCounter_;
     /*
         SUBSCRIBE Message {
           Type (i) = 0x3,
@@ -54,7 +55,8 @@ class SubscriptionBuilder
 
     void set_defaults()
     {
-        subscribeMessage_.subscribeId_ = subscribeIDCounter_++;
+        subscribeMessage_.subscribeId_ =
+        subscribeIDCounter_.fetch_add(1, std::memory_order_relaxed);
         setElementsCounter_ = 0;
     }
 
@@ -65,7 +67,7 @@ public:
     }
 
 
-    SubscriptionBuilder& set_track_alias(std::uint64_t trackAlias)
+    SubscriptionBuilder& set_track_alias(TrackAlias trackAlias)
     {
         subscribeMessage_.trackAlias_ = trackAlias;
         setElementsCounter_ |= (1 << utils::to_underlying(SetElements::TrackAlias));

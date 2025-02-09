@@ -4,6 +4,8 @@
 #include <list>
 #include <utility>
 
+namespace rvn
+{
 template <typename T> using StableContainer = std::list<T>;
 
 // wrapper class for tsan suppressions
@@ -26,4 +28,12 @@ public:
     {
         return mpmcQueue.wait_dequeue(u);
     }
+
+    template <typename U>
+    __attribute__((no_sanitize("thread"))) bool try_dequeue(U& u)
+    {
+        return mpmcQueue.try_dequeue(u);
+    }
 };
+
+} // namespace rvn

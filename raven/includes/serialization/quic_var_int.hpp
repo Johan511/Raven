@@ -12,6 +12,7 @@ namespace rvn::ds
     10 => 4 bytes total (30 bits of payload)
     11 => 8 bytes total (62 bits of payload)
 */
+// TODO: change to use the trait in strong_types.hpp
 class quic_var_int
 {
     std::uint64_t value_{};

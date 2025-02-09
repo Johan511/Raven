@@ -14,7 +14,7 @@ void test1()
     msg.supportedVersions_.push_back(0x87654321);
 
     ds::chunk c;
-    detail::serialize(c, msg);
+    serialization::detail::serialize(c, msg);
 
     // clang-format off
     //  [ 01000000 01000000 ]      00001110          00000010            [ 10010010 00110100 01010110 01111000 ] [ 11000000 00000000 00000000 00000000 10000111 01100101 01000011 00100001 ]     00000000
@@ -34,7 +34,7 @@ void test1()
 
 
     depracated::messages::ControlMessageHeader header;
-    detail::deserialize(header, span);
+    serialization::detail::deserialize(header, span);
 
     utils::ASSERT_LOG_THROW(header.messageType_ ==
                             rvn::depracated::messages::MoQtMessageType::CLIENT_SETUP,
@@ -44,7 +44,7 @@ void test1()
                             "\n");
 
     depracated::messages::ClientSetupMessage deserialized;
-    detail::deserialize(deserialized, span);
+    serialization::detail::deserialize(deserialized, span);
 
     utils::ASSERT_LOG_THROW(msg == deserialized, "Deserialization failed", "\n",
                             "Expected: ", msg, "\n", "Actual: ", deserialized, "\n");

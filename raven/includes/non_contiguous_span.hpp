@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <boost/container/small_vector.hpp>
-#include <memory>
 #include <msquic.h>
 #include <span>
 #include <utilities.hpp>

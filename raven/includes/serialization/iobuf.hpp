@@ -1,7 +1,6 @@
 #pragma once
 
 #include <boost/container/small_vector.hpp>
-#include <boost/mpl/bool.hpp>
 #include <cstdint>
 #include <cstring>
 #include <memory>

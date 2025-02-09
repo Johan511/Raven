@@ -12,10 +12,7 @@
 #include <sstream>
 #include <thread>
 ///////////////////////////////////////////
-#include <boost/iostreams/device/array.hpp>
-#include <boost/iostreams/stream.hpp>
-///////////////////////////////////////////
-// Utils can not use any raven header file
+// NOTE: Utils can not use any raven header file
 
 #define LOGE(...) \
     rvn::utils::LOG(std::source_location::current(), "LOGGING UNEXPECTED STATE: ", __VA_ARGS__)
@@ -111,13 +108,6 @@ template <typename... Args> void NoOpVoid(Args...)
     return;
 };
 
-static inline boost::iostreams::stream<boost::iostreams::array_source>
-quic_buffer_to_istream(QUIC_BUFFER buffer)
-{
-    boost::iostreams::array_source arraySource((char*)(buffer.Buffer), buffer.Length);
-    return boost::iostreams::stream<boost::iostreams::array_source>(arraySource);
-}
-
 inline void LOG_EVENT_BASE(std::ostream& os, const std::string& eventMessage)
 {
     static std::mutex mtx;
@@ -203,6 +193,7 @@ bool optional_equality(const std::optional<T>& lhs, const std::optional<T>& rhs)
 
     return false;
 }
+
 
 } // namespace rvn::utils
 

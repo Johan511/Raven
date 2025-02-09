@@ -1,5 +1,4 @@
 #include <callbacks.hpp>
-#include <chrono>
 #include <contexts.hpp>
 #include <cstdint>
 #include <limits>
@@ -56,7 +55,10 @@ std::unique_ptr<MOQTClient> client_setup()
 
 std::unique_ptr<MOQTServer> server_setup()
 {
-    std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>();
+    auto dm = std::make_shared<DataManager>();
+    auto sm = std::make_shared<SubscriptionManager>(*dm);
+
+    std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>(dm, sm);
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "test1", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
     moqtServer->set_regConfig(&RegConfig);
@@ -130,8 +132,9 @@ int main()
 
         SubscriptionBuilder subscriptionBuilder;
         subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::absoluteRange,
-                                           { 0, 0 }, { 0, 1 });
-        subscriptionBuilder.set_track_alias(0);
+                                           { GroupId(0), ObjectId(0) },
+                                           { GroupId(0), ObjectId(1) });
+        subscriptionBuilder.set_track_alias(TrackAlias(0));
         subscriptionBuilder.set_track_namespace({ "tnamespace" });
         subscriptionBuilder.set_track_name("tname");
         subscriptionBuilder.set_subscriber_priority(0);

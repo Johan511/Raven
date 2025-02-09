@@ -15,13 +15,13 @@ void test1()
     msg.selectedVersion_ = 0x12345678;
 
     ds::chunk c;
-    detail::serialize(c, msg);
+    serialization::detail::serialize(c, msg);
     // clang-format off
     // [ 01000000 01000001 ]    [ 00000101 ] [ 10010010 00110100 01010110 01111000 ]     [ 00000000 ]
     // (quic_msg_type: 0x41)    (msglen = 5)          (selected version)               (num parameters)
     std::string expectedSerializationString = "[01000000 01000001][00000101][10010010 00110100 01010110 01111000][00000000]";
     // clang-format on
-    
+
     auto expectedSerialization = binary_string_to_vector(expectedSerializationString);
     utils::ASSERT_LOG_THROW(c.size() == expectedSerialization.size(), "Size mismatch\n",
                             "Expected size: ", expectedSerialization.size(),
@@ -34,7 +34,7 @@ void test1()
     ds::ChunkSpan span(c);
 
     depracated::messages::ControlMessageHeader header;
-    detail::deserialize(header, span);
+    serialization::detail::deserialize(header, span);
 
     utils::ASSERT_LOG_THROW(header.messageType_ == depracated::messages::MoQtMessageType::SERVER_SETUP,
                             "Message type mismatch\n", "Expected: ",
@@ -43,7 +43,7 @@ void test1()
                             "\n");
 
     depracated::messages::ServerSetupMessage deserializedMsg;
-    detail::deserialize(deserializedMsg, span);
+    serialization::detail::deserialize(deserializedMsg, span);
 
     utils::ASSERT_LOG_THROW(msg == deserializedMsg, "Deserialization failed\n",
                             "Expected: ", msg, "\n", "Actual: ", deserializedMsg, "\n");
