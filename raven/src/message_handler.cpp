@@ -1,6 +1,6 @@
-#include <serialization/serialization.hpp>
 #include <message_handler.hpp>
 #include <moqt.hpp>
+#include <serialization/serialization.hpp>
 
 namespace rvn
 {

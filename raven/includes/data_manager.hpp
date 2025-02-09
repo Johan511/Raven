@@ -79,12 +79,12 @@ namespace rvn
 // We could not find the object requested
 struct NotFound
 {
-    const char *reason = "Object not found";
+    const char* reason = "Object not found";
 };
 // Object is not expected to exist
 struct DoesNotExist
 {
-    const char *reason = "Object does not exist";
+    const char* reason = "Object does not exist";
 };
 
 using ObjectOrStatus = std::variant<std::string, NotFound, DoesNotExist>;

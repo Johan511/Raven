@@ -20,6 +20,7 @@ namespace rvn
 class MOQTServer : public MOQT
 {
     rvn::unique_listener listener;
+
 public:
     std::shared_ptr<DataManager> dataManager_;
     std::shared_ptr<SubscriptionManager> subscriptionManager_;
