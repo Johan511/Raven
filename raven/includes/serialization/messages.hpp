@@ -13,7 +13,7 @@
 #include <vector>
 ////////////////////////////////////////////
 
-namespace rvn::depracated::messages
+namespace rvn
 {
 // (b) type which is encoded as a variable-length integer followed by that many
 // bytes of data.
@@ -629,4 +629,4 @@ struct StreamHeaderSubgroupObject
         return os;
     }
 };
-} // namespace rvn::depracated::messages
+} // namespace rvn

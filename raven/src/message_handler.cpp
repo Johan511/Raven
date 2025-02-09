@@ -5,18 +5,18 @@
 namespace rvn
 {
 
-void MessageHandler::operator()(depracated::messages::ClientSetupMessage clientSetupMessage)
+void MessageHandler::operator()(ClientSetupMessage clientSetupMessage)
 {
     utils::LOG_EVENT(std::cout, "Client Setup Message received: \n", clientSetupMessage);
     // Send Server Setup Message
-    depracated::messages::ServerSetupMessage serverSetupMessage;
+    ServerSetupMessage serverSetupMessage;
     serverSetupMessage.selectedVersion_ = 0;
 
     streamState_.streamContext->connectionState_.send_control_buffer(
     serialization::serialize(serverSetupMessage));
 }
 
-void MessageHandler::operator()(depracated::messages::ServerSetupMessage serverSetupMessage)
+void MessageHandler::operator()(ServerSetupMessage serverSetupMessage)
 {
     utils::LOG_EVENT(std::cout, "Server Setup Message received: \n", serverSetupMessage);
     MOQTClient& moqtClient =
@@ -24,7 +24,7 @@ void MessageHandler::operator()(depracated::messages::ServerSetupMessage serverS
     moqtClient.ravenConnectionSetupFlag_.store(true, std::memory_order_release);
 }
 
-void MessageHandler::operator()(depracated::messages::SubscribeMessage subscribeMessage)
+void MessageHandler::operator()(SubscribeMessage subscribeMessage)
 {
     utils::LOG_EVENT(std::cout, "Subscribe Message received: \n", subscribeMessage);
     TrackIdentifier trackIdentifier(subscribeMessage.trackNamespace_,

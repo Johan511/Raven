@@ -40,13 +40,13 @@ template <typename DeserializedMessageHandler> class Deserializer
     DeserializerState state_ = DeserializerState::READING_MESSAGE_TYPE;
 
     // set after reading message type
-    depracated::messages::MoQtMessageType messageType_;
+    MoQtMessageType messageType_;
 
     // set after reading message length
     std::uint64_t messageLength_ = 0;
 
     using MessageType =
-    std::variant<depracated::messages::ClientSetupMessage, depracated::messages::ServerSetupMessage, depracated::messages::SubscribeMessage>;
+    std::variant<ClientSetupMessage, ServerSetupMessage, SubscribeMessage>;
 
     DeserializedMessageHandler messageHandler_;
 
@@ -84,7 +84,7 @@ template <typename DeserializedMessageHandler> class Deserializer
         detail::deserialize<ds::quic_var_int>(messageTypeInt, span);
         bytes_deserialized_hook(numBytesDeserialized);
 
-        messageType_ = static_cast<depracated::messages::MoQtMessageType>(messageTypeInt);
+        messageType_ = static_cast<MoQtMessageType>(messageTypeInt);
         state_ = DeserializerState::READING_MESSAGE_LENGTH;
 
         read_message_length();
@@ -123,21 +123,21 @@ template <typename DeserializedMessageHandler> class Deserializer
 
         std::uint64_t numBytesDeserialized = 0;
 
-        if (messageType_ == depracated::messages::MoQtMessageType::CLIENT_SETUP)
+        if (messageType_ == MoQtMessageType::CLIENT_SETUP)
         {
-            depracated::messages::ClientSetupMessage msg;
+            ClientSetupMessage msg;
             numBytesDeserialized = detail::deserialize(msg, span);
             messageHandler_(std::move(msg));
         }
-        else if (messageType_ == depracated::messages::MoQtMessageType::SERVER_SETUP)
+        else if (messageType_ == MoQtMessageType::SERVER_SETUP)
         {
-            depracated::messages::ServerSetupMessage msg;
+            ServerSetupMessage msg;
             numBytesDeserialized = detail::deserialize(msg, span);
             messageHandler_(std::move(msg));
         }
-        else if (messageType_ == depracated::messages::MoQtMessageType::SUBSCRIBE)
+        else if (messageType_ == MoQtMessageType::SUBSCRIBE)
         {
-            depracated::messages::SubscribeMessage msg;
+            SubscribeMessage msg;
             numBytesDeserialized = detail::deserialize(msg, span);
             messageHandler_(std::move(msg));
         }

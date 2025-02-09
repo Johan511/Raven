@@ -57,7 +57,7 @@ class SubscriptionState
     // can not be reference because we need Subscription State to be assignable (while removing it from vector)
     DataManager* dataManager_;
     class SubscriptionManager* subscriptionManager_;
-    depracated::messages::SubscribeMessage subscriptionMessage_;
+    SubscribeMessage subscriptionMessage_;
 
     std::vector<MinorSubscriptionState> minorSubscriptionStates_;
 
@@ -69,7 +69,7 @@ public:
     SubscriptionState(std::weak_ptr<ConnectionState>&& connectionState,
                       DataManager& dataManager,
                       SubscriptionManager& subscriptionManager,
-                      depracated::messages::SubscribeMessage subscriptionMessage);
+                      SubscribeMessage subscriptionMessage);
 
     FullfillSomeReturn fulfill_some();
 
@@ -95,7 +95,7 @@ class SubscriptionManager
     class DataManager& dataManager_;
 
     // holds subscriptions messages which need to be processed and start executing
-    MPMCQueue<std::tuple<std::weak_ptr<ConnectionState>, depracated::messages::SubscribeMessage>> subscriptionQueue_;
+    MPMCQueue<std::tuple<std::weak_ptr<ConnectionState>, SubscribeMessage>> subscriptionQueue_;
     struct ThreadLocalState
     {
         SubscriptionManager& subscriptionManager_;
@@ -108,7 +108,7 @@ class SubscriptionManager
             {
                 auto& subscriptionQueue_ = subscriptionManager_.subscriptionQueue_;
 
-                std::tuple<std::weak_ptr<ConnectionState>, depracated::messages::SubscribeMessage> subscriptionTuple;
+                std::tuple<std::weak_ptr<ConnectionState>, SubscribeMessage> subscriptionTuple;
                 while (subscriptionQueue_.try_dequeue(subscriptionTuple))
                 {
                     auto connectionStateWeakPtr =
@@ -159,7 +159,7 @@ class SubscriptionManager
 public:
     SubscriptionManager(DataManager& dataManager, std::size_t numThreads = 1);
     void add_subscription(std::weak_ptr<ConnectionState> connectionStateWeakPtr,
-                          depracated::messages::SubscribeMessage subscribeMessage);
+                          SubscribeMessage subscribeMessage);
 
 
     // Error Handling functions

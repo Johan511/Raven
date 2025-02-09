@@ -39,9 +39,9 @@ void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* Server
     utils::LOG_EVENT(std::cout, "Client QUIC setup complete");
 }
 
-depracated::messages::ClientSetupMessage MOQTClient::get_clientSetupMessage()
+ClientSetupMessage MOQTClient::get_clientSetupMessage()
 {
-    depracated::messages::ClientSetupMessage clientSetupMessage;
+    ClientSetupMessage clientSetupMessage;
     clientSetupMessage.supportedVersions_ = { 1 };
 
     // TODO: set role and path parameters

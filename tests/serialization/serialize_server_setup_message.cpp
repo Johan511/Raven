@@ -11,7 +11,7 @@ using namespace rvn::serialization;
 
 void test1()
 {
-    depracated::messages::ServerSetupMessage msg;
+    ServerSetupMessage msg;
     msg.selectedVersion_ = 0x12345678;
 
     ds::chunk c;
@@ -33,16 +33,16 @@ void test1()
 
     ds::ChunkSpan span(c);
 
-    depracated::messages::ControlMessageHeader header;
+    ControlMessageHeader header;
     serialization::detail::deserialize(header, span);
 
-    utils::ASSERT_LOG_THROW(header.messageType_ == depracated::messages::MoQtMessageType::SERVER_SETUP,
+    utils::ASSERT_LOG_THROW(header.messageType_ == MoQtMessageType::SERVER_SETUP,
                             "Message type mismatch\n", "Expected: ",
-                            utils::to_underlying(depracated::messages::MoQtMessageType::SERVER_SETUP),
+                            utils::to_underlying(MoQtMessageType::SERVER_SETUP),
                             "\n", "Actual: ", utils::to_underlying(header.messageType_),
                             "\n");
 
-    depracated::messages::ServerSetupMessage deserializedMsg;
+    ServerSetupMessage deserializedMsg;
     serialization::detail::deserialize(deserializedMsg, span);
 
     utils::ASSERT_LOG_THROW(msg == deserializedMsg, "Deserialization failed\n",

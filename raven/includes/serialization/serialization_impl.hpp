@@ -158,7 +158,7 @@ serialize_return_t mock_serialize_optional(const std::optional<T>& i)
 template <typename ToEndianess = NetworkEndian>
 serialize_return_t
 serialize(ds::chunk& c,
-          const rvn::depracated::messages::ClientSetupMessage& clientSetupMessage,
+          const rvn::ClientSetupMessage& clientSetupMessage,
           ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;
@@ -184,7 +184,7 @@ serialize(ds::chunk& c,
 
     // Header
     headerLen +=
-    serialize<ds::quic_var_int>(c, utils::to_underlying(depracated::messages::MoQtMessageType::CLIENT_SETUP),
+    serialize<ds::quic_var_int>(c, utils::to_underlying(MoQtMessageType::CLIENT_SETUP),
                                 ToEndianess{});
     headerLen += serialize<ds::quic_var_int>(c, msgLen, ToEndianess{});
 
@@ -210,7 +210,7 @@ serialize(ds::chunk& c,
 template <typename ToEndianess = NetworkEndian>
 serialize_return_t
 serialize(ds::chunk& c,
-          const rvn::depracated::messages::ServerSetupMessage& serverSetupMessage,
+          const rvn::ServerSetupMessage& serverSetupMessage,
           ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;
@@ -230,7 +230,7 @@ serialize(ds::chunk& c,
 
     std::uint64_t headerLen = 0;
     headerLen +=
-    serialize<ds::quic_var_int>(c, utils::to_underlying(depracated::messages::MoQtMessageType::SERVER_SETUP),
+    serialize<ds::quic_var_int>(c, utils::to_underlying(MoQtMessageType::SERVER_SETUP),
                                 ToEndianess{});
     headerLen += serialize<ds::quic_var_int>(c, msgLen, ToEndianess{});
 
@@ -250,7 +250,7 @@ serialize(ds::chunk& c,
 template <typename ToEndianess = NetworkEndian>
 serialize_return_t
 serialize(ds::chunk& c,
-          const rvn::depracated::messages::SubscribeMessage& subscribeMessage,
+          const rvn::SubscribeMessage& subscribeMessage,
           ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;
@@ -304,7 +304,7 @@ serialize(ds::chunk& c,
     // header
     std::uint64_t headerLen = 0;
     headerLen +=
-    serialize<ds::quic_var_int>(c, utils::to_underlying(depracated::messages::MoQtMessageType::SUBSCRIBE),
+    serialize<ds::quic_var_int>(c, utils::to_underlying(MoQtMessageType::SUBSCRIBE),
                                 ToEndianess{});
     headerLen += serialize<ds::quic_var_int>(c, msgLen, ToEndianess{});
 
@@ -355,7 +355,7 @@ serialize(ds::chunk& c,
 template <typename ToEndianess = NetworkEndian>
 serialize_return_t
 serialize(ds::chunk& c,
-          const depracated::messages::StreamHeaderSubgroupMessage& msg,
+          const StreamHeaderSubgroupMessage& msg,
           ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;
@@ -370,7 +370,7 @@ serialize(ds::chunk& c,
     // header
     std::uint64_t headerLen = 0;
     headerLen +=
-    serialize<ds::quic_var_int>(c, utils::to_underlying(depracated::messages::DataStreamType::STREAM_HEADER_SUBGROUP),
+    serialize<ds::quic_var_int>(c, utils::to_underlying(DataStreamType::STREAM_HEADER_SUBGROUP),
                                 ToEndianess{});
     headerLen += serialize<ds::quic_var_int>(c, msgLen, ToEndianess{});
 
@@ -386,7 +386,7 @@ serialize(ds::chunk& c,
 template <typename ToEndianess = NetworkEndian>
 serialize_return_t
 serialize(ds::chunk& c,
-          const depracated::messages::StreamHeaderSubgroupObject& msg,
+          const StreamHeaderSubgroupObject& msg,
           ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;

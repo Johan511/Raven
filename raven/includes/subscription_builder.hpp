@@ -30,7 +30,7 @@ class SubscriptionBuilder
         }
     */
 
-    depracated::messages::SubscribeMessage subscribeMessage_;
+    SubscribeMessage subscribeMessage_;
 
     enum class SetElements
     {
@@ -109,22 +109,22 @@ public:
         struct LatestGroup
         {
             static constexpr auto filterType =
-            depracated::messages::SubscribeMessage::FilterType::LatestGroup;
+            SubscribeMessage::FilterType::LatestGroup;
         };
         struct LatestObject
         {
             static constexpr auto filterType =
-            depracated::messages::SubscribeMessage::FilterType::LatestObject;
+            SubscribeMessage::FilterType::LatestObject;
         };
         struct AbsoluteStart
         {
             static constexpr auto filterType =
-            depracated::messages::SubscribeMessage::FilterType::AbsoluteStart;
+            SubscribeMessage::FilterType::AbsoluteStart;
         };
         struct AbsoluteRange
         {
             static constexpr auto filterType =
-            depracated::messages::SubscribeMessage::FilterType::AbsoluteRange;
+            SubscribeMessage::FilterType::AbsoluteRange;
         };
 
 
@@ -150,7 +150,7 @@ public:
     }
     SubscriptionBuilder&
     set_data_range(Filter::AbsoluteStart f,
-                   depracated::messages::SubscribeMessage::GroupObjectPair start)
+                   SubscribeMessage::GroupObjectPair start)
     {
         subscribeMessage_.filterType_ = f.filterType;
         subscribeMessage_.start_ = start;
@@ -161,8 +161,8 @@ public:
 
     SubscriptionBuilder&
     set_data_range(Filter::AbsoluteRange f,
-                   depracated::messages::SubscribeMessage::GroupObjectPair start,
-                   depracated::messages::SubscribeMessage::GroupObjectPair end)
+                   SubscribeMessage::GroupObjectPair start,
+                   SubscribeMessage::GroupObjectPair end)
     {
         subscribeMessage_.filterType_ = f.filterType;
         subscribeMessage_.start_ = start;
@@ -171,7 +171,7 @@ public:
         return *this;
     }
 
-    depracated::messages::SubscribeMessage build()
+    SubscribeMessage build()
     {
         utils::ASSERT_LOG_THROW(setElementsCounter_ == all_elements_set(),
                                 "Not all elements set in subscribe message",

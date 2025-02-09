@@ -56,7 +56,7 @@ public:
     }
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    auto subscribe(depracated::messages::SubscribeMessage&& subscribeMessage)
+    auto subscribe(SubscribeMessage&& subscribeMessage)
     {
         objectQueues.emplace_back();
         connectionState->objectQueue = --(objectQueues.end());
@@ -73,7 +73,7 @@ public:
 
     void start_connection(QUIC_ADDRESS_FAMILY Family, const char* ServerName, uint16_t ServerPort);
 
-    depracated::messages::ClientSetupMessage get_clientSetupMessage();
+    ClientSetupMessage get_clientSetupMessage();
 
     QUIC_STATUS accept_data_stream(HQUIC connection, HQUIC streamHandle)
     {

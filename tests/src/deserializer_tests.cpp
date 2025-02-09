@@ -57,13 +57,13 @@ template <class... Ts> struct overloads : Ts...
 void test1()
 {
     // Client Setup Message
-    depracated::messages::ClientSetupMessage clientSetupMessage;
+    ClientSetupMessage clientSetupMessage;
     clientSetupMessage.supportedVersions_ = { 1, 2, 3 };
     ds::chunk clientSetupMessageChunk;
     serialization::detail::serialize(clientSetupMessageChunk, clientSetupMessage);
 
     // Server Setup Message
-    depracated::messages::ServerSetupMessage serverSetupMessage;
+    ServerSetupMessage serverSetupMessage;
     serverSetupMessage.selectedVersion_ = 1;
     ds::chunk serverSetupMessageChunk;
     serialization::detail::serialize(serverSetupMessageChunk, serverSetupMessage);
@@ -73,9 +73,9 @@ void test1()
 
     const auto visitor =
     overloads{ [](...) { std::cout << "Unexpected Message\n"; },
-               [](const depracated::messages::ClientSetupMessage& msg)
+               [](const ClientSetupMessage& msg)
                { std::cout << "Received ClientSetupMessage\n"; },
-               [](const depracated::messages::ServerSetupMessage& msg)
+               [](const ServerSetupMessage& msg)
                { std::cout << "Received ServerSetupMessage\n"; } };
 
     Deserializer deserializer(visitor);

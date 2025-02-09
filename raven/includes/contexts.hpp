@@ -142,7 +142,7 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
     class DataStreamState : public StreamState,
                             public std::enable_shared_from_this<DataStreamState>
     {
-        depracated::messages::StreamHeaderSubgroupMessage streamHeaderSubgroupMessage_;
+        StreamHeaderSubgroupMessage streamHeaderSubgroupMessage_;
 
     public:
         DataStreamState(rvn::unique_stream&& stream, class ConnectionState& connectionState)
@@ -150,7 +150,7 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
         {
         }
 
-        void set_header(depracated::messages::StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
+        void set_header(StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
         {
             streamHeaderSubgroupMessage_ = std::move(streamHeaderSubgroupMessage);
         }

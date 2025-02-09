@@ -36,7 +36,7 @@ FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
     else
     {
         auto object = std::get<std::string>(objectOrStatus);
-        depracated::messages::StreamHeaderSubgroupObject objectMsg;
+        StreamHeaderSubgroupObject objectMsg;
         objectMsg.objectId_ = objectToSend_.objectId_;
         objectMsg.payload_ = std::move(object);
         QUIC_BUFFER* quicBuffer = serialization::serialize(objectMsg);
@@ -66,7 +66,7 @@ FullfillSomeReturn SubscriptionState::fulfill_some()
 SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connectionState,
                                      DataManager& dataManager,
                                      SubscriptionManager& subscriptionManager,
-                                     depracated::messages::SubscribeMessage subscriptionMessage)
+                                     SubscribeMessage subscriptionMessage)
 : connectionStateWeakPtr_(std::move(connectionState)),
   dataManager_(std::addressof(dataManager)),
   subscriptionManager_(std::addressof(subscriptionManager)),
@@ -87,7 +87,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
 
     switch (filterType)
     {
-        case depracated::messages::SubscribeMessage::FilterType::LatestGroup:
+        case SubscribeMessage::FilterType::LatestGroup:
         {
             std::optional<GroupId> currGroupOpt =
             connectionStateSharedPtr->get_current_group(subscriptionMessage_.trackAlias_);
@@ -114,7 +114,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
             minorSubscriptionStates_.emplace_back(*this, firstObjectIdentifier, std::nullopt);
             break;
         }
-        case depracated::messages::SubscribeMessage::FilterType::LatestObject:
+        case SubscribeMessage::FilterType::LatestObject:
         {
             std::optional<GroupId> currGroupOpt =
             connectionStateSharedPtr->get_current_group(subscriptionMessage_.trackAlias_);
@@ -141,7 +141,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
             minorSubscriptionStates_.emplace_back(*this, firstObjectIdentifier, std::nullopt);
             break;
         }
-        case depracated::messages::SubscribeMessage::FilterType::AbsoluteStart:
+        case SubscribeMessage::FilterType::AbsoluteStart:
         {
             ObjectIdentifier objectToBeSent{ trackIdentifier,
                                              subscriptionMessage_.start_->group_,
@@ -152,7 +152,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                                                   std::nullopt);
             break;
         }
-        case depracated::messages::SubscribeMessage::FilterType::AbsoluteRange:
+        case SubscribeMessage::FilterType::AbsoluteRange:
         {
             ObjectIdentifier objectToBeSent{ trackIdentifier,
                                              subscriptionMessage_.start_->group_,
@@ -183,7 +183,7 @@ SubscriptionManager::SubscriptionManager(DataManager& dataManager, std::size_t n
 }
 
 void SubscriptionManager::add_subscription(std::weak_ptr<ConnectionState> connectionStateWeakPtr,
-                                           depracated::messages::SubscribeMessage subscribeMessage)
+                                           SubscribeMessage subscribeMessage)
 {
     subscriptionQueue_.enqueue(std::make_tuple(std::move(connectionStateWeakPtr),
                                                std::move(subscribeMessage)));

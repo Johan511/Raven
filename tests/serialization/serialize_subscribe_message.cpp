@@ -13,18 +13,18 @@ using namespace rvn::serialization;
 void test1()
 {
     // clang-format off
-    depracated::messages::SubscribeMessage msg;
+    SubscribeMessage msg;
     msg.subscribeId_ = 0x12345678;
     msg.trackAlias_ = TrackAlias(0x87654321);
     msg.trackNamespace_ = { "namespace1", "namespace2" };
     msg.trackName_ = "trackName";
     msg.subscriberPriority_ = 0x12;
     msg.groupOrder_ = 0x34;
-    msg.filterType_ = depracated::messages::SubscribeMessage::FilterType::AbsoluteRange;
-    msg.start_ = depracated::messages::SubscribeMessage::GroupObjectPair{ GroupId(0x5678), ObjectId(0x1234) };
-    msg.end_ = depracated::messages::SubscribeMessage::GroupObjectPair{ GroupId(0x5678), ObjectId(0x1234) };
+    msg.filterType_ = SubscribeMessage::FilterType::AbsoluteRange;
+    msg.start_ = SubscribeMessage::GroupObjectPair{ GroupId(0x5678), ObjectId(0x1234) };
+    msg.end_ = SubscribeMessage::GroupObjectPair{ GroupId(0x5678), ObjectId(0x1234) };
     // TODO: fix UB due to unininstalized integer values
-    msg.parameters_ = { depracated::messages::Parameter{} };
+    msg.parameters_ = { Parameter{} };
     // clang-format on
 
 
@@ -58,16 +58,16 @@ void test1()
 
     ds::ChunkSpan span(c);
 
-    depracated::messages::ControlMessageHeader header;
+    ControlMessageHeader header;
     serialization::detail::deserialize(header, span);
 
-    utils::ASSERT_LOG_THROW(header.messageType_ == depracated::messages::MoQtMessageType::SUBSCRIBE,
+    utils::ASSERT_LOG_THROW(header.messageType_ == MoQtMessageType::SUBSCRIBE,
                             "Message type mismatch\n", "Expected: ",
-                            utils::to_underlying(depracated::messages::MoQtMessageType::SUBSCRIBE),
+                            utils::to_underlying(MoQtMessageType::SUBSCRIBE),
                             "\n", "Actual: ", utils::to_underlying(header.messageType_),
                             "\n");
 
-    depracated::messages::SubscribeMessage deserializedMsg;
+    SubscribeMessage deserializedMsg;
     serialization::detail::deserialize(deserializedMsg, span);
 
     utils::ASSERT_LOG_THROW(msg == deserializedMsg, "Deserialization failed\n",

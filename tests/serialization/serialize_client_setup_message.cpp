@@ -9,7 +9,7 @@ using namespace rvn::serialization;
 
 void test1()
 {
-    depracated::messages::ClientSetupMessage msg;
+    ClientSetupMessage msg;
     msg.supportedVersions_.push_back(0x12345678);
     msg.supportedVersions_.push_back(0x87654321);
 
@@ -33,17 +33,17 @@ void test1()
     ds::ChunkSpan span(c);
 
 
-    depracated::messages::ControlMessageHeader header;
+    ControlMessageHeader header;
     serialization::detail::deserialize(header, span);
 
     utils::ASSERT_LOG_THROW(header.messageType_ ==
-                            rvn::depracated::messages::MoQtMessageType::CLIENT_SETUP,
+                            rvn::MoQtMessageType::CLIENT_SETUP,
                             "Header type mismatch\n", "Expected: ",
-                            utils::to_underlying(rvn::depracated::messages::MoQtMessageType::CLIENT_SETUP),
+                            utils::to_underlying(rvn::MoQtMessageType::CLIENT_SETUP),
                             "\n", "Actual: ", utils::to_underlying(header.messageType_),
                             "\n");
 
-    depracated::messages::ClientSetupMessage deserialized;
+    ClientSetupMessage deserialized;
     serialization::detail::deserialize(deserialized, span);
 
     utils::ASSERT_LOG_THROW(msg == deserialized, "Deserialization failed", "\n",
