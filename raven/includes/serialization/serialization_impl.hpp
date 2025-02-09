@@ -397,4 +397,39 @@ serialize(ds::chunk& c, const StreamHeaderSubgroupObject& msg, ToEndianess = net
     return msgLen;
 }
 
+template <typename ToEndianess = NetworkEndian>
+    serialize_return_t
+    serialize(ds::chunk& c,
+              const rvn::SubscribeErrorMessage& subscribeErrorMessage,
+              ToEndianess = network_endian)
+{
+    std::uint64_t msgLen = 0;
+    // Calculate the length of the message
+    {
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeErrorMessage.subscribeId_);
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeErrorMessage.errorCode_);
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeErrorMessage.reasonPhraseLength_);
+
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeErrorMessage.reasonPhrase_.size());
+        msgLen += subscribeErrorMessage.reasonPhrase_.size();
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeErrorMessage.trackAlias_);
+    }
+
+    std::uint64_t headerLen = 0;
+    // Header
+    headerLen += serialize<ds::quic_var_int>(c, utils::to_underlying(MoQtMessageType::SUBSCRIBE_ERROR), ToEndianess{});
+    headerLen += serialize<ds::quic_var_int>(c, msgLen, ToEndianess{});
+
+    // Body
+    serialize<ds::quic_var_int>(c, subscribeErrorMessage.subscribeId_, ToEndianess{});
+    serialize<ds::quic_var_int>(c, subscribeErrorMessage.errorCode_, ToEndianess{});
+    serialize<ds::quic_var_int>(c, subscribeErrorMessage.reasonPhraseLength_, ToEndianess{});
+
+    serialize<ds::quic_var_int>(c, subscribeErrorMessage.reasonPhrase_.size(), ToEndianess{});
+    c.append(subscribeErrorMessage.reasonPhrase_.data(), subscribeErrorMessage.reasonPhrase_.size());
+    serialize<ds::quic_var_int>(c, subscribeErrorMessage.trackAlias_, ToEndianess{});
+
+    return headerLen + msgLen;
+}
+
 } // namespace rvn::serialization::detail
