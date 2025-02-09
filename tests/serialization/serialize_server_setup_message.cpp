@@ -38,9 +38,8 @@ void test1()
 
     utils::ASSERT_LOG_THROW(header.messageType_ == MoQtMessageType::SERVER_SETUP,
                             "Message type mismatch\n", "Expected: ",
-                            utils::to_underlying(MoQtMessageType::SERVER_SETUP),
-                            "\n", "Actual: ", utils::to_underlying(header.messageType_),
-                            "\n");
+                            utils::to_underlying(MoQtMessageType::SERVER_SETUP), "\n",
+                            "Actual: ", utils::to_underlying(header.messageType_), "\n");
 
     ServerSetupMessage deserializedMsg;
     serialization::detail::deserialize(deserializedMsg, span);

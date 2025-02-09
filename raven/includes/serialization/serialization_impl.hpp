@@ -157,9 +157,7 @@ serialize_return_t mock_serialize_optional(const std::optional<T>& i)
 // Message serialization
 template <typename ToEndianess = NetworkEndian>
 serialize_return_t
-serialize(ds::chunk& c,
-          const rvn::ClientSetupMessage& clientSetupMessage,
-          ToEndianess = network_endian)
+serialize(ds::chunk& c, const rvn::ClientSetupMessage& clientSetupMessage, ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;
     // we need to find out length of the message we would be serializing
@@ -209,9 +207,7 @@ serialize(ds::chunk& c,
 
 template <typename ToEndianess = NetworkEndian>
 serialize_return_t
-serialize(ds::chunk& c,
-          const rvn::ServerSetupMessage& serverSetupMessage,
-          ToEndianess = network_endian)
+serialize(ds::chunk& c, const rvn::ServerSetupMessage& serverSetupMessage, ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;
     // we need to find out length of the message we would be serializing
@@ -249,9 +245,7 @@ serialize(ds::chunk& c,
 
 template <typename ToEndianess = NetworkEndian>
 serialize_return_t
-serialize(ds::chunk& c,
-          const rvn::SubscribeMessage& subscribeMessage,
-          ToEndianess = network_endian)
+serialize(ds::chunk& c, const rvn::SubscribeMessage& subscribeMessage, ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;
     // we need to find out length of the message we would be serializing
@@ -354,9 +348,7 @@ serialize(ds::chunk& c,
 
 template <typename ToEndianess = NetworkEndian>
 serialize_return_t
-serialize(ds::chunk& c,
-          const StreamHeaderSubgroupMessage& msg,
-          ToEndianess = network_endian)
+serialize(ds::chunk& c, const StreamHeaderSubgroupMessage& msg, ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;
     // we need to find out length of the message we would be serializing
@@ -385,9 +377,7 @@ serialize(ds::chunk& c,
 
 template <typename ToEndianess = NetworkEndian>
 serialize_return_t
-serialize(ds::chunk& c,
-          const StreamHeaderSubgroupObject& msg,
-          ToEndianess = network_endian)
+serialize(ds::chunk& c, const StreamHeaderSubgroupObject& msg, ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;
     // we need to find out length of the message we would be serializing

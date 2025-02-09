@@ -63,9 +63,8 @@ void test1()
 
     utils::ASSERT_LOG_THROW(header.messageType_ == MoQtMessageType::SUBSCRIBE,
                             "Message type mismatch\n", "Expected: ",
-                            utils::to_underlying(MoQtMessageType::SUBSCRIBE),
-                            "\n", "Actual: ", utils::to_underlying(header.messageType_),
-                            "\n");
+                            utils::to_underlying(MoQtMessageType::SUBSCRIBE), "\n",
+                            "Actual: ", utils::to_underlying(header.messageType_), "\n");
 
     SubscribeMessage deserializedMsg;
     serialization::detail::deserialize(deserializedMsg, span);

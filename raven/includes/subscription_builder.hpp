@@ -108,23 +108,19 @@ public:
         friend SubscriptionBuilder;
         struct LatestGroup
         {
-            static constexpr auto filterType =
-            SubscribeMessage::FilterType::LatestGroup;
+            static constexpr auto filterType = SubscribeMessage::FilterType::LatestGroup;
         };
         struct LatestObject
         {
-            static constexpr auto filterType =
-            SubscribeMessage::FilterType::LatestObject;
+            static constexpr auto filterType = SubscribeMessage::FilterType::LatestObject;
         };
         struct AbsoluteStart
         {
-            static constexpr auto filterType =
-            SubscribeMessage::FilterType::AbsoluteStart;
+            static constexpr auto filterType = SubscribeMessage::FilterType::AbsoluteStart;
         };
         struct AbsoluteRange
         {
-            static constexpr auto filterType =
-            SubscribeMessage::FilterType::AbsoluteRange;
+            static constexpr auto filterType = SubscribeMessage::FilterType::AbsoluteRange;
         };
 
 
@@ -149,8 +145,7 @@ public:
         return *this;
     }
     SubscriptionBuilder&
-    set_data_range(Filter::AbsoluteStart f,
-                   SubscribeMessage::GroupObjectPair start)
+    set_data_range(Filter::AbsoluteStart f, SubscribeMessage::GroupObjectPair start)
     {
         subscribeMessage_.filterType_ = f.filterType;
         subscribeMessage_.start_ = start;
@@ -159,10 +154,9 @@ public:
     }
 
 
-    SubscriptionBuilder&
-    set_data_range(Filter::AbsoluteRange f,
-                   SubscribeMessage::GroupObjectPair start,
-                   SubscribeMessage::GroupObjectPair end)
+    SubscriptionBuilder& set_data_range(Filter::AbsoluteRange f,
+                                        SubscribeMessage::GroupObjectPair start,
+                                        SubscribeMessage::GroupObjectPair end)
     {
         subscribeMessage_.filterType_ = f.filterType;
         subscribeMessage_.start_ = start;

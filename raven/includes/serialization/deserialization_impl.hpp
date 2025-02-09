@@ -134,9 +134,7 @@ deserialize(std::uint64_t& i, ConstSpan& chunk, NetworkEndian = network_endian)
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize_params(std::vector<Parameter>& parameters,
-                   ConstSpan& span,
-                   NetworkEndian = network_endian)
+deserialize_params(std::vector<Parameter>& parameters, ConstSpan& span, NetworkEndian = network_endian)
 {
     std::uint64_t deserializedBytes = 0;
 
@@ -147,8 +145,7 @@ deserialize_params(std::vector<Parameter>& parameters,
     {
         std::uint64_t parameterType;
         deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
-        parameter.parameterType_ =
-        static_cast<ParameterType>(parameterType);
+        parameter.parameterType_ = static_cast<ParameterType>(parameterType);
 
         std::uint64_t parameterLength;
         deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
@@ -166,9 +163,7 @@ deserialize_params(std::vector<Parameter>& parameters,
 // precondition: span is from start of message to end of message
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::ClientSetupMessage& clientSetupMessage,
-            ConstSpan& span,
-            NetworkEndian = network_endian)
+deserialize(rvn::ClientSetupMessage& clientSetupMessage, ConstSpan& span, NetworkEndian = network_endian)
 {
     std::uint64_t deserializedBytes = 0;
 
@@ -191,16 +186,13 @@ deserialize(rvn::ClientSetupMessage& clientSetupMessage,
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::ControlMessageHeader& controlMessageHeader,
-            ConstSpan& span,
-            NetworkEndian = network_endian)
+deserialize(rvn::ControlMessageHeader& controlMessageHeader, ConstSpan& span, NetworkEndian = network_endian)
 {
     std::uint64_t deserializedBytes = 0;
 
     std::uint64_t messageType;
     deserializedBytes += deserialize<ds::quic_var_int>(messageType, span);
-    controlMessageHeader.messageType_ =
-    static_cast<MoQtMessageType>(messageType);
+    controlMessageHeader.messageType_ = static_cast<MoQtMessageType>(messageType);
 
     std::uint64_t length;
     deserializedBytes += deserialize<ds::quic_var_int>(length, span);
@@ -211,9 +203,7 @@ deserialize(rvn::ControlMessageHeader& controlMessageHeader,
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::ServerSetupMessage& serverSetupMessage,
-            ConstSpan& span,
-            NetworkEndian = network_endian)
+deserialize(rvn::ServerSetupMessage& serverSetupMessage, ConstSpan& span, NetworkEndian = network_endian)
 {
     std::uint64_t deserializedBytes = 0;
 
@@ -228,9 +218,7 @@ deserialize(rvn::ServerSetupMessage& serverSetupMessage,
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::SubscribeMessage& subscribeMessage,
-            ConstSpan& span,
-            NetworkEndian = network_endian)
+deserialize(rvn::SubscribeMessage& subscribeMessage, ConstSpan& span, NetworkEndian = network_endian)
 {
     std::uint64_t deserializedBytes = 0;
 
@@ -267,15 +255,11 @@ deserialize(rvn::SubscribeMessage& subscribeMessage,
 
     std::uint64_t filterType;
     deserializedBytes += deserialize<ds::quic_var_int>(filterType, span);
-    subscribeMessage.filterType_ =
-    static_cast<SubscribeMessage::FilterType>(filterType);
-    subscribeMessage.filterType_ =
-    static_cast<SubscribeMessage::FilterType>(filterType);
+    subscribeMessage.filterType_ = static_cast<SubscribeMessage::FilterType>(filterType);
+    subscribeMessage.filterType_ = static_cast<SubscribeMessage::FilterType>(filterType);
 
-    if ((subscribeMessage.filterType_ ==
-         rvn::SubscribeMessage::FilterType::AbsoluteStart) |
-        (subscribeMessage.filterType_ ==
-         rvn::SubscribeMessage::FilterType::AbsoluteRange))
+    if ((subscribeMessage.filterType_ == rvn::SubscribeMessage::FilterType::AbsoluteStart) |
+        (subscribeMessage.filterType_ == rvn::SubscribeMessage::FilterType::AbsoluteRange))
     {
         subscribeMessage.start_.emplace();
         deserializedBytes +=
@@ -284,8 +268,7 @@ deserialize(rvn::SubscribeMessage& subscribeMessage,
         deserialize<ds::quic_var_int>(subscribeMessage.start_->object_.get(), span);
     }
 
-    if (subscribeMessage.filterType_ ==
-        rvn::SubscribeMessage::FilterType::AbsoluteRange)
+    if (subscribeMessage.filterType_ == rvn::SubscribeMessage::FilterType::AbsoluteRange)
     {
         subscribeMessage.end_.emplace();
         deserializedBytes +=

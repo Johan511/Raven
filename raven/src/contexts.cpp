@@ -159,15 +159,16 @@ QUIC_STATUS ConnectionState::send_object(std::weak_ptr<DataStreamState> dataStre
 QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifier,
                                          QUIC_BUFFER* objectPayload)
 {
-    for(auto& dataStream : dataStreams)
+    for (auto& dataStream : dataStreams)
     {
         if (dataStream.can_send_object(objectIdentifier))
         {
             StreamSendContext* streamSendContext =
             new StreamSendContext(objectPayload, 1, dataStream.streamContext.get());
 
-            return moqtObject_.get_tbl()->StreamSend(dataStream.stream.get(), objectPayload,
-                                                     1, QUIC_SEND_FLAG_NONE, streamSendContext);
+            return moqtObject_.get_tbl()->StreamSend(dataStream.stream.get(),
+                                                     objectPayload, 1, QUIC_SEND_FLAG_NONE,
+                                                     streamSendContext);
         }
     }
 

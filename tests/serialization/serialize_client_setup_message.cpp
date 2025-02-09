@@ -36,12 +36,10 @@ void test1()
     ControlMessageHeader header;
     serialization::detail::deserialize(header, span);
 
-    utils::ASSERT_LOG_THROW(header.messageType_ ==
-                            rvn::MoQtMessageType::CLIENT_SETUP,
+    utils::ASSERT_LOG_THROW(header.messageType_ == rvn::MoQtMessageType::CLIENT_SETUP,
                             "Header type mismatch\n", "Expected: ",
-                            utils::to_underlying(rvn::MoQtMessageType::CLIENT_SETUP),
-                            "\n", "Actual: ", utils::to_underlying(header.messageType_),
-                            "\n");
+                            utils::to_underlying(rvn::MoQtMessageType::CLIENT_SETUP), "\n",
+                            "Actual: ", utils::to_underlying(header.messageType_), "\n");
 
     ClientSetupMessage deserialized;
     serialization::detail::deserialize(deserialized, span);
