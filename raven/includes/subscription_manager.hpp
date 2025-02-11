@@ -11,7 +11,7 @@
 namespace rvn
 {
 
-class ConnectionState;
+struct ConnectionState;
 
 struct SubscriptionStateErr
 {
@@ -100,7 +100,7 @@ struct ThreadLocalState
 
 class SubscriptionManager
 {
-    friend class ThreadLocalState;
+    friend struct ThreadLocalState;
     class DataManager& dataManager_;
 
     // holds subscriptions messages which need to be processed and start executing

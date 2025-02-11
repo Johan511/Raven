@@ -257,8 +257,6 @@ template <typename DeserializedMessageHandler> class Deserializer
     std::optional<std::uint64_t> subGroupObjectPayloadLength_;
     void read_subgroup_object()
     {
-        // TODO: fix this buggy code
-        // Why buggy? if objectId is read and length fails, when reading again, we read from objectId
         if (!subGroupObjectId_.has_value())
         {
             std::uint64_t objectId = read_quic_var_int();

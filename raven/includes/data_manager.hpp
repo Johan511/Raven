@@ -31,29 +31,11 @@ DataManager.add_track_idenifier => adds a new track and returns handle (weak_ptr
                                     Stores a mapping from TrackIdentifier to TrackHandle
 
 
-
-
-In each TrackHandle => Stores weak_ptr to TrackIdentifier
-Why not shared_ptr =>
-1. Intuitive Reason: TrackHandle only references TrackIdenitifer,
-                    if lifetime of TrackIdentifier ends, TrackHandle should not be able to access it
-2. Programmatic Reason: We have mapping from TrackIdentifier to TrackHandle in DataManager
-                        If we we decide to delete a track on T1
-                        and T2 still has reference to it, Track will not be deleted and user will never know we deleted it
-
-*NOT* a reason:
-Memory leak due to cyclic shared_ptr dependency, because there is no cyclic shared_ptr dependency here
-
-Consider this case:
-shared_ptr<TrackIdenitifier> => use_count = 3: from DataManager, TrackHandle in DataManager and TrackHandle in user code
-shared_ptr<TrackHandle> => use_count = 2: from TrackHandle in DataManager and TrackHandle in user code
-
 User deletes Track
 Deletes the pair <TrackIdentifier, std::shared_ptr<TrackHandle>> from DataManager
-use_count of TrackHandle decreases by 1 and use_count of TrackIdentifier decreases by 2 (key deleted and reference by value also deleted)
+use_count of TrackHandle decreases by 1
 
-Finally when user deletes TrackHandler, use_count of TrackHandler becomes 0 and is cleaned up along with TrackIdentifier
-
+Finally when user deletes TrackHandler, use_count of TrackHandler becomes 0 and is cleaned up
 
 Similarly TrackHandle has mapping from GroupId to std::shared_ptr<GroupHandle>
 When we add group, it returns std::weak_ptr<GroupHandle>
@@ -210,8 +192,8 @@ class GroupHandle : public std::enable_shared_from_this<GroupHandle>
     friend class DataManager;
     friend class TrackHandle;
     friend class SubgroupHandle;
-    class DataManager& dataManager_;
     GroupIdentifier groupIdentifier_;
+    class DataManager& dataManager_;
 
     GroupHandle& operator=(const GroupHandle&) = delete;
     GroupHandle& operator=(GroupHandle&&) = delete;

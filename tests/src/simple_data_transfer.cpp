@@ -49,7 +49,7 @@ std::unique_ptr<MOQTClient> client_setup()
 
     moqtClient->start_connection(QUIC_ADDRESS_FAMILY_UNSPEC, Target, serverPort);
 
-    return std::move(moqtClient);
+    return moqtClient;
 }
 
 
@@ -102,7 +102,7 @@ std::unique_ptr<MOQTServer> server_setup()
 
     moqtServer->start_listener(&Address);
 
-    return std::move(moqtServer);
+    return moqtServer;
 }
 
 // TODO: use shared memory synchronization instead of `sleep_fir`

@@ -18,10 +18,8 @@
 
 extern "C"
 {
-    #include <msquic.h>
+#include <msquic.h>
 }
-
-#define DEFAULT_BUFFER_CAPACITY 512
 
 namespace rvn
 {
@@ -40,7 +38,7 @@ struct StreamContext
         StreamContext to be constructed
         Constructors can not have cyclical dependency
      */
-    class ConnectionState& connectionState_;
+    struct ConnectionState& connectionState_;
     /*
         We can not have operator= for Deserializer because it contains
         a non movable object (std::mutex)
@@ -76,8 +74,7 @@ public:
     : buffer(buffer_), bufferCount(bufferCount_), streamContext(streamContext_),
       sendCompleteCallback(sendCompleteCallback_)
     {
-        if (bufferCount != 1)
-            LOGE("StreamSendContext can only have one buffer");
+        utils::ASSERT_LOG_THROW(bufferCount == 1, "bufferCount should be 1", bufferCount);
     }
 
     ~StreamSendContext()
@@ -108,10 +105,10 @@ public:
 struct StreamState
 {
     rvn::unique_stream stream;
-    class ConnectionState& connectionState_;
+    struct ConnectionState& connectionState_;
     std::unique_ptr<StreamContext> streamContext{};
 
-    StreamState(rvn::unique_stream&& stream_, class ConnectionState& connectionState_)
+    StreamState(rvn::unique_stream&& stream_, struct ConnectionState& connectionState_)
     : stream(std::move(stream_)), connectionState_(connectionState_)
     {
     }
@@ -125,8 +122,6 @@ struct StreamState
 struct ConnectionState : std::enable_shared_from_this<ConnectionState>
 {
     // StreamManager //////////////////////////////////////////////////////////////
-    // TODO: Inlined into the class because of some bug, please check (457239f)
-
     std::shared_mutex trackAliasMtx_;
     std::unordered_map<TrackIdentifier, TrackAlias, TrackIdentifier::Hash, TrackIdentifier::Equal> trackAliasMap_;
     std::unordered_map<std::uint64_t, TrackIdentifier> trackAliasRevMap_;
@@ -149,7 +144,7 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
         StreamHeaderSubgroupMessage streamHeaderSubgroupMessage_;
 
     public:
-        DataStreamState(rvn::unique_stream&& stream, class ConnectionState& connectionState)
+        DataStreamState(rvn::unique_stream&& stream, struct ConnectionState& connectionState)
         : StreamState(std::move(stream), connectionState)
         {
         }
@@ -205,7 +200,6 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
     // Only for Subscribers
     // TODO: We can have multiple subscriptions
     StableContainer<MPMCQueue<std::string>>::iterator objectQueue;
-
 
     ConnectionState(unique_connection&& connection, class MOQT& moqtObject)
     : connection_(std::move(connection)), moqtObject_(moqtObject)

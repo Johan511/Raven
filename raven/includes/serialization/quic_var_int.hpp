@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <strong_types.hpp>
 
 namespace rvn::ds
 {
@@ -12,8 +13,7 @@ namespace rvn::ds
     10 => 4 bytes total (30 bits of payload)
     11 => 8 bytes total (62 bits of payload)
 */
-// TODO: change to use the trait in strong_types.hpp
-class quic_var_int
+class quic_var_int : detail::UintCTRPTrait<std::uint64_t, quic_var_int>
 {
     std::uint64_t value_{};
 
@@ -43,109 +43,15 @@ public:
         return value_;
     }
 
-    std::uint64_t value() const
+    const std::uint64_t& get() const
     {
         return value_;
     }
 
-    // Arithmetic operators
-    quic_var_int& operator+=(const quic_var_int& other)
+    std::uint64_t& get()
     {
-        value_ += other.value_;
-        return *this;
+        return value_;
     }
-    quic_var_int& operator-=(const quic_var_int& other)
-    {
-        value_ -= other.value_;
-        return *this;
-    }
-    quic_var_int& operator*=(const quic_var_int& other)
-    {
-        value_ *= other.value_;
-        return *this;
-    }
-    quic_var_int& operator/=(const quic_var_int& other)
-    {
-        value_ /= other.value_;
-        return *this;
-    }
-    quic_var_int& operator%=(const quic_var_int& other)
-    {
-        value_ %= other.value_;
-        return *this;
-    }
-
-    quic_var_int operator+(const quic_var_int& other) const
-    {
-        return quic_var_int(value_ + other.value_);
-    }
-    quic_var_int operator-(const quic_var_int& other) const
-    {
-        return quic_var_int(value_ - other.value_);
-    }
-    quic_var_int operator*(const quic_var_int& other) const
-    {
-        return quic_var_int(value_ * other.value_);
-    }
-    quic_var_int operator/(const quic_var_int& other) const
-    {
-        return quic_var_int(value_ / other.value_);
-    }
-    quic_var_int operator%(const quic_var_int& other) const
-    {
-        return quic_var_int(value_ % other.value_);
-    }
-
-    // Comparison operators
-    bool operator==(const quic_var_int& other) const
-    {
-        return value_ == other.value_;
-    }
-    bool operator!=(const quic_var_int& other) const
-    {
-        return value_ != other.value_;
-    }
-    bool operator<(const quic_var_int& other) const
-    {
-        return value_ < other.value_;
-    }
-    bool operator<=(const quic_var_int& other) const
-    {
-        return value_ <= other.value_;
-    }
-    bool operator>(const quic_var_int& other) const
-    {
-        return value_ > other.value_;
-    }
-    bool operator>=(const quic_var_int& other) const
-    {
-        return value_ >= other.value_;
-    }
-
-    // Increment and decrement operators
-    quic_var_int& operator++()
-    {
-        ++value_;
-        return *this;
-    }
-    quic_var_int operator++(int)
-    {
-        quic_var_int temp = *this;
-        ++value_;
-        return temp;
-    }
-    quic_var_int& operator--()
-    {
-        --value_;
-        return *this;
-    }
-    quic_var_int operator--(int)
-    {
-        quic_var_int temp = *this;
-        --value_;
-        return temp;
-    }
-    ////////////////////////////////////////////////////////////////
 };
 
 } // namespace rvn::ds

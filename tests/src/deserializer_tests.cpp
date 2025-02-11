@@ -1,4 +1,5 @@
 #include "serialization/chunk.hpp"
+#include "wrappers.hpp"
 #include <deserializer.hpp>
 #include <initializer_list>
 #include <memory>
@@ -8,7 +9,13 @@
 using namespace rvn;
 using namespace rvn::serialization;
 
-std::unique_ptr<QUIC_BUFFER> construct_quic_buffer(std::uint64_t lenBuffer)
+inline auto QuicBufferDeleter = [](QUIC_BUFFER* buffer)
+{ free(buffer); };
+
+using UniqueQuicBuffer = std::unique_ptr<QUIC_BUFFER, decltype(QuicBufferDeleter)>;
+using SharedQuicBuffer = std::shared_ptr<QUIC_BUFFER>;
+
+UniqueQuicBuffer construct_quic_buffer(std::uint64_t lenBuffer)
 {
     QUIC_BUFFER* totalQuicBuffer =
     static_cast<QUIC_BUFFER*>(malloc(sizeof(QUIC_BUFFER) + lenBuffer));
@@ -16,17 +23,17 @@ std::unique_ptr<QUIC_BUFFER> construct_quic_buffer(std::uint64_t lenBuffer)
     totalQuicBuffer->Buffer =
     reinterpret_cast<uint8_t*>(totalQuicBuffer) + sizeof(QUIC_BUFFER);
 
-    return std::unique_ptr<QUIC_BUFFER>(totalQuicBuffer);
+    return UniqueQuicBuffer(totalQuicBuffer);
 }
 
-std::vector<std::shared_ptr<QUIC_BUFFER>>
+std::vector<::SharedQuicBuffer>
 generate_quic_buffers(std::initializer_list<ds::chunk> chunks)
 {
     std::uint64_t totalSize = 0;
     for (const auto& chunk : chunks)
         totalSize += chunk.size();
 
-    std::vector<std::shared_ptr<QUIC_BUFFER>> quicBuffers;
+    std::vector<::SharedQuicBuffer> quicBuffers;
     quicBuffers.reserve(totalSize / 2);
 
     // To stress it we serialize to small chunks

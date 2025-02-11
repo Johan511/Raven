@@ -47,12 +47,6 @@ class SubscriptionBuilder
         return 0b111111;
     }
 
-    static constexpr std::uint16_t full_value()
-    {
-        return 0b111111;
-    }
-
-
     void set_defaults()
     {
         subscribeMessage_.subscribeId_ =

@@ -9,11 +9,6 @@
 const std::uint16_t serverPort = 4567;
 const char* data = "Hello World!";
 
-void handler(int signum)
-{
-    // __lsan_do_leak_check();
-}
-
 using namespace rvn;
 
 typedef struct QUIC_CREDENTIAL_CONFIG_HELPER

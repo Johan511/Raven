@@ -6,7 +6,7 @@ namespace rvn
 {
 class MessageHandler
 {
-    class StreamState& streamState_;
+    struct StreamState& streamState_;
     class SubscriptionManager* subscriptionManager_;
 
 public:
