@@ -1,18 +1,18 @@
 ////////////////////////////////
 #include "msquic.h"
-#include "subscription_manager.hpp"
-#include <memory>
-#include <moqt_server.hpp>
-#include <optional>
-#include <stdexcept>
-#include <strong_types.hpp>
-////////////////////////////////
 #include <contexts.hpp>
 #include <data_manager.hpp>
 #include <definitions.hpp>
 #include <message_handler.hpp>
 #include <moqt.hpp>
+#include <strong_types.hpp>
+#include <subscription_manager.hpp>
 #include <utilities.hpp>
+#include <wrappers.hpp>
+////////////////////////////////
+#include <memory>
+#include <optional>
+#include <stdexcept>
 ////////////////////////////////
 
 namespace rvn
@@ -82,6 +82,7 @@ QUIC_STATUS ConnectionState::accept_data_stream(HQUIC streamHandle)
     // set stream context for stream
     DataStreamState& streamState = dataStreams.back();
     streamState.set_stream_context(std::make_unique<StreamContext>(moqtObject_, *this));
+    streamState.streamContext->construct_deserializer(streamState, false);
 
     // set callback handler fot the stream (MOQT sets internally)
     moqtObject_.get_tbl()->SetCallbackHandler(streamHandle, (void*)MOQT::data_stream_cb_wrapper,
@@ -104,7 +105,7 @@ QUIC_STATUS ConnectionState::accept_control_stream(HQUIC controlStreamHandle)
                                               (
                                               void*)controlStream->streamContext.get());
 
-    this->controlStream->streamContext->construct_deserializer(*this->controlStream);
+    this->controlStream->streamContext->construct_deserializer(*this->controlStream, true);
 
     this->controlStream->streamContext->streamHasBeenConstructed.store(true, std::memory_order_release);
 
@@ -126,35 +127,12 @@ StreamState& ConnectionState::establish_control_stream()
                                 *this);
 
     this->controlStream->set_stream_context(std::unique_ptr<StreamContext>(streamContext));
-    this->controlStream->streamContext->construct_deserializer(*this->controlStream);
+    this->controlStream->streamContext->construct_deserializer(*this->controlStream, true);
 
     this->controlStream->streamContext->streamHasBeenConstructed.store(true, std::memory_order_release);
     return this->controlStream.value();
 }
 
-QUIC_STATUS ConnectionState::send_object(std::weak_ptr<DataStreamState> dataStreamWeakPtr,
-                                         const ObjectIdentifier& objectIdentifier,
-                                         QUIC_BUFFER* objectPayload)
-{
-    auto dataStreamSharedPtr = dataStreamWeakPtr.lock();
-
-    if (!dataStreamSharedPtr)
-        return QUIC_STATUS_INVALID_STATE;
-
-    auto& dataStream = *dataStreamSharedPtr;
-
-    utils::ASSERT_LOG_THROW(dataStream.can_send_object(objectIdentifier),
-                            "Sending inappropriate object over data stream",
-                            "Data stream Header: ", dataStream.header(),
-                            "Object Identifier: ", objectIdentifier);
-
-
-    StreamSendContext* streamSendContext =
-    new StreamSendContext(objectPayload, 1, dataStream.streamContext.get());
-
-    return moqtObject_.get_tbl()->StreamSend(dataStream.stream.get(), objectPayload,
-                                             1, QUIC_SEND_FLAG_NONE, streamSendContext);
-}
 
 QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifier,
                                          QUIC_BUFFER* objectPayload)
@@ -172,8 +150,42 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
         }
     }
 
-    // TODO: Create new data stream and send object
-    return QUIC_STATUS_INVALID_STATE;
+    StreamContext* streamContext = new StreamContext(moqtObject_, *this);
+
+    auto stream =
+    rvn::unique_stream(moqtObject_.get_tbl(),
+                       { connection_.get(), QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
+                         moqtObject_.data_stream_cb_wrapper, streamContext },
+                       { QUIC_STREAM_START_FLAG_FAIL_BLOCKED |
+                         QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL });
+
+    dataStreams.emplace_back(std::move(stream), *this);
+
+    StreamState& streamState = dataStreams.back();
+    streamState.set_stream_context(std::unique_ptr<StreamContext>(streamContext));
+    // no need deserializer because we don't expect to receive any messages on this stream
+
+    // Send object header message
+    StreamHeaderSubgroupMessage objectHeader;
+    // TODO: add error handling to this
+    objectHeader.trackAlias_ = identifier_to_alias(objectIdentifier).value();
+    objectHeader.groupId_ = objectIdentifier.groupId_;
+    // TOOD: get subgroupId
+    objectHeader.subgroupId_ = SubGroupId(0);
+    objectHeader.publisherPriority_ = 0;
+
+    QUIC_BUFFER* objectHeaderBuffer = serialization::serialize(objectHeader);
+
+    StreamSendContext* streamSendContext =
+    new StreamSendContext(objectPayload, 1, streamState.streamContext.get());
+
+    QUIC_STATUS status =
+    moqtObject_.get_tbl()->StreamSend(streamState.stream.get(), objectHeaderBuffer,
+                                      1, QUIC_SEND_FLAG_NONE, streamSendContext);
+
+    
+
+    return status | send_object(objectIdentifier, objectPayload);
 }
 
 std::optional<GroupId> ConnectionState::get_current_group(const TrackIdentifier& trackIdentifier)
@@ -232,12 +244,18 @@ ConnectionState::identifier_to_alias(const TrackIdentifier& trackIdentifier)
     return iter->second;
 }
 
-void StreamContext::construct_deserializer(StreamState& streamState)
+void StreamContext::construct_deserializer(StreamState& streamState, bool isControlStream)
 {
-    SubscriptionManager& subscriptionManager =
-    *static_cast<MOQTServer&>(moqtObject_).subscriptionManager_;
-    streamState.streamContext->deserializer_.emplace(
-    MessageHandler(streamState, subscriptionManager));
+    if (moqtObject_.hostType_ == HostType::SERVER)
+    {
+        SubscriptionManager* subscriptionManager =
+        static_cast<MOQTServer&>(moqtObject_).subscriptionManager_.get();
+        streamState.streamContext->deserializer_.emplace(isControlStream,
+                                                         MessageHandler(streamState, subscriptionManager));
+    }
+    else
+        streamState.streamContext->deserializer_.emplace(isControlStream,
+                                                         MessageHandler(streamState, nullptr));
     return;
 }
 } // namespace rvn

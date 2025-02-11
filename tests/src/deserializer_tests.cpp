@@ -78,7 +78,7 @@ void test1()
                [](const ServerSetupMessage& msg)
                { std::cout << "Received ServerSetupMessage\n"; } };
 
-    Deserializer deserializer(visitor);
+    Deserializer deserializer(true, visitor);
     for (const auto& quicBuffer : quicBuffers)
         deserializer.append_buffer(quicBuffer);
 

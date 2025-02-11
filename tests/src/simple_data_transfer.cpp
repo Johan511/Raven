@@ -115,7 +115,6 @@ int main()
     {
         // parent process, server
         std::unique_ptr<MOQTServer> moqtServer = server_setup();
-        moqtServer->register_object("tnamespace", "tname", 0, 0, data);
 
         using namespace std::chrono_literals;
         // Make sure server is alive until client is setup and requests

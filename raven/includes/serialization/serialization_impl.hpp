@@ -351,28 +351,18 @@ serialize_return_t
 serialize(ds::chunk& c, const StreamHeaderSubgroupMessage& msg, ToEndianess = network_endian)
 {
     std::uint64_t msgLen = 0;
-    // we need to find out length of the message we would be serializing
-    {
-        msgLen += mock_serialize<ds::quic_var_int>(msg.trackAlias_.get());
-        msgLen += mock_serialize<ds::quic_var_int>(msg.groupId_.get());
-        msgLen += mock_serialize<ds::quic_var_int>(msg.subgroupId_.get());
-        msgLen += mock_serialize<std::uint8_t>(msg.publisherPriority_);
-    }
 
     // header
-    std::uint64_t headerLen = 0;
-    headerLen +=
-    serialize<ds::quic_var_int>(c, utils::to_underlying(DataStreamType::STREAM_HEADER_SUBGROUP),
-                                ToEndianess{});
-    headerLen += serialize<ds::quic_var_int>(c, msgLen, ToEndianess{});
+    msgLen +=
+    serialize<ds::quic_var_int>(c, utils::to_underlying(msg.id_), ToEndianess{});
 
     // body
-    serialize<ds::quic_var_int>(c, msg.trackAlias_, ToEndianess{});
-    serialize<ds::quic_var_int>(c, msg.groupId_, ToEndianess{});
-    serialize<ds::quic_var_int>(c, msg.subgroupId_, ToEndianess{});
-    serialize<std::uint8_t>(c, msg.publisherPriority_, ToEndianess{});
+    msgLen += serialize<ds::quic_var_int>(c, msg.trackAlias_.get(), ToEndianess{});
+    msgLen += serialize<ds::quic_var_int>(c, msg.groupId_.get(), ToEndianess{});
+    msgLen += serialize<ds::quic_var_int>(c, msg.subgroupId_.get(), ToEndianess{});
+    msgLen += serialize<std::uint8_t>(c, msg.publisherPriority_, ToEndianess{});
 
-    return headerLen + msgLen;
+    return msgLen;
 }
 
 template <typename ToEndianess = NetworkEndian>

@@ -40,8 +40,16 @@ FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
         objectMsg.objectId_ = objectToSend_.objectId_;
         objectMsg.payload_ = std::move(object);
         QUIC_BUFFER* quicBuffer = serialization::serialize(objectMsg);
+        QUIC_STATUS status =
         connectionStateSharedPtr->send_object(objectToSend_, quicBuffer);
+        std::cout << quicBuffer->Length << std::endl;
+        if (QUIC_FAILED(status))
+            return SubscriptionStateErr::ConnectionExpired{};
 
+        bool canAdavance = subscriptionState_->dataManager_->next(objectToSend_);
+
+        if (!canAdavance)
+            return true;
         return (lastObjectToBeSent_.has_value() && objectToSend_ == *lastObjectToBeSent_);
     }
 }
@@ -56,9 +64,20 @@ FullfillSomeReturn SubscriptionState::fulfill_some()
     for (auto traversalIter = beginIter; traversalIter != endIter; ++traversalIter)
     {
         auto fullfillReturn = traversalIter->fulfill_some_minor();
-        // TODO, handle return cases
+
+        if (std::holds_alternative<bool>(fullfillReturn))
+        {
+            if (!std::get<bool>(fullfillReturn))
+            {
+                *beginIter++ = std::move(*traversalIter);
+                allFullfilled = false;
+            }
+        }
+        else
+            return fullfillReturn;
     }
 
+    minorSubscriptionStates_.erase(beginIter, endIter);
     return allFullfilled;
 }
 
@@ -143,24 +162,27 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
         }
         case SubscribeMessage::FilterType::AbsoluteStart:
         {
-            ObjectIdentifier objectToBeSent{ trackIdentifier,
-                                             subscriptionMessage_.start_->group_,
-                                             subscriptionMessage_.start_->object_ };
+            ObjectIdentifier firstObjectIdentifier{ trackIdentifier,
+                                                    subscriptionMessage_.start_->group_,
+                                                    subscriptionMessage_.start_->object_ };
             // there is no last object to be sent because we are sending all objects
 
-            minorSubscriptionStates_.emplace_back(*this, std::move(objectToBeSent),
+            minorSubscriptionStates_.emplace_back(*this, std::move(firstObjectIdentifier),
                                                   std::nullopt);
             break;
         }
         case SubscribeMessage::FilterType::AbsoluteRange:
         {
-            ObjectIdentifier objectToBeSent{ trackIdentifier,
-                                             subscriptionMessage_.start_->group_,
-                                             subscriptionMessage_.start_->object_ };
+            ObjectIdentifier firstObjectIdentifier{ trackIdentifier,
+                                                    subscriptionMessage_.start_->group_,
+                                                    subscriptionMessage_.start_->object_ };
 
-            ObjectIdentifier lastObjectToBeSent{ trackIdentifier,
-                                                 subscriptionMessage_.end_->group_,
-                                                 subscriptionMessage_.end_->object_ };
+            ObjectIdentifier lastObjectIdentifier{ trackIdentifier,
+                                                   subscriptionMessage_.end_->group_,
+                                                   subscriptionMessage_.end_->object_ };
+
+            minorSubscriptionStates_.emplace_back(*this, std::move(firstObjectIdentifier),
+                                                  std::move(lastObjectIdentifier));
             break;
         }
         default:
@@ -168,6 +190,56 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
             utils::ASSERT_LOG_THROW(false, "Unknown filter type",
                                     utils::to_underlying(filterType));
         }
+    }
+}
+
+void ThreadLocalState::operator()()
+{
+    while (true)
+    {
+        auto& subscriptionQueue_ = subscriptionManager_.subscriptionQueue_;
+
+        std::tuple<std::weak_ptr<ConnectionState>, SubscribeMessage> subscriptionTuple;
+        while (subscriptionQueue_.try_dequeue(subscriptionTuple))
+        {
+            auto connectionStateWeakPtr = std::move(std::get<0>(subscriptionTuple));
+            auto subscriptionMessage = std::move(std::get<1>(subscriptionTuple));
+
+            subscriptionStates_.emplace_back(std::move(connectionStateWeakPtr),
+                                             subscriptionManager_.dataManager_, subscriptionManager_,
+                                             std::move(subscriptionMessage));
+            if (subscriptionStates_.back().cleanup_)
+                subscriptionStates_.pop_back();
+        }
+
+        auto beginIter = subscriptionStates_.begin();
+        auto endIter = subscriptionStates_.end();
+
+        for (auto traversalIter = beginIter; traversalIter != endIter; ++traversalIter)
+        {
+            auto fullfillReturn = traversalIter->fulfill_some();
+
+            if (std::holds_alternative<bool>(fullfillReturn))
+            // subscription is being fulfilled with no issues
+            {
+                if (!std::get<bool>(fullfillReturn))
+                    // subscription is yet to be fulfilled
+                    // all other cases the subscription state is destroyed
+                    // NOTE: destructor only called if a different subscription
+                    // is moved into its place coz Wolfgang
+                    *beginIter++ = std::move(*traversalIter);
+            }
+            else if (std::holds_alternative<SubscriptionStateErr::ConnectionExpired>(fullfillReturn))
+            {
+                // Nothing to be done
+            }
+            else if (std::holds_alternative<SubscriptionStateErr::ObjectDoesNotExist>(fullfillReturn))
+                subscriptionManager_.notify_subscription_error(*traversalIter);
+            else
+                assert(false);
+        }
+
+        subscriptionStates_.erase(beginIter, endIter);
     }
 }
 

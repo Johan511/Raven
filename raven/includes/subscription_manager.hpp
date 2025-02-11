@@ -85,74 +85,28 @@ public:
 
     ~SubscriptionState()
     {
-        utils::ASSERT_LOG_THROW(cleanup_, "Subscription not meant for cleanup "
-                                          "is being destroyed");
     }
+};
+
+struct ThreadLocalState
+{
+    SubscriptionManager& subscriptionManager_;
+    // subscription state which this thread is handling
+    // has to be stable container because we have pointers back to subscription state
+    StableContainer<SubscriptionState> subscriptionStates_;
+
+    void operator()();
 };
 
 class SubscriptionManager
 {
+    friend class ThreadLocalState;
     class DataManager& dataManager_;
 
     // holds subscriptions messages which need to be processed and start executing
     MPMCQueue<std::tuple<std::weak_ptr<ConnectionState>, SubscribeMessage>> subscriptionQueue_;
-    struct ThreadLocalState
-    {
-        SubscriptionManager& subscriptionManager_;
-        // subscription state which this thread is handling
-        std::vector<SubscriptionState> subscriptionStates_;
 
-        void operator()()
-        {
-            while (true)
-            {
-                auto& subscriptionQueue_ = subscriptionManager_.subscriptionQueue_;
-
-                std::tuple<std::weak_ptr<ConnectionState>, SubscribeMessage> subscriptionTuple;
-                while (subscriptionQueue_.try_dequeue(subscriptionTuple))
-                {
-                    auto connectionStateWeakPtr =
-                    std::move(std::get<0>(subscriptionTuple));
-                    auto subscriptionMessage = std::move(std::get<1>(subscriptionTuple));
-
-                    subscriptionStates_.emplace_back(std::move(connectionStateWeakPtr),
-                                                     subscriptionManager_.dataManager_,
-                                                     subscriptionManager_,
-                                                     std::move(subscriptionMessage));
-                    if (subscriptionStates_.back().cleanup_)
-                        subscriptionStates_.pop_back();
-                }
-
-                auto beginIter = subscriptionStates_.begin();
-                auto endIter = subscriptionStates_.end();
-
-                for (auto traversalIter = beginIter; traversalIter != endIter; ++traversalIter)
-                {
-                    auto fullfillReturn = traversalIter->fulfill_some();
-
-                    if (std::holds_alternative<bool>(fullfillReturn))
-                    // subscription is being fulfilled with no issues
-                    {
-                        if (!std::get<bool>(fullfillReturn))
-                            // subscription is yet to be fulfilled
-                            // all other cases the subscription state is destroyed
-                            // NOTE: destructor only called if a different subscription is moved into its place
-                            // coz Wolfgang
-                            *beginIter++ = std::move(*traversalIter);
-                    }
-                    else if (std::holds_alternative<SubscriptionStateErr::ConnectionExpired>(fullfillReturn))
-                    {
-                        // Nothing to be done
-                    }
-                    else if (std::holds_alternative<SubscriptionStateErr::ObjectDoesNotExist>(fullfillReturn))
-                        subscriptionManager_.notify_subscription_error(*traversalIter);
-                    else
-                        assert(false);
-                }
-            }
-        }
-    };
-    std::vector<struct ThreadLocalState> threadLocalStates_;
+    std::vector<ThreadLocalState> threadLocalStates_;
     // thread pool to manage subscriptions
     std::vector<std::jthread> threadPool_;
 

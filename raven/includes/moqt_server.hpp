@@ -1,9 +1,6 @@
 #pragma once
 ////////////////////////////////////////////
-#include "data_manager.hpp"
-#include <cstdint>
-#include <fstream>
-////////////////////////////////////////////
+#include <data_manager.hpp>
 #include <contexts.hpp>
 #include <moqt_base.hpp>
 #include <msquic.h>
@@ -110,20 +107,6 @@ public:
         ConnectionState& connectionState = *connectionStateMap.at(connection);
 
         return connectionState.accept_control_stream(newStreamInfo.Stream);
-    }
-
-    void register_object(std::string trackNamesapce,
-                         std::string trackName,
-                         std::uint64_t groupId,
-                         std::uint64_t objectId,
-                         std::string objectPayload)
-    {
-        std::string path = DATA_DIRECTORY + trackNamesapce + "/" + trackName + "/" +
-                           std::to_string(groupId) + "/" + std::to_string(objectId);
-
-        std::ofstream file(path);
-        file << objectPayload;
-        file.close();
     }
 };
 } // namespace rvn

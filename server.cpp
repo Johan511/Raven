@@ -52,6 +52,12 @@ int main()
     auto dm = std::make_shared<DataManager>();
     auto sm = std::make_shared<SubscriptionManager>(*dm);
 
+    auto trackHandle = dm->add_track_identifier({}, "track");
+    auto groupHandle = trackHandle.lock()->add_group(GroupId(0));
+    auto subgroupHandle = groupHandle.lock()->add_subgroup(ObjectId(1));
+    subgroupHandle.add_object("Hello World");
+
+
     std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>(dm, sm);
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
@@ -87,8 +93,6 @@ int main()
     QuicAddrSetPort(&Address, UdpPort);
 
     moqtServer->start_listener(&Address);
-    moqtServer->register_object("tnamespace", "tname", 0, 0, "Hello, World!");
-
     {
         char c;
         while (1)

@@ -5,6 +5,7 @@
 #include <msquic.h>
 #include <span>
 #include <utilities.hpp>
+#include <vector>
 #include <wrappers.hpp>
 
 namespace rvn::serialization
@@ -20,7 +21,7 @@ class NonContiguousSpan
     std::uint64_t endIdx_;
 
     // cumulativeSize_[i] = sum of sizes of first i + 1 buffers
-    boost::container::small_vector<std::uint64_t, 5> cumulativeSize_;
+    std::vector<std::uint64_t> cumulativeSize_;
 
 public:
     NonContiguousSpan(std::span<SharedQuicBuffer> buffers, std::uint64_t beginIdx, std::uint64_t endIdx)
@@ -58,6 +59,8 @@ public:
 
     std::uint64_t size() const noexcept
     {
+        if (cumulativeSize_.empty())
+            return 0;
         return cumulativeSize_.back();
     }
 
@@ -100,7 +103,9 @@ public:
     // we are going for linear algorithm because we expect numBytes to be small
     void advance_begin(std::uint64_t numBytes) noexcept
     {
-        if (numBytes >= size())
+        utils::ASSERT_LOG_THROW(numBytes <= size(), "Advancing more than size",
+                                "Advancing:", numBytes, "Size:", size());
+        if (numBytes == size())
         {
             beginIdx_ = 0;
             endIdx_ = 0;

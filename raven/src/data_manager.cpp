@@ -1,5 +1,6 @@
 #include "strong_types.hpp"
 #include <data_manager.hpp>
+#include <filesystem>
 #include <fstream>
 
 namespace depracated
@@ -137,9 +138,26 @@ ObjectIdentifier::ObjectIdentifier(GroupIdentifier groupIdentifier, ObjectId obj
 }
 
 
+GroupHandle::GroupHandle(GroupIdentifier groupIdentifier, DataManager& dataManagerHandle)
+: groupIdentifier_(std::move(groupIdentifier)), dataManager_(dataManagerHandle)
+{
+    // create directory if it does not exist
+    std::string pathString = dataManager_.get_path_string(groupIdentifier_);
+    std::filesystem::create_directories(pathString);
+}
+
+
+TrackHandle::TrackHandle(DataManager& dataManagerHandle, TrackIdentifier trackIdentifier)
+: dataManager_(dataManagerHandle), trackIdentifier_(std::move(trackIdentifier))
+{
+    // create directory if it does not exist
+    std::string pathString = dataManager_.get_path_string(trackIdentifier_);
+    std::filesystem::create_directories(pathString);
+}
+
 std::string DataManager::get_path_string(const TrackIdentifier& trackIdentifier)
 {
-    std::string pathString = DATA_DIRECTORY;
+    std::string pathString = std::string(DATA_DIRECTORY) + "/";
     for (const auto& ns : trackIdentifier.tnamespace())
         pathString += ns + "/";
     pathString += trackIdentifier.tname() + "/";
@@ -239,6 +257,8 @@ std::optional<ObjectId> DataManager::get_latest_object(const GroupIdentifier& gr
 
 ObjectOrStatus DataManager::get_object(const ObjectIdentifier& objectIdentifier)
 {
+    // we have reader lock at each step in hierarchy
+    // so can be sure that nothing will be deleted (needs writer lock)
     std::shared_lock l(objectHierarchyMtx_);
 
     auto iter = objectHierarchy_.find(objectIdentifier);
@@ -263,9 +283,66 @@ ObjectOrStatus DataManager::get_object(const ObjectIdentifier& objectIdentifier)
     if (!file.is_open())
         return NotFound{ "Object not found" };
 
-    std::string object;
-    std::move(file) >> object;
-
+    std::string object(std::istreambuf_iterator<char>(file), {});
     return object;
 }
+
+bool DataManager::next(ObjectIdentifier& objectIdentifier, std::uint64_t advanceBy)
+{
+    // we have reader lock at each step in hierarchy
+    // so can be sure that nothing will be deleted (needs writer lock)
+    std::shared_lock l(objectHierarchyMtx_);
+
+    auto iter = objectHierarchy_.find(objectIdentifier);
+    if (iter == objectHierarchy_.end())
+        return false;
+
+    TrackHandle& trackHandle = *iter->second;
+    std::shared_lock l2(trackHandle.groupHandlesMtx_);
+
+    auto groupHandleIter = trackHandle.groupHandles_.find(objectIdentifier.groupId_);
+    if (groupHandleIter == trackHandle.groupHandles_.end())
+        return false;
+
+    std::shared_lock l3(groupHandleIter->second->objectIdsMtx_);
+
+    while (advanceBy > 0)
+    {
+        ObjectId advancedObjectId = objectIdentifier.objectId_ + ObjectId(advanceBy);
+        if (!groupHandleIter->second->has_object_id(advancedObjectId))
+        {
+            // if we have reached end of group
+            // subtrack advanceBy by number of objects in current group
+            advanceBy -=
+            groupHandleIter->second->num_objects_in_range(objectIdentifier.objectId_);
+
+            l3.unlock();
+
+            auto nextGroupIter = groupHandleIter;
+            do
+            {
+                nextGroupIter = std::next(nextGroupIter);
+            } while (nextGroupIter != trackHandle.groupHandles_.end() &&
+                     // non empty group
+                     nextGroupIter->second->num_objects_in_range() > 0);
+
+            if (nextGroupIter == trackHandle.groupHandles_.end())
+                return false;
+
+            // advance to next objectId
+            groupHandleIter = nextGroupIter;
+            l3 = std::shared_lock(groupHandleIter->second->objectIdsMtx_);
+
+            // set it to first object in next group
+            objectIdentifier.groupId_ = groupHandleIter->first;
+            objectIdentifier.objectId_ =
+            ObjectId(*groupHandleIter->second->objectIds_.begin());
+        }
+        else
+            objectIdentifier.objectId_ = advancedObjectId;
+    }
+
+    return true;
+}
+
 }; // namespace rvn

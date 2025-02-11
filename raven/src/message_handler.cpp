@@ -32,13 +32,20 @@ void MessageHandler::operator()(SubscribeMessage subscribeMessage)
     streamState_.connectionState_.add_track_alias(std::move(trackIdentifier),
                                                   subscribeMessage.trackAlias_);
 
-    subscriptionManager_.add_subscription(streamState_.connectionState_.weak_from_this(),
-                                          std::move(subscribeMessage));
+    subscriptionManager_->add_subscription(streamState_.connectionState_.weak_from_this(),
+                                           std::move(subscribeMessage));
 }
 
-void MessageHandler::operator()(const auto& unknownMessage)
+void MessageHandler::operator()(StreamHeaderSubgroupObject streamHeaderSubgroupObject)
 {
-    utils::LOG_EVENT(std::cout, "Unknown Message received: \n", unknownMessage);
-    utils::ASSERT_LOG_THROW(false, "Unknown message type");
+    utils::LOG_EVENT(std::cout, "Stream Header Subgroup Object received: \n",
+                     streamHeaderSubgroupObject);
 }
+
+void MessageHandler::operator()(StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
+{
+    utils::LOG_EVENT(std::cout, "Stream Header Subgroup Message received: \n",
+                     streamHeaderSubgroupMessage);
+}
+
 } // namespace rvn

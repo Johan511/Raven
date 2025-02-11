@@ -48,7 +48,7 @@ struct StreamContext
     : moqtObject_(moqtObject), connectionState_(connectionState) {};
 
     // deserializer can not be constructed in the constructor and has to be done seperately
-    void construct_deserializer(StreamState& streamState);
+    void construct_deserializer(StreamState& streamState, bool isControlStream);
 };
 
 class StreamSendContext
@@ -184,8 +184,6 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
 
     void delete_data_stream(HQUIC streamHandle);
     void enqueue_data_buffer(QUIC_BUFFER* buffer);
-
-    StreamState& create_data_stream();
 
     QUIC_STATUS send_object(std::weak_ptr<DataStreamState> dataStream,
                             const ObjectIdentifier& objectIdentifier,

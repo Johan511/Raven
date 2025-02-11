@@ -213,12 +213,8 @@ class GroupHandle : public std::enable_shared_from_this<GroupHandle>
     class DataManager& dataManager_;
     GroupIdentifier groupIdentifier_;
 
-    template <typename... Args>
-    static std::shared_ptr<GroupHandle> create(Args&&... args)
-    {
-        auto ptr = new GroupHandle(std::forward<Args>(args)...);
-        return std::shared_ptr<GroupHandle>(ptr);
-    }
+    GroupHandle& operator=(const GroupHandle&) = delete;
+    GroupHandle& operator=(GroupHandle&&) = delete;
 
 private:
     struct Comparator
@@ -235,12 +231,9 @@ private:
     std::shared_mutex objectIdsMtx_;
     std::set<std::uint64_t, Comparator> objectIds_;
 
-    GroupHandle(GroupIdentifier groupIdentifier, DataManager& dataManagerHandle)
-    : groupIdentifier_(std::move(groupIdentifier)), dataManager_(dataManagerHandle)
-    {
-    }
-
 public:
+    GroupHandle(GroupIdentifier groupIdentifier, DataManager& dataManagerHandle);
+
     SubgroupHandle add_subgroup(std::uint64_t numElements)
     {
         // writer lock
@@ -274,20 +267,46 @@ public:
         // reader lock
         std::shared_lock<std::shared_mutex> l(objectIdsMtx_);
 
-        auto iter = objectIds_.lower_bound(objectId.get());
+        auto iter = objectIds_.upper_bound(objectId.get());
         if (iter == objectIds_.begin())
             return false;
 
         return *std::prev(iter) <= objectId.get();
     }
 
-    std::pair<ObjectId, ObjectId> get_range()
+    std::uint64_t
+    num_objects_in_range(ObjectId left = ObjectId(0),
+                         ObjectId right = ObjectId(std::numeric_limits<std::uint64_t>::max()))
     {
         // reader lock
         std::shared_lock<std::shared_mutex> l(objectIdsMtx_);
 
-        return { ObjectId(*objectIds_.begin()),
-                 ObjectId(*objectIds_.rbegin() & (~(1ULL << 63))) };
+        std::uint64_t numObjects = 0;
+
+        if (objectIds_.empty())
+            return numObjects;
+
+
+        // beginning objectId of the subgroup left is in
+        auto subGroupBeginIter = --objectIds_.upper_bound(left.get());
+        while (subGroupBeginIter != objectIds_.end())
+        {
+            auto subGroupEndIter = std::next(subGroupBeginIter);
+            ObjectId endBound = ObjectId(*subGroupEndIter & (~(1ULL << 63)));
+
+            if (endBound >= right)
+            {
+                numObjects += right.get() - left.get();
+                break;
+            }
+            else
+            {
+                numObjects += endBound.get() - left.get();
+                subGroupBeginIter = std::next(subGroupEndIter);
+            }
+        }
+
+        return numObjects;
     }
 };
 
@@ -295,12 +314,16 @@ class TrackHandle : public std::enable_shared_from_this<TrackHandle>
 {
     friend class DataManager;
     friend class GroupHandle;
-    class DataManager& dataManager;
+    class DataManager& dataManager_;
 
     TrackIdentifier trackIdentifier_;
 
     std::shared_mutex groupHandlesMtx_;
     std::map<GroupId, std::shared_ptr<GroupHandle>> groupHandles_;
+
+public:
+    // should be private because but want to use std::make_shared
+    TrackHandle(DataManager& dataManagerHandle, TrackIdentifier trackIdentifier);
 
     std::weak_ptr<GroupHandle> add_group(GroupId groupId)
     {
@@ -308,16 +331,16 @@ class TrackHandle : public std::enable_shared_from_this<TrackHandle>
         std::unique_lock<std::shared_mutex> l(groupHandlesMtx_);
 
         auto [iter, success] =
-        groupHandles_.try_emplace(groupId, GroupHandle::create(GroupIdentifier(trackIdentifier_, groupId),
-                                                               dataManager));
+        groupHandles_.try_emplace(groupId,
+                                  std::make_shared<GroupHandle>(GroupIdentifier(trackIdentifier_, groupId),
+                                                                dataManager_));
 
         return iter->second->weak_from_this();
     }
 
-    TrackHandle(DataManager& dataManagerHandle, TrackIdentifier trackIdentifier)
-    : dataManager(dataManagerHandle), trackIdentifier_(std::move(trackIdentifier))
-    {
-    }
+
+    TrackHandle& operator=(const TrackHandle&) = delete;
+    TrackHandle& operator=(TrackHandle&&) = delete;
 };
 
 
@@ -326,6 +349,8 @@ class TrackHandle : public std::enable_shared_from_this<TrackHandle>
 class DataManager
 {
     friend class SubgroupHandle;
+    friend class GroupHandle;
+    friend class TrackHandle;
 
     std::shared_mutex objectHierarchyMtx_;
     std::unordered_map<TrackIdentifier, std::shared_ptr<TrackHandle>, TrackIdentifier::Hash, TrackIdentifier::Equal> objectHierarchy_;
@@ -339,18 +364,16 @@ class DataManager
                       std::string&& object);
 
 public:
-    template <typename... Args>
-    std::weak_ptr<TrackHandle> add_track_identifier(Args&&... args)
+    std::weak_ptr<TrackHandle>
+    add_track_identifier(std::vector<std::string> tracknamespace, std::string trackname)
     {
-        auto trackIdentifier =
-        std::make_shared<TrackIdentifier>(std::forward<Args>(args)...);
+        TrackIdentifier trackIdentifier(std::move(tracknamespace), std::move(trackname));
 
         auto [iter, success] =
         objectHierarchy_.try_emplace(trackIdentifier,
                                      std::make_shared<TrackHandle>(*this, trackIdentifier));
 
-        return success ? iter->second->weak_from_this() :
-                         std::make_shared<TrackHandle>(nullptr);
+        return iter->second->weak_from_this();
     }
 
 
@@ -359,5 +382,8 @@ public:
     std::optional<GroupId> get_first_group(const TrackIdentifier&);
     std::optional<ObjectId> get_first_object(const GroupIdentifier&);
     std::optional<ObjectId> get_latest_object(const GroupIdentifier&);
+
+    // returns true if it could succesfully advance
+    bool next(ObjectIdentifier& objectIdentifier, std::uint64_t advanceBy = 1);
 };
 } // namespace rvn

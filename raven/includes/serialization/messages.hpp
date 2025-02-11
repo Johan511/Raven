@@ -508,7 +508,7 @@ struct SubscribeOkMessage
     Reason Phrase (..),
     Track Alias (i),
     } ;
- */
+*/
 
 struct SubscribeErrorMessage : public ControlMessageBase
 {
@@ -615,6 +615,7 @@ enum class DataStreamType
 */
 struct StreamHeaderSubgroupMessage
 {
+    static constexpr auto id_ = DataStreamType::STREAM_HEADER_SUBGROUP;
     TrackAlias trackAlias_;
     GroupId groupId_;
     SubGroupId subgroupId_;
@@ -643,7 +644,7 @@ struct StreamHeaderSubgroupObject
     operator<<(std::ostream& os, const StreamHeaderSubgroupObject& msg)
     {
         os << "ObjectId: " << msg.objectId_
-           << " PayloadLength: " << msg.payload_.size();
+           << " PayloadLength: " << msg.payload_.size() << " Payload: " << msg.payload_;
         return os;
     }
 };
