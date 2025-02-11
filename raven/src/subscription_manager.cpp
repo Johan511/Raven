@@ -1,11 +1,14 @@
 #include "utilities.hpp"
 #include <contexts.hpp>
 #include <memory>
-#include <msquic.h>
 #include <optional>
 #include <serialization/messages.hpp>
 #include <serialization/serialization.hpp>
 #include <subscription_manager.hpp>
+extern "C"
+{
+#include <msquic.h>
+}
 
 namespace rvn
 {
@@ -42,7 +45,6 @@ FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
         QUIC_BUFFER* quicBuffer = serialization::serialize(objectMsg);
         QUIC_STATUS status =
         connectionStateSharedPtr->send_object(objectToSend_, quicBuffer);
-        std::cout << quicBuffer->Length << std::endl;
         if (QUIC_FAILED(status))
             return SubscriptionStateErr::ConnectionExpired{};
 

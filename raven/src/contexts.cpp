@@ -1,5 +1,4 @@
 ////////////////////////////////
-#include "msquic.h"
 #include <contexts.hpp>
 #include <data_manager.hpp>
 #include <definitions.hpp>

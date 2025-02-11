@@ -1,6 +1,9 @@
 #pragma once
 ////////////////////////////////////////////
-#include <msquic.h>
+extern "C"
+{
+    #include <msquic.h>
+}
 ////////////////////////////////////////////
 #include <cstdint>
 #include <functional>

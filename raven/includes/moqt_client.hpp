@@ -1,7 +1,6 @@
 #pragma once
 ////////////////////////////////////////////
 #include <moqt_base.hpp>
-#include <msquic.h>
 #include <serialization/messages.hpp>
 ////////////////////////////////////////////
 #include <atomic>
@@ -75,7 +74,7 @@ public:
 
     ClientSetupMessage get_clientSetupMessage();
 
-    QUIC_STATUS accept_data_stream(HQUIC connection, HQUIC streamHandle)
+    QUIC_STATUS accept_data_stream(HQUIC streamHandle)
     {
         return connectionState->accept_data_stream(streamHandle);
     }

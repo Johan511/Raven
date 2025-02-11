@@ -84,7 +84,7 @@ class SubgroupHandle
     }
 
 public:
-    void add_object(std::uint64_t objectId, std::string object)
+    void add_object(std::uint64_t objectId, std::string)
     {
         add_range(objectId, objectId + 1);
         // TODO: store object somewhere

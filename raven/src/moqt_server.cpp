@@ -1,5 +1,3 @@
-#include <msquic.h>
-
 #include <contexts.hpp>
 #include <moqt.hpp>
 #include <utilities.hpp>

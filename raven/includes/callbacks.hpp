@@ -2,7 +2,6 @@
 
 #include <contexts.hpp>
 #include <moqt.hpp>
-#include <msquic.h>
 #include <serialization/serialization.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
@@ -11,7 +10,8 @@ namespace rvn::callbacks
 {
 
 static constexpr auto server_listener_callback =
-[](HQUIC listener, void* context, QUIC_LISTENER_EVENT* event) -> QUIC_STATUS
+// listener is unused because we already have the listener stored
+[]([[maybe_unused]] HQUIC listener, void* context, QUIC_LISTENER_EVENT* event) -> QUIC_STATUS
 {
     MOQTServer* moqtServer = static_cast<MOQTServer*>(context);
 
@@ -19,7 +19,7 @@ static constexpr auto server_listener_callback =
     switch (event->Type)
     {
         case QUIC_LISTENER_EVENT_NEW_CONNECTION:
-            status = moqtServer->accept_new_connection(listener, event->NEW_CONNECTION);
+            status = moqtServer->accept_new_connection(event->NEW_CONNECTION);
             break;
         case QUIC_LISTENER_EVENT_STOP_COMPLETE:
             // we have called stop on listener (opposite to start_listener
@@ -27,7 +27,7 @@ static constexpr auto server_listener_callback =
             break;
         default: break;
     }
-    return QUIC_STATUS_SUCCESS;
+    return status;
 };
 
 static constexpr auto server_connection_callback =
@@ -147,8 +147,6 @@ static constexpr auto server_data_stream_callback =
 {
     StreamContext* streamContext = static_cast<StreamContext*>(context);
     ConnectionState& connectionState = streamContext->connectionState_;
-    HQUIC connectionHandle = connectionState.connection_.get();
-    MOQT& moqtObject = streamContext->moqtObject_;
 
     // TODO: wait for streamSetup
     switch (event->Type)
@@ -183,7 +181,6 @@ static constexpr auto client_data_stream_callback =
 {
     StreamContext* streamContext = static_cast<StreamContext*>(context);
     ConnectionState& connectionState = streamContext->connectionState_;
-    HQUIC connectionHandle = streamContext->connectionState_.connection_.get();
     MOQT& moqtObject = streamContext->moqtObject_;
 
     // TODO: wait for stream setup
@@ -196,10 +193,6 @@ static constexpr auto client_data_stream_callback =
         }
         case QUIC_STREAM_EVENT_RECEIVE:
         {
-            // Received Data Message
-            StreamState* streamState =
-            moqtObject.get_stream_state(connectionHandle, dataStream);
-
             // accumulate all data messages received and read them when closing stream
             for (std::uint64_t bufferIndex = 0;
                  bufferIndex < event->RECEIVE.BufferCount; bufferIndex++)
@@ -232,7 +225,6 @@ static constexpr auto client_control_stream_callback =
 []([[maybe_unused]] HQUIC controlStream, void* context, QUIC_STREAM_EVENT* event)
 {
     StreamContext* streamContext = static_cast<StreamContext*>(context);
-    ConnectionState& connectionState = streamContext->connectionState_;
     MOQT& moqtObject = streamContext->moqtObject_;
 
     utils::wait_for(streamContext->streamHasBeenConstructed);
@@ -246,7 +238,6 @@ static constexpr auto client_control_stream_callback =
         }
         case QUIC_STREAM_EVENT_RECEIVE:
         {
-            const QUIC_BUFFER* buffer = event->RECEIVE.Buffers;
             for (std::uint64_t bufferIndex = 0;
                  bufferIndex < event->RECEIVE.BufferCount; bufferIndex++)
             {
@@ -308,7 +299,7 @@ static constexpr auto client_connection_callback =
         {
             // The connection has completed the shutdown process and is
             // ready to be safely cleaned up.
-            printf("[conn][%p] All done\n", connectionHandle);
+            std::cout << "[conn][" << connectionHandle << "] All done" << std::endl;
             if (!event->SHUTDOWN_COMPLETE.AppCloseInProgress)
             {
                 MsQuic->ConnectionClose(connectionHandle);
@@ -319,8 +310,7 @@ static constexpr auto client_connection_callback =
         {
             // remotely opened streams call this callback => they must
             // be data streams
-            moqtClient->accept_data_stream(connectionHandle,
-                                           event->PEER_STREAM_STARTED.Stream);
+            moqtClient->accept_data_stream(event->PEER_STREAM_STARTED.Stream);
 
             break;
         }

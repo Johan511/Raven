@@ -2,11 +2,14 @@
 
 #include <algorithm>
 #include <boost/container/small_vector.hpp>
-#include <msquic.h>
 #include <span>
 #include <utilities.hpp>
 #include <vector>
 #include <wrappers.hpp>
+extern "C"
+{
+#include <msquic.h>
+}
 
 namespace rvn::serialization
 {

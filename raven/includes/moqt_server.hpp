@@ -3,7 +3,6 @@
 #include <data_manager.hpp>
 #include <contexts.hpp>
 #include <moqt_base.hpp>
-#include <msquic.h>
 #include <serialization/messages.hpp>
 #include <serialization/serialization.hpp>
 #include <subscription_manager.hpp>
@@ -71,7 +70,7 @@ public:
             HQUIC Connection;
         }
     */
-    QUIC_STATUS accept_new_connection(HQUIC listener, auto newConnectionInfo)
+    QUIC_STATUS accept_new_connection(auto newConnectionInfo)
     {
         HQUIC connectionHandle = newConnectionInfo.Connection;
         get_tbl()->ConnectionSetConfiguration(connectionHandle, configuration.get());

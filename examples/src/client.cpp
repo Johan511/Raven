@@ -6,12 +6,6 @@
 #include <moqt.hpp>
 #include <subscription_builder.hpp>
 
-void handler(int signum)
-{
-    // __lsan_do_leak_check();
-}
-
-
 using namespace rvn;
 const char* Target = "127.0.0.1";
 const char* data = "Hello World!";

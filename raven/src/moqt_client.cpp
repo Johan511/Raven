@@ -1,7 +1,6 @@
 #include <atomic>
 #include <contexts.hpp>
 #include <moqt.hpp>
-#include <msquic.h>
 #include <serialization/messages.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>

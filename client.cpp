@@ -1,5 +1,3 @@
-#include <msquic.h>
-
 #include <callbacks.hpp>
 #include <cstring>
 #include <iostream>

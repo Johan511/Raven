@@ -176,6 +176,4 @@ public:
         return message;
     }
 };
-
-
 }; // namespace rvn

@@ -1,7 +1,6 @@
 #pragma once
 //////////////////////////////
 #include <data_manager.hpp>
-#include <msquic.h>
 #include <serialization/messages.hpp>
 #include <strong_types.hpp>
 //////////////////////////////
@@ -16,6 +15,11 @@
 #include <utilities.hpp>
 #include <wrappers.hpp>
 //////////////////////////////
+
+extern "C"
+{
+    #include <msquic.h>
+}
 
 #define DEFAULT_BUFFER_CAPACITY 512
 

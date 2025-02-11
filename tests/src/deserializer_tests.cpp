@@ -72,10 +72,9 @@ void test1()
     generate_quic_buffers({ clientSetupMessageChunk, serverSetupMessageChunk });
 
     const auto visitor =
-    overloads{ [](...) { std::cout << "Unexpected Message\n"; },
-               [](const ClientSetupMessage& msg)
+    overloads{ [](...) { std::cout << "Unexpected Message\n"; }, [](const ClientSetupMessage&)
                { std::cout << "Received ClientSetupMessage\n"; },
-               [](const ServerSetupMessage& msg)
+               [](const ServerSetupMessage&)
                { std::cout << "Received ServerSetupMessage\n"; } };
 
     Deserializer deserializer(true, visitor);

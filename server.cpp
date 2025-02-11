@@ -1,18 +1,11 @@
-#include "data_manager.hpp"
-#include "subscription_manager.hpp"
-#include <msquic.h>
-
 #include <callbacks.hpp>
 #include <contexts.hpp>
 #include <cstring>
+#include <data_manager.hpp>
 #include <iostream>
 #include <memory>
 #include <moqt.hpp>
-
-void handler(int signum)
-{
-    // __lsan_do_leak_check();
-}
+#include <subscription_manager.hpp>
 
 using namespace rvn;
 

@@ -12,7 +12,8 @@ endfunction()
 
 # General Settings--------------------------------------------------------------
 set(CMAKE_CXX_STANDARD 20)
-# Set compile options as private to not warn about msquic header files
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
+
 if(ENABLE_QUIC_LOGGING)
 set(QUIC_ENABLE_LOGGING "ON" CACHE INTERNAL "QUIC_ENABLE_LOGGING")
 set(QUIC_LOGGING_TYPE "stdout" CACHE INTERNAL "stdout")
@@ -20,6 +21,14 @@ endif()
 
 if(RAVEN_WITH_ASAN)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address")
+endif()
+
+if(RAVEN_WITH_TSAN)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=thread")
+endif()
+
+if(RAVEN_WITH_UBSAN)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=undefined")
 endif()
 
 # -------------------------------------------------------------------------------
@@ -52,7 +61,7 @@ add_library(raven STATIC ${RAVEN_SRC})
 # MSQUIC include directories should not leak to users of Raven
 # They should be able to use their own msquic library includes
 target_include_directories(raven PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(raven PUBLIC ${MSQUIC_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${MOODY_CAMEL_INCLUDE_DIR})
+target_include_directories(raven SYSTEM PUBLIC ${MSQUIC_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${MOODY_CAMEL_INCLUDE_DIR})
 target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES})
 # -------------------------------------------------------------------------------
 
@@ -60,14 +69,14 @@ target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES})
 add_executable(server server.cpp)
 # target_compile_options(server PRIVATE -Wall -Wextra -Werror -Wpedantic)
 target_include_directories(server PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(server PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR})
+target_include_directories(server SYSTEM PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR})
 target_link_libraries(server PUBLIC raven)
 
 # Add playground client
 add_executable(client client.cpp)
 # target_compile_options(client PRIVATE -Wall -Wextra -Werror -Wpedantic)
 target_include_directories(client PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(client PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR})
+target_include_directories(client SYSTEM PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR})
 target_link_libraries(client PUBLIC raven)
 # -------------------------------------------------------------------------------
 

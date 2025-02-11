@@ -126,8 +126,7 @@ serialize_return_t serialize(ds::chunk& c, auto i, ToEndianess = network_endian)
     return serialize_trivial<T>(c, i, ToEndianess{});
 }
 
-template <UnsignedInteger T>
-serialize_return_t mock_serialize(const auto& value)
+template <UnsignedInteger T> serialize_return_t mock_serialize(const auto&)
 {
     return sizeof(T);
 }

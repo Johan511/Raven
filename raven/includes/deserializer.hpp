@@ -7,7 +7,6 @@
 #include <stdexcept>
 #include <utility>
 ///////////////////////////////////////////////////////////////////////////////
-#include <msquic.h>
 #include <non_contiguous_span.hpp>
 #include <serialization/deserialization_impl.hpp>
 #include <serialization/messages.hpp>
@@ -16,7 +15,10 @@
 #include <utilities.hpp>
 #include <wrappers.hpp>
 ///////////////////////////////////////////////////////////////////////////////
-
+extern "C"
+{
+    #include <msquic.h>
+}
 
 namespace rvn::serialization
 {
@@ -392,7 +394,6 @@ public:
             // writer lock
             std::unique_lock<std::shared_mutex> lock(quicBuffersMutex_);
             quicBuffers_.push_back(buffer);
-            std::cout << buffer->Length << std::endl;
         }
 
         process_state_machine_input();

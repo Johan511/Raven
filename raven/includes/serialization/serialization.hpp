@@ -1,13 +1,16 @@
 #pragma once
 
+extern "C"
+{
+#include <msquic.h>
+}
+
 ///////////////////////////////////c
-#include "serialization/serialization_impl.hpp"
 #include <cassert>
 #include <cstdint>
-#include <exceptions.hpp>
-#include <msquic.h>
 #include <serialization/chunk.hpp>
 #include <serialization/quic_var_int.hpp>
+#include <serialization/serialization_impl.hpp>
 #include <type_traits>
 #include <utilities.hpp>
 ///////////////////////////////////
@@ -51,7 +54,7 @@ Indicates that x holds an integer value using the variable-length encoding as de
 // guesses 8 as possible size
 constexpr guess_size_t guess_size(const rvn::ds::quic_var_int& i)
 {
-    if constexpr (std::is_constant_evaluated())
+    if (std::is_constant_evaluated())
         return 8;
     else
         return i.size();
@@ -61,7 +64,7 @@ constexpr guess_size_t guess_size(const rvn::ds::quic_var_int& i)
 template <typename T> guess_size_t constexpr guess_size(const std::vector<T>& v)
 {
     // we take a rough guess that generally there are 2 fields in the vector
-    if constexpr (std::is_constant_evaluated())
+    if (std::is_constant_evaluated())
         return guess_size(2 * std::declval<T>());
     else
         return guess_size(v.size() * std::declval<T>());
@@ -82,7 +85,7 @@ constexpr guess_size_t guess_size(const std::string& s)
 {
     // We take a rough guess that generally the size of the string is 24 bytes
     // and the size of the variable length integer encoding is 8 bytes
-    if constexpr (std::is_constant_evaluated())
+    if (std::is_constant_evaluated())
         return 24 + 8;
     else
         return s.size() + guess_size(rvn::ds::quic_var_int(s.size()));
