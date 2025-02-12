@@ -189,6 +189,7 @@ public:
 // We do not allow for objects to be deleted
 class GroupHandle : public std::enable_shared_from_this<GroupHandle>
 {
+public:
     friend class DataManager;
     friend class TrackHandle;
     friend class SubgroupHandle;
@@ -300,10 +301,10 @@ class TrackHandle : public std::enable_shared_from_this<TrackHandle>
 
     TrackIdentifier trackIdentifier_;
 
+public:
     std::shared_mutex groupHandlesMtx_;
     std::map<GroupId, std::shared_ptr<GroupHandle>> groupHandles_;
 
-public:
     // should be private because but want to use std::make_shared
     TrackHandle(DataManager& dataManagerHandle, TrackIdentifier trackIdentifier);
 
@@ -360,6 +361,8 @@ public:
 
 
     ObjectOrStatus get_object(const ObjectIdentifier& objectIdentifier);
+    std::weak_ptr<TrackHandle> get_track_handle(const TrackIdentifier& trackIdentifier);
+    std::weak_ptr<GroupHandle> get_group_handle(const GroupIdentifier& groupIdentifier);
 
     std::optional<GroupId> get_first_group(const TrackIdentifier&);
     std::optional<ObjectId> get_first_object(const GroupIdentifier&);

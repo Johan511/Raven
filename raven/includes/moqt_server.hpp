@@ -28,8 +28,7 @@ public:
         return connectionStateMap;
     }
 
-    MOQTServer(std::shared_ptr<DataManager> dataManager,
-               std::shared_ptr<SubscriptionManager> subscriptionManager);
+    MOQTServer(std::shared_ptr<DataManager> dataManager);
 
     void start_listener(QUIC_ADDR* LocalAddress);
 

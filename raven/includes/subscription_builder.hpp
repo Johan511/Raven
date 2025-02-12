@@ -39,7 +39,7 @@ class SubscriptionBuilder
         TrackName,
         SubscriberPriority,
         GroupOrder,
-        Range // Filter type and object, group start/ends
+        Range // Filter type and object/group start/end
     };
     std::uint16_t setElementsCounter_;
     constexpr std::uint64_t all_elements_set()

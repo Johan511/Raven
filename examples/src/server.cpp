@@ -46,9 +46,7 @@ QUIC_CREDENTIAL_CONFIG* get_cred_config()
 int main()
 {
     auto dm = std::make_shared<DataManager>();
-    auto sm = std::make_shared<SubscriptionManager>(*dm);
-
-    std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>(dm, sm);
+    std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>(dm);
 
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "example1", QUIC_EXECUTION_PROFILE_LOW_LATENCY };

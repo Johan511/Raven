@@ -77,6 +77,7 @@ template <typename DeserializedMessageHandler> class Deserializer
         quicBuffers_.erase(quicBuffers_.begin(), iter);
     }
 
+    // returns optinal value, std::numeric_limits<std::uint64_t>::max() is the nullopt
     std::uint64_t read_quic_var_int()
     {
         if (size() == 0)

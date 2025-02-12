@@ -56,9 +56,7 @@ std::unique_ptr<MOQTClient> client_setup()
 std::unique_ptr<MOQTServer> server_setup()
 {
     auto dm = std::make_shared<DataManager>();
-    auto sm = std::make_shared<SubscriptionManager>(*dm);
-
-    std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>(dm, sm);
+    std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>(dm);
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "test1", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
     moqtServer->set_regConfig(&RegConfig);
@@ -143,11 +141,7 @@ int main()
 
         using namespace std::chrono_literals;
         // Make sure `register_object` is called before `subscribe`
-        auto queueRef = moqtClient->subscribe(std::move(subMessage));
-
         std::string receivedData;
-
-        queueRef->wait_dequeue(receivedData);
         std::cout << "Received data: " << receivedData << std::endl;
         assert(receivedData == data);
     }

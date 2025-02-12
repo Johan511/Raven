@@ -17,6 +17,36 @@
 namespace rvn
 {
 
+DataStreamState::DataStreamState(rvn::unique_stream&& stream,
+                                 struct ConnectionState& connectionState,
+                                 StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
+: StreamState(std::move(stream), connectionState),
+  streamHeaderSubgroupMessage_(std::move(streamHeaderSubgroupMessage))
+{
+}
+
+const auto& DataStreamState::header() const noexcept
+{
+    return streamHeaderSubgroupMessage_;
+}
+
+bool DataStreamState::can_send_object(const ObjectIdentifier& objectIdentifier) const noexcept
+{
+    auto trackAliasOpt = connectionState_.identifier_to_alias(objectIdentifier);
+    if (!trackAliasOpt.has_value())
+        return false;
+
+    bool trackBoolMatch =
+    (streamHeaderSubgroupMessage_.groupId_ == objectIdentifier.groupId_) &&
+    (trackAliasOpt.value() == streamHeaderSubgroupMessage_.trackAlias_);
+
+    if (!trackBoolMatch)
+        return false;
+
+    // TODO: return true should be replaced with subgroupId match
+    return true;
+}
+
 
 void ConnectionState::delete_data_stream(HQUIC streamHandle)
 {
@@ -49,13 +79,12 @@ void ConnectionState::send_control_buffer(QUIC_BUFFER* buffer, QUIC_SEND_FLAGS f
         throw std::runtime_error("Failed to send control message");
 }
 
-const StableContainer<ConnectionState::DataStreamState>&
-ConnectionState::get_data_streams() const
+const StableContainer<DataStreamState>& ConnectionState::get_data_streams() const
 {
     return dataStreams;
 }
 
-StableContainer<ConnectionState::DataStreamState>& ConnectionState::get_data_streams()
+StableContainer<DataStreamState>& ConnectionState::get_data_streams()
 {
     return dataStreams;
 }
@@ -151,18 +180,13 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
 
     StreamContext* streamContext = new StreamContext(moqtObject_, *this);
 
+    // TODO: do error handling here
     auto stream =
     rvn::unique_stream(moqtObject_.get_tbl(),
                        { connection_.get(), QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
                          moqtObject_.data_stream_cb_wrapper, streamContext },
                        { QUIC_STREAM_START_FLAG_FAIL_BLOCKED |
                          QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL });
-
-    dataStreams.emplace_back(std::move(stream), *this);
-
-    StreamState& streamState = dataStreams.back();
-    streamState.set_stream_context(std::unique_ptr<StreamContext>(streamContext));
-    // no need deserializer because we don't expect to receive any messages on this stream
 
     // Send object header message
     StreamHeaderSubgroupMessage objectHeader;
@@ -173,6 +197,14 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
     objectHeader.subgroupId_ = SubGroupId(0);
     objectHeader.publisherPriority_ = 0;
 
+
+    dataStreams.emplace_back(std::move(stream), *this, objectHeader);
+
+    StreamState& streamState = dataStreams.back();
+    streamState.set_stream_context(std::unique_ptr<StreamContext>(streamContext));
+    // no need deserializer because we don't expect to receive any messages on this stream
+
+
     QUIC_BUFFER* objectHeaderBuffer = serialization::serialize(objectHeader);
 
     StreamSendContext* streamSendContext =
@@ -182,7 +214,6 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
     moqtObject_.get_tbl()->StreamSend(streamState.stream.get(), objectHeaderBuffer,
                                       1, QUIC_SEND_FLAG_NONE, streamSendContext);
 
-    
 
     return status | send_object(objectIdentifier, objectPayload);
 }

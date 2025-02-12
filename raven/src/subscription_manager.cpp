@@ -1,3 +1,4 @@
+#include "data_manager.hpp"
 #include "utilities.hpp"
 #include <contexts.hpp>
 #include <memory>
@@ -84,6 +85,29 @@ FullfillSomeReturn SubscriptionState::fulfill_some()
 }
 
 
+FullfillSomeReturn
+SubscriptionState::add_group_subscription(const GroupHandle& groupHandle,
+                                          std::optional<ObjectId> beginObjectId,
+                                          std::optional<ObjectId> endObjectId)
+{
+    if (beginObjectId == std::nullopt)
+        beginObjectId = dataManager_->get_first_object(groupHandle.groupIdentifier_);
+    if (beginObjectId == std::nullopt)
+        return SubscriptionStateErr::ObjectDoesNotExist{};
+
+    if (endObjectId == std::nullopt)
+        endObjectId = dataManager_->get_latest_object(groupHandle.groupIdentifier_);
+    if (endObjectId == std::nullopt)
+        return SubscriptionStateErr::ObjectDoesNotExist{};
+
+    minorSubscriptionStates_
+    .emplace_back(*this, ObjectIdentifier(groupHandle.groupIdentifier_, *beginObjectId),
+                  ObjectIdentifier(groupHandle.groupIdentifier_, *endObjectId));
+
+    return false;
+}
+
+
 SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connectionState,
                                      DataManager& dataManager,
                                      SubscriptionManager& subscriptionManager,
@@ -121,18 +145,18 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                 subscriptionManager_->notify_subscription_error(*this);
                 return;
             }
-            std::optional<ObjectId> firstObjectIdOpt =
-            dataManager_->get_first_object({ trackIdentifier, *currGroupOpt });
 
-            if (!firstObjectIdOpt.has_value())
+            std::weak_ptr<GroupHandle> groupHandle =
+            dataManager_->get_group_handle(GroupIdentifier(trackIdentifier, *currGroupOpt));
+
+            if (auto groupHandleSharedPtr = groupHandle.lock())
+                add_group_subscription(*groupHandleSharedPtr);
+            else
             {
                 subscriptionManager_->notify_subscription_error(*this);
                 return;
             }
-            ObjectIdentifier firstObjectIdentifier(trackIdentifier, std::move(*currGroupOpt),
-                                                   *firstObjectIdOpt);
 
-            minorSubscriptionStates_.emplace_back(*this, firstObjectIdentifier, std::nullopt);
             break;
         }
         case SubscribeMessage::FilterType::LatestObject:
@@ -148,18 +172,28 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                 subscriptionManager_->notify_subscription_error(*this);
                 return;
             }
-            auto firstObjectIdOpt =
-            dataManager_->get_first_object({ trackIdentifier, *currGroupOpt });
 
-            if (!firstObjectIdOpt.has_value())
+            std::weak_ptr<GroupHandle> groupHandle =
+            dataManager_->get_group_handle(GroupIdentifier(trackIdentifier, *currGroupOpt));
+
+            if (auto groupHandleSharedPtr = groupHandle.lock())
+            {
+                auto latestObjectOpt =
+                dataManager_->get_latest_object(groupHandleSharedPtr->groupIdentifier_);
+                if (!latestObjectOpt.has_value())
+                {
+                    subscriptionManager_->notify_subscription_error(*this);
+                    return;
+                }
+
+                add_group_subscription(*groupHandleSharedPtr, latestObjectOpt);
+            }
+            else
             {
                 subscriptionManager_->notify_subscription_error(*this);
                 return;
             }
-            ObjectIdentifier firstObjectIdentifier(trackIdentifier, std::move(*currGroupOpt),
-                                                   *firstObjectIdOpt);
 
-            minorSubscriptionStates_.emplace_back(*this, firstObjectIdentifier, std::nullopt);
             break;
         }
         case SubscribeMessage::FilterType::AbsoluteStart:
@@ -169,8 +203,32 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                                                     subscriptionMessage_.start_->object_ };
             // there is no last object to be sent because we are sending all objects
 
-            minorSubscriptionStates_.emplace_back(*this, std::move(firstObjectIdentifier),
-                                                  std::nullopt);
+            std::weak_ptr<TrackHandle> trackHandle =
+            dataManager_->get_track_handle(trackIdentifier);
+
+            if (auto trackHandleSharedPtr = trackHandle.lock())
+            {
+                std::shared_lock l(trackHandleSharedPtr->groupHandlesMtx_);
+                auto groupHandleIter = trackHandleSharedPtr->groupHandles_.find(
+                subscriptionMessage_.start_->group_);
+
+                if (groupHandleIter == trackHandleSharedPtr->groupHandles_.end())
+                {
+                    subscriptionManager_->notify_subscription_error(*this);
+                    return;
+                }
+
+                add_group_subscription(*groupHandleIter->second,
+                                       subscriptionMessage_.start_->object_);
+
+                for (; groupHandleIter != trackHandleSharedPtr->groupHandles_.end(); ++groupHandleIter)
+                    add_group_subscription(*groupHandleIter->second);
+            }
+            else
+            {
+                subscriptionManager_->notify_subscription_error(*this);
+                return;
+            }
             break;
         }
         case SubscribeMessage::FilterType::AbsoluteRange:
@@ -183,8 +241,51 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                                                    subscriptionMessage_.end_->group_,
                                                    subscriptionMessage_.end_->object_ };
 
-            minorSubscriptionStates_.emplace_back(*this, std::move(firstObjectIdentifier),
-                                                  std::move(lastObjectIdentifier));
+
+            std::weak_ptr<TrackHandle> trackHandle =
+            dataManager_->get_track_handle(trackIdentifier);
+
+            if (auto trackHandleSharedPtr = trackHandle.lock())
+            {
+                std::shared_lock l(trackHandleSharedPtr->groupHandlesMtx_);
+
+                auto beginGroupHandleIter = trackHandleSharedPtr->groupHandles_.find(
+                subscriptionMessage_.start_->group_);
+                auto endGroupHandleIter = trackHandleSharedPtr->groupHandles_.find(
+                subscriptionMessage_.end_->group_);
+
+                if (beginGroupHandleIter == trackHandleSharedPtr->groupHandles_.end() ||
+                    endGroupHandleIter == trackHandleSharedPtr->groupHandles_.end())
+                {
+                    subscriptionManager_->notify_subscription_error(*this);
+                    return;
+                }
+
+                if (beginGroupHandleIter->first == endGroupHandleIter->first)
+                {
+                    add_group_subscription(*beginGroupHandleIter->second,
+                                           subscriptionMessage_.start_->object_,
+                                           subscriptionMessage_.end_->object_);
+                    return;
+                }
+                else
+                {
+                    add_group_subscription(*beginGroupHandleIter->second,
+                                           subscriptionMessage_.start_->object_);
+                                           
+                    for (auto groupHandleIter = std::next(beginGroupHandleIter);
+                         groupHandleIter != endGroupHandleIter; ++groupHandleIter)
+                        add_group_subscription(*groupHandleIter->second);
+
+                    add_group_subscription(*endGroupHandleIter->second, std::nullopt,
+                                           subscriptionMessage_.end_->object_);
+                }
+            }
+            else
+            {
+                subscriptionManager_->notify_subscription_error(*this);
+                return;
+            }
             break;
         }
         default:

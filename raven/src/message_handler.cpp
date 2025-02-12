@@ -1,3 +1,4 @@
+#include "contexts.hpp"
 #include <message_handler.hpp>
 #include <moqt.hpp>
 #include <serialization/serialization.hpp>
@@ -46,6 +47,9 @@ void MessageHandler::operator()(StreamHeaderSubgroupMessage streamHeaderSubgroup
 {
     utils::LOG_EVENT(std::cout, "Stream Header Subgroup Message received: \n",
                      streamHeaderSubgroupMessage);
+
+    DataStreamState& dataStreamState = static_cast<DataStreamState&>(streamState_);
+    dataStreamState.streamHeaderSubgroupMessage_ = std::move(streamHeaderSubgroupMessage);
 }
 
 } // namespace rvn

@@ -1,3 +1,4 @@
+#include "subscription_manager.hpp"
 #include <contexts.hpp>
 #include <moqt.hpp>
 #include <utilities.hpp>
@@ -6,10 +7,9 @@
 namespace rvn
 {
 
-MOQTServer::MOQTServer(std::shared_ptr<DataManager> dataManager,
-                       std::shared_ptr<SubscriptionManager> subscriptionManager)
+MOQTServer::MOQTServer(std::shared_ptr<DataManager> dataManager)
 : MOQT(HostType::SERVER), dataManager_(dataManager),
-  subscriptionManager_(subscriptionManager) {};
+  subscriptionManager_(std::make_shared<SubscriptionManager>(*dataManager_)) {};
 
 void MOQTServer::start_listener(QUIC_ADDR* LocalAddress)
 {

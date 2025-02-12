@@ -119,6 +119,21 @@ struct StreamState
     }
 };
 
+class DataStreamState : public StreamState, public std::enable_shared_from_this<DataStreamState>
+{
+    // To be used by subscriber to receive objects on this stream
+    MPMCQueue<StreamHeaderSubgroupMessage> objectQueue_;
+
+public:
+    StreamHeaderSubgroupMessage streamHeaderSubgroupMessage_;
+
+    DataStreamState(rvn::unique_stream&& stream,
+                    struct ConnectionState& connectionState,
+                    StreamHeaderSubgroupMessage streamHeaderSubgroupMessage = StreamHeaderSubgroupMessage());
+    const auto& header() const noexcept;
+    bool can_send_object(const ObjectIdentifier& objectIdentifier) const noexcept;
+};
+
 struct ConnectionState : std::enable_shared_from_this<ConnectionState>
 {
     // StreamManager //////////////////////////////////////////////////////////////
@@ -136,46 +151,6 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
 
     std::optional<TrackIdentifier> alias_to_identifier(TrackAlias trackAlias);
     std::optional<TrackAlias> identifier_to_alias(const TrackIdentifier& trackIdentifier);
-
-
-    class DataStreamState : public StreamState,
-                            public std::enable_shared_from_this<DataStreamState>
-    {
-        StreamHeaderSubgroupMessage streamHeaderSubgroupMessage_;
-
-    public:
-        DataStreamState(rvn::unique_stream&& stream, struct ConnectionState& connectionState)
-        : StreamState(std::move(stream), connectionState)
-        {
-        }
-
-        void set_header(StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
-        {
-            streamHeaderSubgroupMessage_ = std::move(streamHeaderSubgroupMessage);
-        }
-
-        const auto& header()
-        {
-            return streamHeaderSubgroupMessage_;
-        }
-
-        bool can_send_object(const ObjectIdentifier& objectIdentifier) const
-        {
-            auto trackAliasOpt = connectionState_.identifier_to_alias(objectIdentifier);
-            if (!trackAliasOpt.has_value())
-                return false;
-
-            bool trackBoolMatch =
-            (streamHeaderSubgroupMessage_.groupId_ == objectIdentifier.groupId_) &&
-            (trackAliasOpt.value() == streamHeaderSubgroupMessage_.trackAlias_);
-
-            if (!trackBoolMatch)
-                return false;
-
-            // TODO: return true should be replaced with subgroupId match
-            return true;
-        }
-    };
 
     StableContainer<DataStreamState> dataStreams;
 
@@ -197,10 +172,6 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
     std::string path;
     // TODO: role
 
-    // Only for Subscribers
-    // TODO: We can have multiple subscriptions
-    StableContainer<MPMCQueue<std::string>>::iterator objectQueue;
-
     ConnectionState(unique_connection&& connection, class MOQT& moqtObject)
     : connection_(std::move(connection)), moqtObject_(moqtObject)
     {
@@ -217,11 +188,6 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
     QUIC_STATUS accept_control_stream(HQUIC controlStreamHandle);
 
     StreamState& establish_control_stream();
-
-    void add_to_queue(const std::string& objectPayload)
-    {
-        objectQueue->enqueue(objectPayload);
-    }
 };
 
 } // namespace rvn

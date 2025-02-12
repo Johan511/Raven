@@ -2,6 +2,7 @@
 #include <data_manager.hpp>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 
 namespace depracated
 {
@@ -343,6 +344,36 @@ bool DataManager::next(ObjectIdentifier& objectIdentifier, std::uint64_t advance
     }
 
     return true;
+}
+
+std::weak_ptr<TrackHandle> DataManager::get_track_handle(const TrackIdentifier& trackIdentifier)
+{
+    std::shared_lock l(objectHierarchyMtx_);
+
+    auto iter = objectHierarchy_.find(trackIdentifier);
+    if (iter == objectHierarchy_.end())
+        return {};
+
+    return iter->second;
+}
+
+std::weak_ptr<GroupHandle> DataManager::get_group_handle(const GroupIdentifier& groupIdentifier)
+{
+    std::shared_lock l(objectHierarchyMtx_);
+
+    auto iter = objectHierarchy_.find(groupIdentifier);
+    if (iter == objectHierarchy_.end())
+        return {};
+
+    auto trackHandleSharedPtr = iter->second;
+    l = std::shared_lock(trackHandleSharedPtr->groupHandlesMtx_);
+
+    auto groupHandleIter =
+    trackHandleSharedPtr->groupHandles_.find(groupIdentifier.groupId_);
+    if (groupHandleIter == trackHandleSharedPtr->groupHandles_.end())
+        return {};
+
+    return groupHandleIter->second;
 }
 
 }; // namespace rvn

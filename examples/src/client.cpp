@@ -67,10 +67,7 @@ int main()
 
     auto subMessage = subscriptionBuilder.build();
 
-    auto queueRef = moqtClient->subscribe(std::move(subMessage));
-
     std::string receivedData;
-    queueRef->wait_dequeue(receivedData);
     std::cout << "Received data: " << receivedData << std::endl;
     assert(receivedData == data);
 

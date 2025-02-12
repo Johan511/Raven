@@ -2,6 +2,7 @@
 
 #include <data_manager.hpp>
 #include <definitions.hpp>
+#include <limits>
 #include <optional>
 #include <serialization/messages.hpp>
 #include <serialization/serialization.hpp>
@@ -63,6 +64,13 @@ class SubscriptionState
 
     void error_handler(SubscriptionStateErr::ConnectionExpired);
     void error_handler(SubscriptionStateErr::ObjectDoesNotExist);
+
+    // clang-format off
+    FullfillSomeReturn add_group_subscription(
+                                const GroupHandle& groupHandle,
+                                std::optional<ObjectId> beginObjectId = {},
+                                std::optional<ObjectId> endObjectId = {});
+    // clang-format on
 
 public:
     bool cleanup_;

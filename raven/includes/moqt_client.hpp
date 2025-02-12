@@ -57,14 +57,8 @@ public:
 
     auto subscribe(SubscribeMessage&& subscribeMessage)
     {
-        objectQueues.emplace_back();
-        connectionState->objectQueue = --(objectQueues.end());
-
         QUIC_BUFFER* quicBuffer = serialization::serialize(subscribeMessage);
-
         connectionState->send_control_buffer(quicBuffer);
-
-        return connectionState->objectQueue;
     }
 
 
