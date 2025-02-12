@@ -2,7 +2,6 @@
 
 #include <data_manager.hpp>
 #include <definitions.hpp>
-#include <limits>
 #include <optional>
 #include <serialization/messages.hpp>
 #include <serialization/serialization.hpp>

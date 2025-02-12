@@ -272,7 +272,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                 {
                     add_group_subscription(*beginGroupHandleIter->second,
                                            subscriptionMessage_.start_->object_);
-                                           
+
                     for (auto groupHandleIter = std::next(beginGroupHandleIter);
                          groupHandleIter != endGroupHandleIter; ++groupHandleIter)
                         add_group_subscription(*groupHandleIter->second);

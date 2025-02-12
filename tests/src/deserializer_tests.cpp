@@ -9,8 +9,7 @@
 using namespace rvn;
 using namespace rvn::serialization;
 
-inline auto QuicBufferDeleter = [](QUIC_BUFFER* buffer)
-{ free(buffer); };
+inline auto QuicBufferDeleter = [](QUIC_BUFFER* buffer) { free(buffer); };
 
 using UniqueQuicBuffer = std::unique_ptr<QUIC_BUFFER, decltype(QuicBufferDeleter)>;
 using SharedQuicBuffer = std::shared_ptr<QUIC_BUFFER>;

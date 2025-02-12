@@ -75,36 +75,31 @@ template <typename T, typename ToEndianess = NetworkEndian>
 serialize_return_t serialize(ds::chunk& c, ds::quic_var_int i)
 {
     static_assert(std::is_same_v<T, ds::quic_var_int>);
+    std::uint64_t value = i.get();
 
-    const auto chunkSize = i.size();
-    switch (chunkSize)
+    if (value < (1 << 6))
     {
-        case 1:
-        {
-            std::uint8_t value = i.get(); // 00xxxxxx
-            return serialize_trivial<std::uint8_t>(c, value);
-        }
-        case 2:
-        {
-            // 01xxxxxx xxxxxxxx
-            std::uint16_t value = (std::uint64_t(0b01) << 14) | i.get();
-            return serialize_trivial<std::uint16_t>(c, value);
-        }
-        case 4:
-        {
-            // 10xxxxxx xxxxxxxx ...
-            std::uint32_t value = (std::uint64_t(0b10) << 30) | i.get();
-            return serialize_trivial<std::uint32_t>(c, value);
-        }
-        case 8:
-        {
-            // 11xxxxxx xxxxxxxx ...
-            std::uint64_t value = (std::uint64_t(0b11) << 62) | i.get();
-            return serialize_trivial<std::uint64_t>(c, value);
-        }
+        std::uint8_t value = i.get(); // 00xxxxxx
+        return serialize_trivial<std::uint8_t>(c, value);
     }
-    assert(false);
-    return 42;
+    else if (value < (1 << 14))
+    {
+        // 01xxxxxx xxxxxxxx
+        std::uint16_t value = (std::uint64_t(0b01) << 14) | i.get();
+        return serialize_trivial<std::uint16_t>(c, value);
+    }
+    else if (value < (1 << 30))
+    {
+        // 10xxxxxx xxxxxxxx ...
+        std::uint32_t value = (std::uint64_t(0b10) << 30) | i.get();
+        return serialize_trivial<std::uint32_t>(c, value);
+    }
+    else
+    {
+        // 11xxxxxx xxxxxxxx ...
+        std::uint64_t value = (std::uint64_t(0b11) << 62) | i.get();
+        return serialize_trivial<std::uint64_t>(c, value);
+    }
 }
 
 template <typename T> serialize_return_t mock_serialize(ds::quic_var_int i)

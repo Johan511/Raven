@@ -17,7 +17,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 extern "C"
 {
-    #include <msquic.h>
+#include <msquic.h>
 }
 
 namespace rvn::serialization
