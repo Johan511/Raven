@@ -1,6 +1,5 @@
 #pragma once
 
-#include <optional>
 #include <serialization/chunk.hpp>
 #include <serialization/endianness.hpp>
 #include <serialization/messages.hpp>
@@ -123,26 +122,6 @@ template <UnsignedInteger T> serialize_return_t mock_serialize(const auto&)
 {
     return sizeof(T);
 }
-
-///////////////////////////////////////////////////////////////////////////////////////////////
-template <typename T, typename ToEndianess = NetworkEndian>
-serialize_return_t serialize_optional(ds::chunk& c, const std::optional<T>& i)
-{
-    if (i.has_value())
-        return serialize<T>(c, i.get());
-    else
-        return 0;
-}
-
-template <typename T>
-serialize_return_t mock_serialize_optional(const std::optional<T>& i)
-{
-    if (i.has_value())
-        return mock_serialize<T>(i.get());
-    else
-        return 0;
-}
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // Message serialization

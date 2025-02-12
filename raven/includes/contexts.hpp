@@ -121,17 +121,18 @@ struct StreamState
 
 class DataStreamState : public StreamState, public std::enable_shared_from_this<DataStreamState>
 {
-    // To be used by subscriber to receive objects on this stream
-    MPMCQueue<StreamHeaderSubgroupMessage> objectQueue_;
+    // return weak_ptr to this for 3rd party to observe lifetime of the StreamState
+    std::shared_ptr<void> lifeTimeFlag_;
 
 public:
-    StreamHeaderSubgroupMessage streamHeaderSubgroupMessage_;
+    // To be used by subscriber to receive objects on this stream
+    std::shared_ptr<MPMCQueue<StreamHeaderSubgroupObject>> objectQueue_;
+    std::shared_ptr<StreamHeaderSubgroupMessage> streamHeaderSubgroupMessage_;
 
-    DataStreamState(rvn::unique_stream&& stream,
-                    struct ConnectionState& connectionState,
-                    StreamHeaderSubgroupMessage streamHeaderSubgroupMessage = StreamHeaderSubgroupMessage());
-    const auto& header() const noexcept;
+    DataStreamState(rvn::unique_stream&& stream, struct ConnectionState& connectionState);
     bool can_send_object(const ObjectIdentifier& objectIdentifier) const noexcept;
+    void set_header(StreamHeaderSubgroupMessage streamHeaderSubgroupMessage);
+    std::weak_ptr<void> get_life_time_flag() const noexcept;
 };
 
 struct ConnectionState : std::enable_shared_from_this<ConnectionState>

@@ -17,18 +17,12 @@
 namespace rvn
 {
 
-DataStreamState::DataStreamState(rvn::unique_stream&& stream,
-                                 struct ConnectionState& connectionState,
-                                 StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
+DataStreamState::DataStreamState(rvn::unique_stream&& stream, struct ConnectionState& connectionState)
 : StreamState(std::move(stream), connectionState),
-  streamHeaderSubgroupMessage_(std::move(streamHeaderSubgroupMessage))
+  objectQueue_(std::make_shared<MPMCQueue<StreamHeaderSubgroupObject>>())
 {
 }
 
-const auto& DataStreamState::header() const noexcept
-{
-    return streamHeaderSubgroupMessage_;
-}
 
 bool DataStreamState::can_send_object(const ObjectIdentifier& objectIdentifier) const noexcept
 {
@@ -37,14 +31,25 @@ bool DataStreamState::can_send_object(const ObjectIdentifier& objectIdentifier) 
         return false;
 
     bool trackBoolMatch =
-    (streamHeaderSubgroupMessage_.groupId_ == objectIdentifier.groupId_) &&
-    (trackAliasOpt.value() == streamHeaderSubgroupMessage_.trackAlias_);
+    (streamHeaderSubgroupMessage_->groupId_ == objectIdentifier.groupId_) &&
+    (trackAliasOpt.value() == streamHeaderSubgroupMessage_->trackAlias_);
 
     if (!trackBoolMatch)
         return false;
 
     // TODO: return true should be replaced with subgroupId match
     return true;
+}
+
+void DataStreamState::set_header(StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
+{
+    streamHeaderSubgroupMessage_ =
+    std::make_shared<StreamHeaderSubgroupMessage>(std::move(streamHeaderSubgroupMessage));
+}
+
+std::weak_ptr<void> DataStreamState::get_life_time_flag() const noexcept
+{
+    return lifeTimeFlag_;
 }
 
 
@@ -198,7 +203,8 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
     objectHeader.publisherPriority_ = 0;
 
 
-    dataStreams.emplace_back(std::move(stream), *this, objectHeader);
+    dataStreams.emplace_back(std::move(stream), *this);
+    dataStreams.back().set_header(objectHeader);
 
     StreamState& streamState = dataStreams.back();
     streamState.set_stream_context(std::unique_ptr<StreamContext>(streamContext));

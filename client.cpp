@@ -72,6 +72,18 @@ int main()
     auto subMessage = subscriptionBuilder.build();
     moqtClient->subscribe(std::move(subMessage));
 
+    while (true)
+    {
+        std::tuple<std::weak_ptr<void>, std::shared_ptr<StreamHeaderSubgroupMessage>, std::shared_ptr<MPMCQueue<StreamHeaderSubgroupObject>>> tuple;
+        moqtClient->dataStreamClientAbstraction_.wait_dequeue(tuple);
+
+        auto&& [_1, _2, objectQueue] = std::move(tuple);
+
+        StreamHeaderSubgroupObject object;
+        objectQueue->wait_dequeue(object);
+        std::cout << "Received object: " << object << std::endl;
+    }
+
     {
         char c;
         while (1)

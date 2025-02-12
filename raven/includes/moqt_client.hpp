@@ -1,6 +1,8 @@
 #pragma once
 ////////////////////////////////////////////
+#include "definitions.hpp"
 #include <moqt_base.hpp>
+#include <msquic.h>
 #include <serialization/messages.hpp>
 ////////////////////////////////////////////
 #include <atomic>
@@ -10,6 +12,7 @@
 #include <serialization/serialization.hpp>
 #include <subscription_manager.hpp>
 #include <utilities.hpp>
+#include <variant>
 #include <wrappers.hpp>
 ////////////////////////////////////////////
 
@@ -55,7 +58,12 @@ public:
     }
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    auto subscribe(SubscribeMessage&& subscribeMessage)
+    using DataStreamsClientAbstraction =
+    MPMCQueue<std::tuple<std::weak_ptr<void>, std::shared_ptr<StreamHeaderSubgroupMessage>, std::shared_ptr<MPMCQueue<StreamHeaderSubgroupObject>>>>;
+
+    DataStreamsClientAbstraction dataStreamClientAbstraction_;
+
+    void subscribe(SubscribeMessage&& subscribeMessage)
     {
         QUIC_BUFFER* quicBuffer = serialization::serialize(subscribeMessage);
         connectionState->send_control_buffer(quicBuffer);
