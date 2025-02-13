@@ -12,7 +12,6 @@
 #include <serialization/serialization.hpp>
 #include <subscription_manager.hpp>
 #include <utilities.hpp>
-#include <variant>
 #include <wrappers.hpp>
 ////////////////////////////////////////////
 
@@ -25,7 +24,6 @@ public:
     // ConnectionState is not default constructable
     // so we need to have a optional wrapper
     std::shared_ptr<ConnectionState> connectionState;
-    StableContainer<MPMCQueue<std::string>> objectQueues;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // these functions will later be pushed into cgUtils
@@ -58,10 +56,14 @@ public:
     }
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    using DataStreamsClientAbstraction =
-    MPMCQueue<std::tuple<std::weak_ptr<void>, std::shared_ptr<StreamHeaderSubgroupMessage>, std::shared_ptr<MPMCQueue<StreamHeaderSubgroupObject>>>>;
+    struct DataStreamUserHandle
+    {
+        std::weak_ptr<void> streamLifeTimeFlag_;
+        std::shared_ptr<StreamHeaderSubgroupMessage> streamHeaderSubgroupMessage_;
+        std::shared_ptr<MPMCQueue<StreamHeaderSubgroupObject>> objectQueue_;
+    };
 
-    DataStreamsClientAbstraction dataStreamClientAbstraction_;
+    MPMCQueue<DataStreamUserHandle> dataStreamUserHandles_;
 
     void subscribe(SubscribeMessage&& subscribeMessage)
     {

@@ -60,12 +60,9 @@ void MessageHandler::operator()(StreamHeaderSubgroupMessage streamHeaderSubgroup
     MOQTClient& moqtClient =
     static_cast<MOQTClient&>(streamState_.streamContext->moqtObject_);
 
-    auto tuple = std::make_tuple(dataStreamState.get_life_time_flag(),
-                                 dataStreamState.streamHeaderSubgroupMessage_,
-                                 dataStreamState.objectQueue_);
-
-
-    moqtClient.dataStreamClientAbstraction_.enqueue(std::move(tuple));
+    moqtClient.dataStreamUserHandles_.enqueue(
+    { dataStreamState.get_life_time_flag(),
+      dataStreamState.streamHeaderSubgroupMessage_, dataStreamState.objectQueue_ });
 }
 
 } // namespace rvn

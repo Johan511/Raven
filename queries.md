@@ -16,3 +16,9 @@ What we do: Send subscription error
 </block>
 
 What is the use of all this?
+
+
+
+### Double free error
+In destructor of MOQT Server, connection is torn down, this might call `QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE` callback which would erase the connection
+Then destructor deallocates, which causes double free

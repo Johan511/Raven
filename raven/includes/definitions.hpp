@@ -34,6 +34,13 @@ public:
     {
         return mpmcQueue.try_dequeue(u);
     }
+
+    __attribute__((no_sanitize("thread"))) T wait_dequeue_ret()
+    {
+        T t;
+        mpmcQueue.wait_dequeue(t);
+        return t;
+    }
 };
 
 } // namespace rvn

@@ -52,15 +52,13 @@ static constexpr auto server_connection_callback =
         case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER: break;
         case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
         {
-            auto& connectionStateMap = moqtServer->get_connectionStateMap();
-            utils::ASSERT_LOG_THROW(connectionStateMap.find(connection) !=
-                                    connectionStateMap.end(),
-                                    "Connection not found in "
-                                    "connectionStateMap");
-            // deletes connection related stuff in MsQuic
-            MsQuic->ConnectionClose(connection);
-            // free the state we maintain of the connection
-            connectionStateMap.erase(connection);
+            /*  Do not cleanup her, might cause double free error
+                In destructor of MOQT Server, connection is torn down, this might call `QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE` callback which would erase the connection
+                Then destructor deallocates, which causes double free
+            */
+
+
+            // moqtServer->cleanup_connection(connection);
             break;
         }
         case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED:

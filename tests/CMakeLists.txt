@@ -11,12 +11,5 @@ include(${CMAKE_SOURCE_DIR}/cmake_utilities/test_utilities.cmake)
 
 add_subdirectory(serialization)
 
-# add_executable(test1 src/simple_data_transfer.cpp)
-# target_include_directories(test1 PUBLIC ${RAVEN_INCLUDE_DIR})
-# target_include_directories(test1 SYSTEM PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR} ${PROTOBUF_MESSAGES_INCLUDE_DIR})
-# target_link_libraries(test1 PUBLIC raven)
-
-add_executable(deserializer_tests src/deserializer_tests.cpp)
-target_include_directories(deserializer_tests PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(deserializer_tests SYSTEM PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR} ${PROTOBUF_MESSAGES_INCLUDE_DIR})
-target_link_libraries(deserializer_tests PUBLIC raven)
+add_raven_test(src/simple_data_transfer.cpp)
+add_raven_test(src/deserializer_tests.cpp)

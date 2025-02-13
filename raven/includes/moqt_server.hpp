@@ -17,16 +17,14 @@ class MOQTServer : public MOQT
 {
     rvn::unique_listener listener;
 
+
 public:
     std::shared_ptr<DataManager> dataManager_;
     std::shared_ptr<SubscriptionManager> subscriptionManager_;
+
+    std::shared_mutex connectionStateMapMtx;
     std::unordered_map<HQUIC, std::shared_ptr<ConnectionState>> connectionStateMap;
 
-    // map from connection HQUIC to connection state
-    auto& get_connectionStateMap()
-    {
-        return connectionStateMap;
-    }
 
     MOQTServer(std::shared_ptr<DataManager> dataManager);
 
@@ -85,6 +83,7 @@ public:
 
         unique_connection connection = unique_connection(tbl.get(), connectionHandle);
 
+        std::unique_lock l(connectionStateMapMtx);
         connectionStateMap.emplace(connectionHandle,
                                    std::make_shared<ConnectionState>(std::move(connection),
                                                                      *this));
@@ -105,6 +104,12 @@ public:
         ConnectionState& connectionState = *connectionStateMap.at(connection);
 
         return connectionState.accept_control_stream(newStreamInfo.Stream);
+    }
+
+    void cleanup_connection(HQUIC connection)
+    {
+        std::unique_lock l(connectionStateMapMtx);
+        connectionStateMap.erase(connection);
     }
 };
 } // namespace rvn
