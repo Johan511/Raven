@@ -94,7 +94,6 @@ constexpr guess_size_t guess_size(const std::string& s)
 
 template <typename... Args> QUIC_BUFFER* serialize(Args&&... args)
 {
-
     ds::chunk c;
     (detail::serialize(c, args), ...);
 

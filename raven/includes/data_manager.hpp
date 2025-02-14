@@ -183,7 +183,12 @@ class SubgroupHandle
 public:
     bool add_object(std::string object);
 
+    // caps the subgroup with how many ever objects it currently has
     void cap();
+
+    // caps the subgroup and returns another openended subgroup and return its handle
+    // we return optional just in case the group has been deleted or some error occurs
+    std::optional<SubgroupHandle> cap_and_next();
 };
 
 // We do not allow for objects to be deleted
@@ -204,10 +209,15 @@ private:
     {
         bool operator()(std::uint64_t l, std::uint64_t r) const
         {
-            l = l & (~(1ULL << 63)); //  mask of last bit
-            r = r & (~(1ULL << 63)); //  mask of last bit
+            std::uint64_t lMasked = l & (~(1ULL << 63)); //  mask of last bit
+            std::uint64_t rMasked = r & (~(1ULL << 63)); //  mask of last bit
 
-            return l < r;
+
+            // we want {0_begin, 1_end, 1_begin, 2_end, ...}
+            if (lMasked == rMasked)
+                return l > r;
+            else
+                return lMasked < rMasked;
         }
     };
 
@@ -217,80 +227,14 @@ private:
 public:
     GroupHandle(GroupIdentifier groupIdentifier, DataManager& dataManagerHandle);
 
-    SubgroupHandle add_subgroup(std::uint64_t numElements)
-    {
-        // writer lock
-        std::unique_lock<std::shared_mutex> l(objectIdsMtx_);
+    SubgroupHandle add_subgroup(std::uint64_t numElements);
+    SubgroupHandle add_open_ended_subgroup();
 
-        std::uint64_t beginObjectId = objectIds_.empty() ? 0 : *objectIds_.rbegin();
-        beginObjectId &= (~(1ULL << 63)); // mask of last bit
-        objectIds_.insert(beginObjectId);
-        objectIds_.insert((beginObjectId + numElements) | (1ULL << 63));
-
-        return SubgroupHandle(weak_from_this(), dataManager_, ObjectId(beginObjectId),
-                              ObjectId(beginObjectId + numElements));
-    };
-
-    SubgroupHandle add_open_ended_subgroup()
-    {
-        // writer lock
-        std::unique_lock<std::shared_mutex> l(objectIdsMtx_);
-
-        std::uint64_t beginObjectId = objectIds_.empty() ? 0 : *objectIds_.rbegin();
-        beginObjectId &= (~(1ULL << 63)); // mask of last bit
-        objectIds_.insert(beginObjectId);
-        objectIds_.insert(std::numeric_limits<std::uint64_t>::max());
-
-        return SubgroupHandle(weak_from_this(), dataManager_,
-                              ObjectId(beginObjectId), ObjectId(beginObjectId));
-    }
-
-    bool has_object_id(ObjectId objectId)
-    {
-        // reader lock
-        std::shared_lock<std::shared_mutex> l(objectIdsMtx_);
-
-        auto iter = objectIds_.upper_bound(objectId.get());
-        if (iter == objectIds_.begin())
-            return false;
-
-        return *std::prev(iter) <= objectId.get();
-    }
+    bool has_object_id(ObjectId objectId);
 
     std::uint64_t
     num_objects_in_range(ObjectId left = ObjectId(0),
-                         ObjectId right = ObjectId(std::numeric_limits<std::uint64_t>::max()))
-    {
-        // reader lock
-        std::shared_lock<std::shared_mutex> l(objectIdsMtx_);
-
-        std::uint64_t numObjects = 0;
-
-        if (objectIds_.empty())
-            return numObjects;
-
-
-        // beginning objectId of the subgroup left is in
-        auto subGroupBeginIter = --objectIds_.upper_bound(left.get());
-        while (subGroupBeginIter != objectIds_.end())
-        {
-            auto subGroupEndIter = std::next(subGroupBeginIter);
-            ObjectId endBound = ObjectId(*subGroupEndIter & (~(1ULL << 63)));
-
-            if (endBound >= right)
-            {
-                numObjects += right.get() - left.get();
-                break;
-            }
-            else
-            {
-                numObjects += endBound.get() - left.get();
-                subGroupBeginIter = std::next(subGroupEndIter);
-            }
-        }
-
-        return numObjects;
-    }
+                         ObjectId right = ObjectId(std::numeric_limits<std::uint64_t>::max()));
 };
 
 class TrackHandle : public std::enable_shared_from_this<TrackHandle>

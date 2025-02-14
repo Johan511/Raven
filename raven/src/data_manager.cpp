@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <mutex>
 
 namespace depracated
 {
@@ -116,6 +117,50 @@ bool SubgroupHandle::add_object(std::string object)
                                      std::move(object));
 }
 
+void SubgroupHandle::cap()
+{
+    auto groupHandleSharedPtr = groupHandle_.lock();
+    // checks if group still exists
+    if (!groupHandleSharedPtr)
+        return;
+
+    endObjectId_ = beginObjectId_ + ObjectId(numObjects_);
+
+    std::unique_lock l(groupHandleSharedPtr->objectIdsMtx_);
+    auto& objectIds = groupHandleSharedPtr->objectIds_;
+    auto iter = objectIds.find(beginObjectId_);
+    if (iter == objectIds.end())
+        return;
+    ++iter;
+
+    // change the range of the subgroup in the group
+    objectIds.erase(iter);
+    objectIds.insert(endObjectId_.get() | (1ULL << 63));
+}
+
+std::optional<SubgroupHandle> SubgroupHandle::cap_and_next()
+{
+    auto groupHandleSharedPtr = groupHandle_.lock();
+    // checks if group still exists
+    if (!groupHandleSharedPtr)
+        return {};
+
+    endObjectId_ = beginObjectId_ + ObjectId(numObjects_);
+
+    std::unique_lock l(groupHandleSharedPtr->objectIdsMtx_);
+    auto& objectIds = groupHandleSharedPtr->objectIds_;
+    auto iter = objectIds.find(beginObjectId_);
+    if (iter == objectIds.end())
+        return {};
+    ++iter;
+
+    // change the range of the subgroup in the group
+    objectIds.erase(iter);
+    objectIds.insert(endObjectId_.get() | (1ULL << 63));
+
+    return groupHandleSharedPtr->add_open_ended_subgroup();
+}
+
 TrackIdentifier::TrackIdentifier(std::vector<std::string> trackNamespace, std::string tname)
 : trackIdentifierInternal_(
   std::make_shared<std::pair<std::vector<std::string>, std::string>>(std::move(trackNamespace),
@@ -145,6 +190,79 @@ GroupHandle::GroupHandle(GroupIdentifier groupIdentifier, DataManager& dataManag
     // create directory if it does not exist
     std::string pathString = dataManager_.get_path_string(groupIdentifier_);
     std::filesystem::create_directories(pathString);
+}
+
+SubgroupHandle GroupHandle::add_subgroup(std::uint64_t numElements)
+{
+    // writer lock
+    std::unique_lock<std::shared_mutex> l(objectIdsMtx_);
+
+    std::uint64_t beginObjectId = objectIds_.empty() ? 0 : *objectIds_.rbegin();
+    beginObjectId &= (~(1ULL << 63)); // mask of last bit
+    objectIds_.insert(beginObjectId);
+    objectIds_.insert((beginObjectId + numElements) | (1ULL << 63));
+
+    return SubgroupHandle(weak_from_this(), dataManager_, ObjectId(beginObjectId),
+                          ObjectId(beginObjectId + numElements));
+};
+
+SubgroupHandle GroupHandle::add_open_ended_subgroup()
+{
+    // writer lock
+    std::unique_lock<std::shared_mutex> l(objectIdsMtx_);
+
+    std::uint64_t beginObjectId = objectIds_.empty() ? 0 : *objectIds_.rbegin();
+    beginObjectId &= (~(1ULL << 63)); // mask of last bit
+    objectIds_.insert(beginObjectId);
+    objectIds_.insert(std::numeric_limits<std::uint64_t>::max());
+
+    return SubgroupHandle(weak_from_this(), dataManager_,
+                          ObjectId(beginObjectId), ObjectId(beginObjectId));
+}
+
+bool GroupHandle::has_object_id(ObjectId objectId)
+{
+    // reader lock
+    std::shared_lock<std::shared_mutex> l(objectIdsMtx_);
+
+    auto iter = objectIds_.upper_bound(objectId.get());
+    if (iter == objectIds_.begin())
+        return false;
+
+    return *std::prev(iter) <= objectId.get();
+}
+
+std::uint64_t GroupHandle::num_objects_in_range(ObjectId left, ObjectId right)
+{
+    // reader lock
+    std::shared_lock<std::shared_mutex> l(objectIdsMtx_);
+
+    std::uint64_t numObjects = 0;
+
+    if (objectIds_.empty())
+        return numObjects;
+
+
+    // beginning objectId of the subgroup left is in
+    auto subGroupBeginIter = --objectIds_.upper_bound(left.get());
+    while (subGroupBeginIter != objectIds_.end())
+    {
+        auto subGroupEndIter = std::next(subGroupBeginIter);
+        ObjectId endBound = ObjectId(*subGroupEndIter & (~(1ULL << 63)));
+
+        if (endBound >= right)
+        {
+            numObjects += right.get() - left.get();
+            break;
+        }
+        else
+        {
+            numObjects += endBound.get() - left.get();
+            subGroupBeginIter = std::next(subGroupEndIter);
+        }
+    }
+
+    return numObjects;
 }
 
 
@@ -340,7 +458,10 @@ bool DataManager::next(ObjectIdentifier& objectIdentifier, std::uint64_t advance
             ObjectId(*groupHandleIter->second->objectIds_.begin());
         }
         else
+        {
             objectIdentifier.objectId_ = advancedObjectId;
+            break;
+        }
     }
 
     return true;

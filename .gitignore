@@ -5,3 +5,4 @@ johan-docs/*
 data/
 compile_commands.json
 meets.md
+*.log

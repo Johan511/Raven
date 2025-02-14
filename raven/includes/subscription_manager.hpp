@@ -109,6 +109,7 @@ class SubscriptionManager
 {
     friend struct ThreadLocalState;
     class DataManager& dataManager_;
+    std::atomic<bool> cleanup_;
 
     // holds subscriptions messages which need to be processed and start executing
     MPMCQueue<std::tuple<std::weak_ptr<ConnectionState>, SubscribeMessage>> subscriptionQueue_;
@@ -126,5 +127,7 @@ public:
     // Error Handling functions
     void mark_subscription_cleanup(SubscriptionState& subscriptionState);
     void notify_subscription_error(SubscriptionState& subscriptionState);
+
+    ~SubscriptionManager();
 };
 } // namespace rvn

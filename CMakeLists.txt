@@ -35,6 +35,7 @@ endif()
 
 # Setting MSQUIC related variables
 set(QUIC_STATIC_LINK_CRT "ON" CACHE INTERNAL "QUIC_STATIC_LINK_CRT")
+add_compile_definitions(QUIC_API_ENABLE_PREVIEW_FEATURES)
 add_subdirectory(submodules/msquic)
 set(MSQUIC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/submodules/msquic/src/inc)
 set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/${CMAKE_BUILD_TYPE}/libmsquic.so)

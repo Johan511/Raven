@@ -1,5 +1,6 @@
-#include "data_manager.hpp"
-#include "utilities.hpp"
+#include <data_manager.hpp>
+#include <utilities.hpp>
+#include <atomic>
 #include <contexts.hpp>
 #include <memory>
 #include <optional>
@@ -300,6 +301,9 @@ void ThreadLocalState::operator()()
 {
     while (true)
     {
+        if (subscriptionManager_.cleanup_.load(std::memory_order_relaxed)) [[unlikely]]
+            break;
+
         auto& subscriptionQueue_ = subscriptionManager_.subscriptionQueue_;
 
         std::tuple<std::weak_ptr<ConnectionState>, SubscribeMessage> subscriptionTuple;
@@ -347,7 +351,7 @@ void ThreadLocalState::operator()()
 }
 
 SubscriptionManager::SubscriptionManager(DataManager& dataManager, std::size_t numThreads)
-: dataManager_(dataManager)
+: dataManager_(dataManager), cleanup_(false)
 {
     threadLocalStates_.reserve(numThreads);
     for (std::size_t i = 0; i < numThreads; i++)
@@ -355,6 +359,14 @@ SubscriptionManager::SubscriptionManager(DataManager& dataManager, std::size_t n
         threadLocalStates_.emplace_back(*this);
         threadPool_.emplace_back(threadLocalStates_.back());
     }
+}
+
+SubscriptionManager::~SubscriptionManager()
+{
+    // to indicate to the threads to shutdown
+    // relaxed load and store works because there is no data dependencies with cleanup_
+    // it is just a single flag to be set, this might change if we are doing more complex things before setting cleanup
+    cleanup_.store(true, std::memory_order_relaxed);
 }
 
 void SubscriptionManager::add_subscription(std::weak_ptr<ConnectionState> connectionStateWeakPtr,
@@ -366,11 +378,15 @@ void SubscriptionManager::add_subscription(std::weak_ptr<ConnectionState> connec
 
 void SubscriptionManager::mark_subscription_cleanup(SubscriptionState& subscriptionState)
 {
+    utils::LOG_EVENT(std::cout, "Marking subscription for cleanup",
+                     std::addressof(subscriptionState));
     subscriptionState.cleanup_ = true;
 }
 
 void SubscriptionManager::notify_subscription_error(SubscriptionState& subscriptionState)
 {
+    utils::LOG_EVENT(std::cout, "Subscription Error for cleanup",
+                     std::addressof(subscriptionState));
     mark_subscription_cleanup(subscriptionState);
     auto connectionStateWeakPtr = subscriptionState.get_connection_state_weak_ptr();
 

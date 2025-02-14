@@ -86,6 +86,7 @@ static constexpr auto server_control_stream_callback =
     auto& deserializer = streamContext->deserializer_;
 
     utils::wait_for(streamContext->streamHasBeenConstructed);
+    moqtObject.get_tbl()->StreamReceiveSetEnabled(controlStream, true);
 
     switch (event->Type)
     {
@@ -181,6 +182,8 @@ static constexpr auto client_data_stream_callback =
     ConnectionState& connectionState = streamContext->connectionState_;
     MOQT& moqtObject = streamContext->moqtObject_;
 
+    moqtObject.get_tbl()->StreamReceiveSetEnabled(dataStream, true);
+
     // TODO: wait for stream setup
     switch (event->Type)
     {
@@ -208,6 +211,7 @@ static constexpr auto client_data_stream_callback =
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         {
+            std::cout << "Shutting down stream: " << dataStream << std::endl;
             connectionState.delete_data_stream(dataStream);
             break;
         }
@@ -226,6 +230,7 @@ static constexpr auto client_control_stream_callback =
     MOQT& moqtObject = streamContext->moqtObject_;
 
     utils::wait_for(streamContext->streamHasBeenConstructed);
+    moqtObject.get_tbl()->StreamReceiveSetEnabled(controlStream, true);
 
     switch (event->Type)
     {

@@ -1,4 +1,5 @@
 /////////////////////////////////////////////////////////
+#include <execution>
 #include <memory>
 #include <sys/wait.h>
 /////////////////////////////////////////////////////////
@@ -12,10 +13,9 @@
 #include <subscription_builder.hpp>
 #include <utilities.hpp>
 /////////////////////////////////////////////////////////
+#include "moqt_client.hpp"
 #include "test_utilities.hpp"
 /////////////////////////////////////////////////////////
-
-constexpr std::string messagePayload = "Hello World!";
 
 using namespace rvn;
 
@@ -28,12 +28,15 @@ struct InterprocessSynchronizationData
 
 namespace bip = boost::interprocess;
 
-// TODO: use shared memory synchronization instead of `sleep_fir`
+// TODO: MsQuic issue for larget numObjects
+// https://github.com/microsoft/msquic/discussions/4813
+// Possible solutions: send FIN and check, current status: waiting for answer on discussion
+static constexpr std::uint64_t numObjects = 1'000;
+
 int main()
 {
-    std::string sharedMemoryName = "simple_data_transfer_test_";
+    std::string sharedMemoryName = "chunk_transfer_test_";
     sharedMemoryName += std::to_string(getpid());
-
 
     bip::shared_memory_object shmParent(bip::create_only,
                                         sharedMemoryName.c_str(), bip::read_write);
@@ -52,10 +55,27 @@ int main()
 
         auto dm = moqtServer->dataManager_;
         auto trackHandle = dm->add_track_identifier({}, "track");
-        auto groupHandle = trackHandle.lock()->add_group(GroupId(0));
-        auto subgroupHandle = groupHandle.lock()->add_subgroup(ObjectId(1));
-        subgroupHandle.add_object(messagePayload);
 
+        std::array groupHandles = { trackHandle.lock()->add_group(GroupId(0)),
+                                    trackHandle.lock()->add_group(GroupId(1)),
+                                    trackHandle.lock()->add_group(GroupId(2)),
+                                    trackHandle.lock()->add_group(GroupId(3)) };
+
+        std::for_each(std::execution::par, groupHandles.begin(), groupHandles.end(),
+                      [](std::weak_ptr<GroupHandle>& groupHandle)
+                      {
+                          std::uint64_t groupId =
+                          groupHandle.lock()->groupIdentifier_.groupId_;
+
+                          auto groupHandleSharedPtr = groupHandle.lock();
+                          for (std::size_t idx = 0; idx < numObjects; ++idx)
+                          {
+                              std::string object = "Group_" + std::to_string(groupId) +
+                                                   "_" + "ID_" + std::to_string(idx);
+                              groupHandleSharedPtr->add_subgroup(1).add_object(
+                              std::move(object));
+                          }
+                      });
         {
             std::unique_lock lock(dataParent->mutex);
             dataParent->serverSetup = true;
@@ -69,12 +89,10 @@ int main()
         }
 
         std::cout << "Server done" << std::endl;
-
         wait(NULL);
         exit(0);
     }
     else
-    // child process
     {
         // Open shared memory
         bip::shared_memory_object shmChild(bip::open_only, sharedMemoryName.c_str(),
@@ -97,9 +115,8 @@ int main()
         subscriptionBuilder.set_track_alias(TrackAlias(0));
         subscriptionBuilder.set_track_namespace({});
         subscriptionBuilder.set_track_name("track");
-        subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::absoluteRange,
-                                           { GroupId(0), ObjectId(0) },
-                                           { GroupId(0), ObjectId(1) });
+        subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::absoluteStart,
+                                           { GroupId(0), ObjectId(0) });
 
         subscriptionBuilder.set_subscriber_priority(0);
         subscriptionBuilder.set_group_order(0);
@@ -109,27 +126,31 @@ int main()
         moqtClient->subscribe(std::move(subMessage));
 
         auto& dataStreams = moqtClient->dataStreamUserHandles_;
-        auto dataStreamUserHandle = dataStreams.wait_dequeue_ret();
 
-        auto& objectQueue = dataStreamUserHandle.objectQueue_;
+        std::vector<std::thread> streamConsumerThreads;
 
-        auto streamHeaderSubgroupObject = objectQueue->wait_dequeue_ret();
-
-        try
+        for (int i = 0; i < 4; i++)
         {
-            utils::ASSERT_LOG_THROW(streamHeaderSubgroupObject.payload_ == messagePayload,
-                                    "Payload mismatch",
-                                    "Received: ", streamHeaderSubgroupObject.payload_,
-                                    "Expected: ", messagePayload);
+            auto dataStreamUserHandle = dataStreams.wait_dequeue_ret();
+            streamConsumerThreads.emplace_back(
+            [](MOQTClient::DataStreamUserHandle&& dataStreamUserHandle)
+            {
+                auto& objectQueue = dataStreamUserHandle.objectQueue_;
+
+                for (;;)
+                {
+                    auto streamHeaderSubgroupObject = objectQueue->wait_dequeue_ret();
+                    if (streamHeaderSubgroupObject.objectId_ == ObjectId(numObjects - 1))
+                        break;
+                }
+            },
+            std::move(dataStreamUserHandle));
         }
-        catch (const std::exception& e)
-        {
-            std::cerr << e.what() << std::endl;
-            exit(1);
-        }
+
+        for (auto& thread : streamConsumerThreads)
+            thread.join();
 
         dataChild->clientDone = true;
         std::cout << "Client done" << std::endl;
-        exit(0);
     }
 }

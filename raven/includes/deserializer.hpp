@@ -66,6 +66,8 @@ template <typename DeserializedMessageHandler> class Deserializer
     // should be called after numBytes have been deserialized
     void bytes_deserialized_hook(std::uint64_t numBytes)
     {
+        utils::ASSERT_LOG_THROW(numBytes <= size(), "Deserialized more bytes than available",
+                                numBytes, ">", size());
         // advance begin index
         beginIndex_ += numBytes;
         auto iter = quicBuffers_.begin();
@@ -75,6 +77,15 @@ template <typename DeserializedMessageHandler> class Deserializer
             ++iter;
         }
         quicBuffers_.erase(quicBuffers_.begin(), iter);
+
+        if (quicBuffers_.size() == 0)
+            utils::ASSERT_LOG_THROW(beginIndex_ == 0,
+                                    "beginIndex_ should be 0 when no buffers "
+                                    "are left");
+        else
+            utils::ASSERT_LOG_THROW(beginIndex_ < quicBuffers_.front()->Length,
+                                    "beginIndex_ should be less than first "
+                                    "buffer length");
     }
 
     // returns optinal value, std::numeric_limits<std::uint64_t>::max() is the nullopt
@@ -337,7 +348,6 @@ template <typename DeserializedMessageHandler> class Deserializer
 
     void process_state_machine_input()
     {
-        std::shared_lock l(quicBuffersMutex_);
         utils::ASSERT_LOG_THROW(quicBuffers_.size(),
                                 "Expected at least one buffer");
 
@@ -371,38 +381,8 @@ template <typename DeserializedMessageHandler> class Deserializer
         }
     }
 
-public:
-    Deserializer(bool isControlStream, DeserializedMessageHandler messageHandler = {})
-    : messageHandler_(messageHandler), dataStreamHeader_(std::nullopt)
-    {
-        if (isControlStream)
-        {
-            type_ = DeserializerType::CONTROL_STREAM;
-            state_ = DeserializerState::READING_MESSAGE_TYPE;
-        }
-        else
-        {
-            type_ = DeserializerType::DATA_STREAM;
-            state_ = DeserializerState::READING_OBJECT_HEADER;
-        }
-    }
-
-    void append_buffer(SharedQuicBuffer buffer)
-    {
-        {
-            // writer lock
-            std::unique_lock<std::shared_mutex> lock(quicBuffersMutex_);
-            quicBuffers_.push_back(buffer);
-        }
-
-        process_state_machine_input();
-    }
-
     std::uint8_t& at(std::size_t index)
     {
-        // reader lock
-        std::shared_lock<std::shared_mutex> lock(quicBuffersMutex_);
-
         if (quicBuffers_.size() == 0)
             throw std::runtime_error("No buffers to read from, at()");
         index += beginIndex_;
@@ -421,14 +401,36 @@ public:
 
     std::uint64_t size() const noexcept
     {
-        // reader lock
-        std::shared_lock<std::shared_mutex> lock(const_cast<std::shared_mutex&>(quicBuffersMutex_));
         std::uint64_t totalLen = 0;
         for (const auto& buffer : quicBuffers_)
             totalLen += buffer->Length;
 
         totalLen -= beginIndex_;
         return totalLen;
+    }
+
+public:
+    Deserializer(bool isControlStream, DeserializedMessageHandler messageHandler = {})
+    : messageHandler_(messageHandler), dataStreamHeader_(std::nullopt)
+    {
+        if (isControlStream)
+        {
+            type_ = DeserializerType::CONTROL_STREAM;
+            state_ = DeserializerState::READING_MESSAGE_TYPE;
+        }
+        else
+        {
+            type_ = DeserializerType::DATA_STREAM;
+            state_ = DeserializerState::READING_OBJECT_HEADER;
+        }
+    }
+
+    void append_buffer(SharedQuicBuffer buffer)
+    {
+        std::unique_lock<std::shared_mutex> lock(quicBuffersMutex_);
+        quicBuffers_.emplace_back(std::move(buffer));
+
+        process_state_machine_input();
     }
 };
 } // namespace rvn::serialization
