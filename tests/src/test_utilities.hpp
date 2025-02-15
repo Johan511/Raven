@@ -37,8 +37,8 @@ static inline std::unique_ptr<rvn::MOQTClient> client_setup()
     Settings.IsSet.IdleTimeoutMs = TRUE;
     Settings.PeerUnidiStreamCount = (std::numeric_limits<std::uint16_t>::max());
     Settings.IsSet.PeerUnidiStreamCount = TRUE;
-    // Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
-    // Settings.StreamMultiReceiveEnabled = TRUE;
+    Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
+    Settings.StreamMultiReceiveEnabled = TRUE;
     moqtClient->set_Settings(&Settings, sizeof(Settings));
 
     QUIC_CREDENTIAL_CONFIG credConfig;
@@ -87,8 +87,8 @@ static inline std::unique_ptr<rvn::MOQTServer> server_setup()
     Settings.IsSet.IdleTimeoutMs = TRUE;
     Settings.PeerBidiStreamCount = 1;
     Settings.IsSet.PeerBidiStreamCount = TRUE;
-    // Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
-    // Settings.StreamMultiReceiveEnabled = TRUE;
+    Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
+    Settings.StreamMultiReceiveEnabled = TRUE;
     moqtServer->set_Settings(&Settings, sizeof(Settings));
 
     // certificates

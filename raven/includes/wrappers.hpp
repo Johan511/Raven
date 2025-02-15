@@ -484,13 +484,16 @@ public:
 
 class QUIC_BUFFERDeleter
 {
-    HQUIC streamHandle_;
-    QUIC_STREAM_RECEIVE_COMPLETE_FN streamReceiveCompletefunction_;
+    // Check chunk_transfer.cpp to understand why this is unused
+    // Ideally we would be calling receive complete, but we are making a copy of
+    // QUIC_BUFFER provided by MsQuic, because of lifetime management issues of the MsQuic buffer when multireceive is enabled
+    [[maybe_unused]] HQUIC streamHandle_;
+    [[maybe_unused]] QUIC_STREAM_RECEIVE_COMPLETE_FN streamReceiveCompletefunction_;
 
 public:
     void operator()(const QUIC_BUFFER* buffer)
     {
-        streamReceiveCompletefunction_(streamHandle_, buffer->Length);
+        free(const_cast<QUIC_BUFFER*>(buffer));
     }
 
     QUIC_BUFFERDeleter(HQUIC streamHandle, QUIC_STREAM_RECEIVE_COMPLETE_FN streamReceiveCompletefunction)
@@ -500,6 +503,6 @@ public:
     }
 };
 
-using SharedQuicBuffer = std::shared_ptr<const QUIC_BUFFER>;
+using UniqueQuicBuffer = std::unique_ptr<const QUIC_BUFFER, QUIC_BUFFERDeleter>;
 
 }; // namespace rvn

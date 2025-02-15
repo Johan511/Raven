@@ -1,18 +1,14 @@
 #include "serialization/chunk.hpp"
+#include "strong_types.hpp"
 #include "wrappers.hpp"
 #include <deserializer.hpp>
 #include <initializer_list>
-#include <memory>
 #include <serialization/messages.hpp>
 #include <serialization/serialization_impl.hpp>
 
 using namespace rvn;
 using namespace rvn::serialization;
 
-inline auto QuicBufferDeleter = [](QUIC_BUFFER* buffer) { free(buffer); };
-
-using UniqueQuicBuffer = std::unique_ptr<QUIC_BUFFER, decltype(QuicBufferDeleter)>;
-using SharedQuicBuffer = std::shared_ptr<QUIC_BUFFER>;
 
 UniqueQuicBuffer construct_quic_buffer(std::uint64_t lenBuffer)
 {
@@ -22,17 +18,16 @@ UniqueQuicBuffer construct_quic_buffer(std::uint64_t lenBuffer)
     totalQuicBuffer->Buffer =
     reinterpret_cast<uint8_t*>(totalQuicBuffer) + sizeof(QUIC_BUFFER);
 
-    return UniqueQuicBuffer(totalQuicBuffer);
+    return UniqueQuicBuffer(totalQuicBuffer, QUIC_BUFFERDeleter(nullptr, nullptr));
 }
 
-std::vector<::SharedQuicBuffer>
-generate_quic_buffers(std::initializer_list<ds::chunk> chunks)
+std::vector<UniqueQuicBuffer> generate_quic_buffers(std::vector<ds::chunk> chunks)
 {
     std::uint64_t totalSize = 0;
     for (const auto& chunk : chunks)
         totalSize += chunk.size();
 
-    std::vector<::SharedQuicBuffer> quicBuffers;
+    std::vector<UniqueQuicBuffer> quicBuffers;
     quicBuffers.reserve(totalSize / 2);
 
     // To stress it we serialize to small chunks
@@ -84,8 +79,55 @@ void test1()
                { std::cout << "Received ServerSetupMessage\n"; } };
 
     Deserializer deserializer(true, visitor);
-    for (const auto& quicBuffer : quicBuffers)
-        deserializer.append_buffer(quicBuffer);
+    for (auto&& quicBuffer : quicBuffers)
+        deserializer.append_buffer(std::move(quicBuffer));
+
+    return;
+}
+
+void test2()
+{
+    std::vector<ds::chunk> chunks;
+    chunks.resize(1);
+
+    StreamHeaderSubgroupMessage streamHeaderSubgroupMessage;
+    streamHeaderSubgroupMessage.subgroupId_ = SubGroupId(1);
+    streamHeaderSubgroupMessage.groupId_ = GroupId(1);
+    streamHeaderSubgroupMessage.trackAlias_ = TrackAlias(1);
+    streamHeaderSubgroupMessage.publisherPriority_ = 1;
+
+    serialization::detail::serialize(chunks[0], streamHeaderSubgroupMessage);
+
+    constexpr std::uint64_t NumObjects = 1000;
+    std::uint64_t initSize = chunks.size();
+
+    chunks.resize(chunks.size() + NumObjects);
+
+    for (std::uint64_t i = 0; i < 1000; i++)
+    {
+        StreamHeaderSubgroupObject streamObjectMessage;
+        streamObjectMessage.objectId_ = ObjectId(i);
+        streamObjectMessage.payload_ = "Object Message: " + std::to_string(i);
+        serialization::detail::serialize(chunks[i + initSize], streamObjectMessage);
+    }
+
+
+    auto quicBuffers = generate_quic_buffers(chunks);
+
+    const auto visitor =
+    overloads{ [](...) { std::cout << "Unexpected Message\n"; },
+               [](const StreamHeaderSubgroupMessage& h)
+               {
+                   std::cout << "Received Subgroup Header Message\n"
+                             << h << "\n";
+               },
+               [](const StreamHeaderSubgroupObject& o)
+               { std::cout << "Received Subgroup Object\n"
+                           << o << "\n"; } };
+
+    Deserializer deserializer(false, visitor);
+    for (auto&& quicBuffer : quicBuffers)
+        deserializer.append_buffer(std::move(quicBuffer));
 
     return;
 }
@@ -94,5 +136,6 @@ void test1()
 int main()
 {
     test1();
+    test2();
     return 0;
 }

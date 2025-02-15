@@ -1,12 +1,12 @@
-#include <data_manager.hpp>
-#include <utilities.hpp>
 #include <atomic>
 #include <contexts.hpp>
+#include <data_manager.hpp>
 #include <memory>
 #include <optional>
 #include <serialization/messages.hpp>
 #include <serialization/serialization.hpp>
 #include <subscription_manager.hpp>
+#include <utilities.hpp>
 extern "C"
 {
 #include <msquic.h>

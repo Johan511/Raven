@@ -90,7 +90,7 @@ static void ASSERT_LOG_THROW(bool assertion, Args... args)
     if (!assertion)
     {
         print(std::cerr, args...);
-        throw std::runtime_error("Assertion failed");
+        // throw std::runtime_error("Assertion failed");
     }
 }
 

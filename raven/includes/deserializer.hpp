@@ -3,7 +3,6 @@
 #include "strong_types.hpp"
 #include <limits>
 #include <optional>
-#include <shared_mutex>
 #include <stdexcept>
 #include <utility>
 ///////////////////////////////////////////////////////////////////////////////
@@ -31,8 +30,8 @@ namespace rvn::serialization
 */
 template <typename DeserializedMessageHandler> class Deserializer
 {
-    std::vector<SharedQuicBuffer> quicBuffers_;
-    std::shared_mutex quicBuffersMutex_;
+    std::vector<UniqueQuicBuffer> quicBuffers_;
+    std::mutex quicBuffersMutex_;
 
     // begin index in first buffer
     std::uint64_t beginIndex_ = 0;
@@ -68,6 +67,8 @@ template <typename DeserializedMessageHandler> class Deserializer
     {
         utils::ASSERT_LOG_THROW(numBytes <= size(), "Deserialized more bytes than available",
                                 numBytes, ">", size());
+        // utils::LOG_EVENT(std::cout, "Deserializing", numBytes, "beginIndex",
+        //                  beginIndex_, "size", size());
         // advance begin index
         beginIndex_ += numBytes;
         auto iter = quicBuffers_.begin();
@@ -83,9 +84,11 @@ template <typename DeserializedMessageHandler> class Deserializer
                                     "beginIndex_ should be 0 when no buffers "
                                     "are left");
         else
+        {
             utils::ASSERT_LOG_THROW(beginIndex_ < quicBuffers_.front()->Length,
                                     "beginIndex_ should be less than first "
                                     "buffer length");
+        }
     }
 
     // returns optinal value, std::numeric_limits<std::uint64_t>::max() is the nullopt
@@ -381,8 +384,10 @@ template <typename DeserializedMessageHandler> class Deserializer
         }
     }
 
-    std::uint8_t& at(std::size_t index)
+    std::uint8_t& at(std::size_t index) const
     {
+        utils::ASSERT_LOG_THROW(index < size(), "index in at() is greater than size",
+                                index, "<", size());
         if (quicBuffers_.size() == 0)
             throw std::runtime_error("No buffers to read from, at()");
         index += beginIndex_;
@@ -391,8 +396,10 @@ template <typename DeserializedMessageHandler> class Deserializer
         while (index >= bufferMaxIdx)
         {
             ++bufferIter;
-            if (bufferIter == quicBuffers_.end())
-                throw std::runtime_error("Index out of bounds, at()");
+            utils::ASSERT_LOG_THROW(bufferIter != quicBuffers_.end(),
+                                    "Index out of bounds, at()");
+            std::cout << quicBuffers_.size() << " "
+                      << std::distance(quicBuffers_.begin(), bufferIter) << std::endl;
             bufferMaxIdx += (*bufferIter)->Length;
         }
 
@@ -403,7 +410,12 @@ template <typename DeserializedMessageHandler> class Deserializer
     {
         std::uint64_t totalLen = 0;
         for (const auto& buffer : quicBuffers_)
+        {
+            // std::cout << buffer->Length << " + ";
             totalLen += buffer->Length;
+        }
+        // std::cout << " = " << totalLen << std::endl;
+        // std::cout << "beginIndex_: " << beginIndex_ << std::endl;
 
         totalLen -= beginIndex_;
         return totalLen;
@@ -425,9 +437,11 @@ public:
         }
     }
 
-    void append_buffer(SharedQuicBuffer buffer)
+    void append_buffer(UniqueQuicBuffer buffer)
     {
-        std::unique_lock<std::shared_mutex> lock(quicBuffersMutex_);
+        std::cout << "Appending buffer " << buffer->Length
+                  << " curr size: " << size() << std::endl;
+        std::unique_lock<std::mutex> lock(quicBuffersMutex_);
         quicBuffers_.emplace_back(std::move(buffer));
 
         process_state_machine_input();

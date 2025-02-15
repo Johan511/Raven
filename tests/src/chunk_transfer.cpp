@@ -30,8 +30,8 @@ namespace bip = boost::interprocess;
 
 // TODO: MsQuic issue for larget numObjects
 // https://github.com/microsoft/msquic/discussions/4813
-// Possible solutions: send FIN and check, current status: waiting for answer on discussion
-static constexpr std::uint64_t numObjects = 1'000;
+// We have solved the problem by making a copy of the buffer
+static constexpr std::uint64_t numObjects = 10'000;
 
 int main()
 {

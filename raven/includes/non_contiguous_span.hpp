@@ -16,7 +16,7 @@ namespace rvn::serialization
 
 class NonContiguousSpan
 {
-    std::span<SharedQuicBuffer> buffers_;
+    std::span<UniqueQuicBuffer> buffers_;
     // where is begins in the first QUIC_BUFFER
     std::uint64_t beginIdx_;
 
@@ -27,7 +27,7 @@ class NonContiguousSpan
     std::vector<std::uint64_t> cumulativeSize_;
 
 public:
-    NonContiguousSpan(std::span<SharedQuicBuffer> buffers, std::uint64_t beginIdx, std::uint64_t endIdx)
+    NonContiguousSpan(std::span<UniqueQuicBuffer> buffers, std::uint64_t beginIdx, std::uint64_t endIdx)
     : buffers_(buffers), beginIdx_(beginIdx), endIdx_(endIdx)
     {
         utils::ASSERT_LOG_THROW(buffers_[0]->Length > beginIdx_,
@@ -50,12 +50,12 @@ public:
     }
 
 
-    NonContiguousSpan(std::span<SharedQuicBuffer> buffers, std::uint64_t beginIdx)
+    NonContiguousSpan(std::span<UniqueQuicBuffer> buffers, std::uint64_t beginIdx)
     : NonContiguousSpan(buffers, beginIdx, buffers.back()->Length)
     {
     }
 
-    NonContiguousSpan(std::span<SharedQuicBuffer> buffers)
+    NonContiguousSpan(std::span<UniqueQuicBuffer> buffers)
     : NonContiguousSpan(buffers, 0, buffers.back()->Length)
     {
     }
