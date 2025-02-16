@@ -184,8 +184,11 @@ ObjectIdentifier::ObjectIdentifier(GroupIdentifier groupIdentifier, ObjectId obj
 }
 
 
-GroupHandle::GroupHandle(GroupIdentifier groupIdentifier, DataManager& dataManagerHandle)
-: groupIdentifier_(std::move(groupIdentifier)), dataManager_(dataManagerHandle)
+GroupHandle::GroupHandle(GroupIdentifier groupIdentifier,
+                         PublisherPriority publisherPriority,
+                         DataManager& dataManagerHandle)
+: groupIdentifier_(std::move(groupIdentifier)),
+  publisherPriority_(publisherPriority), dataManager_(dataManagerHandle)
 {
     // create directory if it does not exist
     std::string pathString = dataManager_.get_path_string(groupIdentifier_);
@@ -317,20 +320,21 @@ std::optional<ObjectId> DataManager::get_first_object(const GroupIdentifier& gro
     if (iter == objectHierarchy_.end())
         return std::nullopt;
 
-    TrackHandle& trackHandle = *iter->second;
-    std::shared_lock l2(trackHandle.groupHandlesMtx_);
+    auto trackHandleSharedPtr = iter->second;
+    l = std::shared_lock(trackHandleSharedPtr->groupHandlesMtx_);
 
-    auto groupHandleIter = trackHandle.groupHandles_.find(groupIdentifier.groupId_);
-    if (groupHandleIter == trackHandle.groupHandles_.end())
+    auto groupHandleIter =
+    trackHandleSharedPtr->groupHandles_.find(groupIdentifier.groupId_);
+    if (groupHandleIter == trackHandleSharedPtr->groupHandles_.end())
         return std::nullopt;
 
-    GroupHandle& groupHandle = *groupHandleIter->second;
-    std::shared_lock l3(groupHandle.objectIdsMtx_);
+    std::shared_ptr<GroupHandle> groupHandleSharedPtr = groupHandleIter->second;
+    l = std::shared_lock(groupHandleSharedPtr->objectIdsMtx_);
 
-    if (groupHandle.objectIds_.empty())
+    if (groupHandleSharedPtr->objectIds_.empty())
         return std::nullopt;
 
-    return ObjectId(*groupHandle.objectIds_.begin());
+    return ObjectId(*groupHandleSharedPtr->objectIds_.begin());
 }
 
 std::optional<GroupId> DataManager::get_first_group(const TrackIdentifier& trackIdentifier)
@@ -341,13 +345,13 @@ std::optional<GroupId> DataManager::get_first_group(const TrackIdentifier& track
     if (iter == objectHierarchy_.end())
         return std::nullopt;
 
-    TrackHandle& trackHandle = *iter->second;
-    std::shared_lock l2(trackHandle.groupHandlesMtx_);
+    std::shared_ptr<TrackHandle> trackHandleSharedPtr = iter->second;
+    l = std::shared_lock(trackHandleSharedPtr->groupHandlesMtx_);
 
-    if (trackHandle.groupHandles_.empty())
+    if (trackHandleSharedPtr->groupHandles_.empty())
         return std::nullopt;
 
-    return trackHandle.groupHandles_.begin()->first;
+    return trackHandleSharedPtr->groupHandles_.begin()->first;
 }
 
 std::optional<ObjectId> DataManager::get_latest_object(const GroupIdentifier& groupIdentifier)
@@ -358,20 +362,41 @@ std::optional<ObjectId> DataManager::get_latest_object(const GroupIdentifier& gr
     if (iter == objectHierarchy_.end())
         return std::nullopt;
 
-    TrackHandle& trackHandle = *iter->second;
-    std::shared_lock l2(trackHandle.groupHandlesMtx_);
+    std::shared_ptr<TrackHandle> trackHandleSharedPtr = iter->second;
+    l = std::shared_lock(trackHandleSharedPtr->groupHandlesMtx_);
 
-    auto groupHandleIter = trackHandle.groupHandles_.find(groupIdentifier.groupId_);
-    if (groupHandleIter == trackHandle.groupHandles_.end())
+    auto groupHandleIter =
+    trackHandleSharedPtr->groupHandles_.find(groupIdentifier.groupId_);
+    if (groupHandleIter == trackHandleSharedPtr->groupHandles_.end())
         return std::nullopt;
 
-    GroupHandle& groupHandle = *groupHandleIter->second;
-    std::shared_lock l3(groupHandle.objectIdsMtx_);
+    std::shared_ptr<GroupHandle> groupHandleSharedPtr = groupHandleIter->second;
+    l = std::shared_lock(groupHandleSharedPtr->objectIdsMtx_);
 
-    if (groupHandle.objectIds_.empty())
+    if (groupHandleSharedPtr->objectIds_.empty())
         return std::nullopt;
 
-    return ObjectId(*groupHandle.objectIds_.rbegin() & (~(1ULL << 63)));
+    return ObjectId(*groupHandleSharedPtr->objectIds_.rbegin() & (~(1ULL << 63)));
+}
+
+std::optional<PublisherPriority>
+DataManager::get_publisher_priority(const GroupIdentifier& groupIdentifier)
+{
+    std::shared_lock l(objectHierarchyMtx_);
+
+    auto iter = objectHierarchy_.find(groupIdentifier);
+    if (iter == objectHierarchy_.end())
+        return std::nullopt;
+
+    std::shared_ptr<TrackHandle> trackHandleSharedPtr = iter->second;
+    l = std::shared_lock(trackHandleSharedPtr->groupHandlesMtx_);
+
+    auto groupHandleIter =
+    trackHandleSharedPtr->groupHandles_.find(groupIdentifier.groupId_);
+    if (groupHandleIter == trackHandleSharedPtr->groupHandles_.end())
+        return std::nullopt;
+
+    return groupHandleIter->second->publisherPriority_;
 }
 
 ObjectOrStatus DataManager::get_object(const ObjectIdentifier& objectIdentifier)
@@ -384,17 +409,19 @@ ObjectOrStatus DataManager::get_object(const ObjectIdentifier& objectIdentifier)
     if (iter == objectHierarchy_.end())
         return DoesNotExist{ "Track does not exist" };
 
-    TrackHandle& trackHandle = *iter->second;
-    std::shared_lock l2(trackHandle.groupHandlesMtx_);
+    auto trackHandleSharedPtr = iter->second;
+    l = std::shared_lock(trackHandleSharedPtr->groupHandlesMtx_);
 
-    auto groupHandleIter = trackHandle.groupHandles_.find(objectIdentifier.groupId_);
-    if (groupHandleIter == trackHandle.groupHandles_.end())
+    auto groupHandleIter =
+    trackHandleSharedPtr->groupHandles_.find(objectIdentifier.groupId_);
+
+    if (groupHandleIter == trackHandleSharedPtr->groupHandles_.end())
         return DoesNotExist{ "Group does not exist" };
 
-    GroupHandle& groupHandle = *groupHandleIter->second;
-    std::shared_lock l3(groupHandle.objectIdsMtx_);
+    std::shared_ptr<GroupHandle> groupHandleSharedPtr = groupHandleIter->second;
+    l = std::shared_lock(groupHandleSharedPtr->objectIdsMtx_);
 
-    if (!groupHandle.has_object_id(objectIdentifier.objectId_))
+    if (!groupHandleSharedPtr->has_object_id(objectIdentifier.objectId_))
         return DoesNotExist{ "Object does not exist" };
 
     std::string pathString = get_path_string(objectIdentifier);
@@ -416,13 +443,19 @@ bool DataManager::next(ObjectIdentifier& objectIdentifier, std::uint64_t advance
     if (iter == objectHierarchy_.end())
         return false;
 
-    TrackHandle& trackHandle = *iter->second;
-    std::shared_lock l2(trackHandle.groupHandlesMtx_);
+    auto trackHandleSharedPtr = iter->second;
+    l = std::shared_lock(trackHandleSharedPtr->groupHandlesMtx_);
 
-    auto groupHandleIter = trackHandle.groupHandles_.find(objectIdentifier.groupId_);
-    if (groupHandleIter == trackHandle.groupHandles_.end())
+    auto groupHandleIter =
+    trackHandleSharedPtr->groupHandles_.find(objectIdentifier.groupId_);
+    if (groupHandleIter == trackHandleSharedPtr->groupHandles_.end())
         return false;
 
+    // clang-format off
+    // NOTE: We need lock at both group handles level and also within group handles
+    // Reason: What if the track handle expires while we are searching? 
+    // We need groupHandlesMtx_ because we are doing iterating over it
+    // clang-format on
     std::shared_lock l3(groupHandleIter->second->objectIdsMtx_);
 
     while (advanceBy > 0)
@@ -441,11 +474,11 @@ bool DataManager::next(ObjectIdentifier& objectIdentifier, std::uint64_t advance
             do
             {
                 nextGroupIter = std::next(nextGroupIter);
-            } while (nextGroupIter != trackHandle.groupHandles_.end() &&
+            } while (nextGroupIter != trackHandleSharedPtr->groupHandles_.end() &&
                      // non empty group
                      nextGroupIter->second->num_objects_in_range() > 0);
 
-            if (nextGroupIter == trackHandle.groupHandles_.end())
+            if (nextGroupIter == trackHandleSharedPtr->groupHandles_.end())
                 return false;
 
             // advance to next objectId

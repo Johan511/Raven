@@ -6,6 +6,7 @@
 #include <serialization/messages.hpp>
 #include <serialization/serialization.hpp>
 #include <subscription_manager.hpp>
+#include <unistd.h>
 #include <utilities.hpp>
 extern "C"
 {

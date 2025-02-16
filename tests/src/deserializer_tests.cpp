@@ -94,7 +94,7 @@ void test2()
     streamHeaderSubgroupMessage.subgroupId_ = SubGroupId(1);
     streamHeaderSubgroupMessage.groupId_ = GroupId(1);
     streamHeaderSubgroupMessage.trackAlias_ = TrackAlias(1);
-    streamHeaderSubgroupMessage.publisherPriority_ = 1;
+    streamHeaderSubgroupMessage.publisherPriority_ = PublisherPriority(1);
 
     serialization::detail::serialize(chunks[0], streamHeaderSubgroupMessage);
 

@@ -199,6 +199,7 @@ public:
     friend class TrackHandle;
     friend class SubgroupHandle;
     GroupIdentifier groupIdentifier_;
+    PublisherPriority publisherPriority_;
     class DataManager& dataManager_;
 
     GroupHandle& operator=(const GroupHandle&) = delete;
@@ -225,7 +226,9 @@ private:
     std::set<std::uint64_t, Comparator> objectIds_;
 
 public:
-    GroupHandle(GroupIdentifier groupIdentifier, DataManager& dataManagerHandle);
+    GroupHandle(GroupIdentifier groupIdentifier,
+                PublisherPriority publisherPriority_,
+                DataManager& dataManagerHandle);
 
     SubgroupHandle add_subgroup(std::uint64_t numElements);
     SubgroupHandle add_open_ended_subgroup();
@@ -247,12 +250,13 @@ class TrackHandle : public std::enable_shared_from_this<TrackHandle>
 
 public:
     std::shared_mutex groupHandlesMtx_;
+
     std::map<GroupId, std::shared_ptr<GroupHandle>> groupHandles_;
 
     // should be private because but want to use std::make_shared
     TrackHandle(DataManager& dataManagerHandle, TrackIdentifier trackIdentifier);
 
-    std::weak_ptr<GroupHandle> add_group(GroupId groupId)
+    std::weak_ptr<GroupHandle> add_group(GroupId groupId, PublisherPriority publisherPriority)
     {
         // writer lock
         std::unique_lock<std::shared_mutex> l(groupHandlesMtx_);
@@ -260,11 +264,11 @@ public:
         auto [iter, success] =
         groupHandles_.try_emplace(groupId,
                                   std::make_shared<GroupHandle>(GroupIdentifier(trackIdentifier_, groupId),
+                                                                publisherPriority,
                                                                 dataManager_));
 
         return iter->second->weak_from_this();
     }
-
 
     TrackHandle& operator=(const TrackHandle&) = delete;
     TrackHandle& operator=(TrackHandle&&) = delete;
@@ -311,6 +315,9 @@ public:
     std::optional<GroupId> get_first_group(const TrackIdentifier&);
     std::optional<ObjectId> get_first_object(const GroupIdentifier&);
     std::optional<ObjectId> get_latest_object(const GroupIdentifier&);
+
+    std::optional<PublisherPriority>
+    get_publisher_priority(const GroupIdentifier& groupIdentifier);
 
     // returns true if it could succesfully advance
     bool next(ObjectIdentifier& objectIdentifier, std::uint64_t advanceBy = 1);

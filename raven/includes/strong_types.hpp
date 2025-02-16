@@ -158,11 +158,18 @@ struct ObjectIdTag{};
 struct GroupIdTag{};
 struct SubGroupIdTag{};
 struct TrackAliasTag{};
+struct SubscriberPriorityTag{};
+struct PublisherPriorityTag{};
 
 using ObjectId = detail::StrongTypeImpl<std::uint64_t, ObjectIdTag, detail::UintCTRPTrait>;
 using GroupId = detail::StrongTypeImpl<std::uint64_t, GroupIdTag, detail::UintCTRPTrait>;
 using SubGroupId = detail::StrongTypeImpl<std::uint64_t, SubGroupIdTag, detail::UintCTRPTrait>;
 using TrackAlias = detail::StrongTypeImpl<std::uint64_t, TrackAliasTag, detail::UintCTRPTrait>;
+
+// MOQT priority values are 8 bit integers where as MsQuic supports 16 bit integers, be very careful when converting MsQuic priority to MOQT priority
+// Low priority value means more important according to MOQT and MsQuic (ig so, https://github.com/microsoft/msquic/issues/4826)
+using SubscriberPriority = detail::StrongTypeImpl<std::uint8_t, SubscriberPriorityTag, detail::UintCTRPTrait>;
+using PublisherPriority = detail::StrongTypeImpl<std::uint8_t, PublisherPriorityTag, detail::UintCTRPTrait>;
 // clang-format on
 
 }; // namespace rvn

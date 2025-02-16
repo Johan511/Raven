@@ -245,7 +245,7 @@ template <typename DeserializedMessageHandler> class Deserializer
         }
 
         // to read publisher priority
-        if (size() < 1)
+        if (size() < sizeof(std::uint8_t))
             return;
 
         std::uint8_t publisherPriority = at(0);
@@ -253,7 +253,8 @@ template <typename DeserializedMessageHandler> class Deserializer
 
         auto msg =
         StreamHeaderSubgroupMessage{ trackAlias_.value(), groupId_.value(),
-                                     subgroupId_.value(), publisherPriority };
+                                     subgroupId_.value(),
+                                     PublisherPriority(publisherPriority) };
         messageHandler_(msg);
         dataStreamHeader_ = msg;
 
@@ -398,8 +399,6 @@ template <typename DeserializedMessageHandler> class Deserializer
             ++bufferIter;
             utils::ASSERT_LOG_THROW(bufferIter != quicBuffers_.end(),
                                     "Index out of bounds, at()");
-            std::cout << quicBuffers_.size() << " "
-                      << std::distance(quicBuffers_.begin(), bufferIter) << std::endl;
             bufferMaxIdx += (*bufferIter)->Length;
         }
 
@@ -411,11 +410,8 @@ template <typename DeserializedMessageHandler> class Deserializer
         std::uint64_t totalLen = 0;
         for (const auto& buffer : quicBuffers_)
         {
-            // std::cout << buffer->Length << " + ";
             totalLen += buffer->Length;
         }
-        // std::cout << " = " << totalLen << std::endl;
-        // std::cout << "beginIndex_: " << beginIndex_ << std::endl;
 
         totalLen -= beginIndex_;
         return totalLen;
@@ -439,8 +435,6 @@ public:
 
     void append_buffer(UniqueQuicBuffer buffer)
     {
-        std::cout << "Appending buffer " << buffer->Length
-                  << " curr size: " << size() << std::endl;
         std::unique_lock<std::mutex> lock(quicBuffersMutex_);
         quicBuffers_.emplace_back(std::move(buffer));
 

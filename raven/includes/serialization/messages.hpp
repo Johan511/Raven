@@ -619,7 +619,7 @@ struct StreamHeaderSubgroupMessage
     TrackAlias trackAlias_;
     GroupId groupId_;
     SubGroupId subgroupId_;
-    std::uint8_t publisherPriority_;
+    PublisherPriority publisherPriority_;
 
     bool operator==(const StreamHeaderSubgroupMessage& rhs) const = default;
 

@@ -112,3 +112,46 @@ static inline std::unique_ptr<rvn::MOQTServer> server_setup()
 
     return moqtServer;
 }
+
+struct NetemRAII
+{
+    // Function to get the primary network interface
+    static std::string get_network_interface()
+    {
+        return "lo";
+    }
+
+    NetemRAII()
+    {
+        // Get the correct network interface dynamically
+        std::string iface = get_network_interface();
+        if (iface.empty())
+        {
+            std::cerr << "Failed to detect network interface." << std::endl;
+            abort();
+        }
+
+        std::string cmd =
+        "sudo tc qdisc replace dev " + iface +
+        " root netem loss 5% rate 512kbit delay 50ms 10ms distribution normal";
+
+        if (std::system(cmd.c_str()) != 0)
+        {
+            std::cerr << "Failed to set network emulation." << std::endl;
+            abort();
+        }
+    }
+
+    ~NetemRAII()
+    {
+        std::string iface = get_network_interface();
+
+        std::string cmd = "sudo tc qdisc del dev " + iface + " root netem";
+        int ret = std::system(cmd.c_str());
+        if (ret != 0)
+        {
+            std::cerr << "Failed to remove network emulation." << std::endl;
+            abort();
+        }
+    }
+};

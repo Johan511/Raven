@@ -1,4 +1,5 @@
 ////////////////////////////////
+#include "moqt_server.hpp"
 #include <contexts.hpp>
 #include <data_manager.hpp>
 #include <definitions.hpp>
@@ -200,7 +201,11 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
     objectHeader.groupId_ = objectIdentifier.groupId_;
     // TOOD: get subgroupId
     objectHeader.subgroupId_ = SubGroupId(0);
-    objectHeader.publisherPriority_ = 0;
+
+    // Get publisher priority from group
+    MOQTServer& moqtServer = static_cast<MOQTServer&>(moqtObject_);
+    objectHeader.publisherPriority_ =
+    moqtServer.dataManager_->get_publisher_priority(objectIdentifier).value();
 
 
     dataStreams.emplace_back(std::move(stream), *this);
@@ -208,16 +213,22 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
 
     StreamState& streamState = dataStreams.back();
     streamState.set_stream_context(std::unique_ptr<StreamContext>(streamContext));
+
     // no need deserializer because we don't expect to receive any messages on this stream
 
-
-    QUIC_BUFFER* objectHeaderBuffer = serialization::serialize(objectHeader);
+    QUIC_BUFFER* objectHeaderQuicBuffer = serialization::serialize(objectHeader);
 
     StreamSendContext* streamSendContext =
     new StreamSendContext(objectPayload, 1, streamState.streamContext.get());
 
+    // Set priority of stream to indicate the priority of the group
+    // MsQuic uses uint16_t stream priority, unlike moqt which uses 8 bit
+    std::uint16_t streamPriority = objectHeader.publisherPriority_;
+    moqtObject_.get_tbl()->SetParam(streamState.stream.get(), QUIC_PARAM_STREAM_PRIORITY,
+                                    sizeof(std::uint16_t), &streamPriority);
+
     QUIC_STATUS status =
-    moqtObject_.get_tbl()->StreamSend(streamState.stream.get(), objectHeaderBuffer,
+    moqtObject_.get_tbl()->StreamSend(streamState.stream.get(), objectHeaderQuicBuffer,
                                       1, QUIC_SEND_FLAG_NONE, streamSendContext);
 
 

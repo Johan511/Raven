@@ -1,7 +1,9 @@
 /////////////////////////////////////////////////////////
 #include <execution>
 #include <memory>
+#include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 /////////////////////////////////////////////////////////
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
@@ -14,6 +16,7 @@
 #include <utilities.hpp>
 /////////////////////////////////////////////////////////
 #include "moqt_client.hpp"
+#include "strong_types.hpp"
 #include "test_utilities.hpp"
 /////////////////////////////////////////////////////////
 
@@ -32,6 +35,8 @@ namespace bip = boost::interprocess;
 // https://github.com/microsoft/msquic/discussions/4813
 // We have solved the problem by making a copy of the buffer
 static constexpr std::uint64_t numObjects = 10'000;
+
+static constexpr std::uint8_t numGroups = 4;
 
 int main()
 {
@@ -56,10 +61,12 @@ int main()
         auto dm = moqtServer->dataManager_;
         auto trackHandle = dm->add_track_identifier({}, "track");
 
-        std::array groupHandles = { trackHandle.lock()->add_group(GroupId(0)),
-                                    trackHandle.lock()->add_group(GroupId(1)),
-                                    trackHandle.lock()->add_group(GroupId(2)),
-                                    trackHandle.lock()->add_group(GroupId(3)) };
+        std::array groupHandles = {
+            trackHandle.lock()->add_group(GroupId(0), PublisherPriority(3)), // high priorty means would be sent first
+            trackHandle.lock()->add_group(GroupId(1), PublisherPriority(2)),
+            trackHandle.lock()->add_group(GroupId(2), PublisherPriority(1)),
+            trackHandle.lock()->add_group(GroupId(3), PublisherPriority(0))
+        };
 
         std::for_each(std::execution::par, groupHandles.begin(), groupHandles.end(),
                       [](std::weak_ptr<GroupHandle>& groupHandle)
@@ -101,6 +108,7 @@ int main()
         InterprocessSynchronizationData* dataChild =
         static_cast<InterprocessSynchronizationData*>(regionChildl.get_address());
 
+
         for (;;)
         {
             std::unique_lock lock(dataChild->mutex);
@@ -110,6 +118,8 @@ int main()
 
 
         std::unique_ptr<MOQTClient> moqtClient = client_setup();
+
+        NetemRAII netemRAII; // RAII
 
         SubscriptionBuilder subscriptionBuilder;
         subscriptionBuilder.set_track_alias(TrackAlias(0));
@@ -129,7 +139,7 @@ int main()
 
         std::vector<std::thread> streamConsumerThreads;
 
-        for (int i = 0; i < 4; i++)
+        for (std::uint8_t i = 0; i < numGroups; i++)
         {
             auto dataStreamUserHandle = dataStreams.wait_dequeue_ret();
             streamConsumerThreads.emplace_back(
@@ -150,7 +160,10 @@ int main()
         for (auto& thread : streamConsumerThreads)
             thread.join();
 
-        dataChild->clientDone = true;
+        {
+            std::unique_lock lock(dataChild->mutex);
+            dataChild->clientDone = true;
+        }
         std::cout << "Client done" << std::endl;
     }
 }

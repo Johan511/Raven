@@ -232,7 +232,6 @@ static constexpr auto client_data_stream_callback =
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         {
-            std::cout << "Shutting down stream: " << dataStream << std::endl;
             connectionState.delete_data_stream(dataStream);
             break;
         }
