@@ -2,6 +2,7 @@
 
 #include <blockingconcurrentqueue.h>
 #include <list>
+#include <shared_mutex>
 #include <utility>
 
 namespace rvn
@@ -42,5 +43,30 @@ public:
         return t;
     }
 };
+
+template <typename T> class RWProtected
+{
+    mutable std::shared_mutex mutex_;
+    T data_;
+
+public:
+    template <typename... Args>
+    RWProtected(Args&&... args) : data_(std::forward<Args>(args)...)
+    {
+    }
+
+    template <typename F> decltype(auto) read(F&& f) const noexcept
+    {
+        std::shared_lock lock(mutex_);
+        return f(data_);
+    }
+
+    template <typename F> decltype(auto) write(F&& f) noexcept
+    {
+        std::unique_lock lock(mutex_);
+        return f(data_);
+    }
+};
+
 
 } // namespace rvn

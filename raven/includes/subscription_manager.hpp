@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <data_manager.hpp>
 #include <definitions.hpp>
 #include <optional>
@@ -31,13 +32,30 @@ class MinorSubscriptionState
 {
     friend class SubscriptionState;
     class SubscriptionState* subscriptionState_;
+    // Very obvious ABA error over here
+    /*
+        lastSentBuffer_ has finished sending and the buffer has been deleted, a
+       different data stream now is being sent which has the same address as lastSentBuffer
+    */
+    std::optional<ObjectIdentifier> previouslySentObject_;
     ObjectIdentifier objectToSend_;
     std::optional<ObjectIdentifier> lastObjectToBeSent_;
+
+    // We need a only to find difference between 2 timepoints,
+    // we don't care about system time or high resolution or anything else
+    // Hence, we choose to go with steady clock
+    using MonotonicClock = std::chrono::steady_clock;
+
+    std::chrono::time_point<MonotonicClock> lastSentTime_;
+    std::chrono::microseconds timeBetweenSends_;
+
+    bool abortIfSending_;
 
 public:
     MinorSubscriptionState(SubscriptionState& subscriptionState,
                            ObjectIdentifier objectToSend,
-                           std::optional<ObjectIdentifier> lastObjectToBeSent);
+                           std::optional<ObjectIdentifier> lastObjectToBeSent,
+                           bool abortIfSending);
 
     // returs true if minor subscription state has been fulfilled
     FullfillSomeReturn fulfill_some_minor();
@@ -64,12 +82,11 @@ class SubscriptionState
     void error_handler(SubscriptionStateErr::ConnectionExpired);
     void error_handler(SubscriptionStateErr::ObjectDoesNotExist);
 
-    // clang-format off
-    FullfillSomeReturn add_group_subscription(
-                                const GroupHandle& groupHandle,
-                                std::optional<ObjectId> beginObjectId = {},
-                                std::optional<ObjectId> endObjectId = {});
-    // clang-format on
+    FullfillSomeReturn
+    add_group_subscription(const GroupHandle& groupHandle,
+                           bool abortIfSending,
+                           std::optional<ObjectId> beginObjectId = {},
+                           std::optional<ObjectId> endObjectId = {});
 
 public:
     bool cleanup_;

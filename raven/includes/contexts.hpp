@@ -155,7 +155,7 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
 
     StableContainer<DataStreamState> dataStreams;
 
-    std::optional<StreamState> controlStream{};
+    std::optional<StreamState> controlStream;
 
     void delete_data_stream(HQUIC streamHandle);
     void enqueue_data_buffer(QUIC_BUFFER* buffer);
@@ -189,6 +189,8 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
     QUIC_STATUS accept_control_stream(HQUIC controlStreamHandle);
 
     StreamState& establish_control_stream();
+
+    void abort_if_sending(const ObjectIdentifier& oid);
 };
 
 } // namespace rvn

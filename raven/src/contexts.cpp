@@ -235,6 +235,15 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
     return status | send_object(objectIdentifier, objectPayload);
 }
 
+void ConnectionState::abort_if_sending(const ObjectIdentifier& oid)
+{
+    auto iter = std::find_if(dataStreams.begin(), dataStreams.end(),
+                             [&oid](const DataStreamState& streamState)
+                             { return streamState.can_send_object(oid); });
+
+    dataStreams.erase(iter);
+}
+
 std::optional<GroupId> ConnectionState::get_current_group(const TrackIdentifier& trackIdentifier)
 {
     // reader lock

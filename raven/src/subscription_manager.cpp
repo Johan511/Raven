@@ -18,10 +18,11 @@ namespace rvn
 
 MinorSubscriptionState::MinorSubscriptionState(SubscriptionState& subscriptionState,
                                                ObjectIdentifier objectToSend,
-                                               std::optional<ObjectIdentifier> lastObjectToBeSent)
+                                               std::optional<ObjectIdentifier> lastObjectToBeSent,
+                                               bool abortIfSending)
 : subscriptionState_(std::addressof(subscriptionState)),
   objectToSend_(std::move(objectToSend)),
-  lastObjectToBeSent_(std::move(lastObjectToBeSent))
+  lastObjectToBeSent_(std::move(lastObjectToBeSent)), abortIfSending_(abortIfSending)
 {
 }
 
@@ -46,6 +47,10 @@ FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
         objectMsg.objectId_ = objectToSend_.objectId_;
         objectMsg.payload_ = std::move(object);
         QUIC_BUFFER* quicBuffer = serialization::serialize(objectMsg);
+
+        if (abortIfSending_ && previouslySentObject_.has_value())
+            connectionStateSharedPtr->abort_if_sending(*previouslySentObject_);
+
         QUIC_STATUS status =
         connectionStateSharedPtr->send_object(objectToSend_, quicBuffer);
         if (QUIC_FAILED(status))
@@ -72,7 +77,7 @@ FullfillSomeReturn SubscriptionState::fulfill_some()
 
         if (std::holds_alternative<bool>(fullfillReturn))
         {
-            if (!std::get<bool>(fullfillReturn))
+            if (std::get<bool>(fullfillReturn) == false)
             {
                 *beginIter++ = std::move(*traversalIter);
                 allFullfilled = false;
@@ -89,6 +94,7 @@ FullfillSomeReturn SubscriptionState::fulfill_some()
 
 FullfillSomeReturn
 SubscriptionState::add_group_subscription(const GroupHandle& groupHandle,
+                                          bool abortIfSending,
                                           std::optional<ObjectId> beginObjectId,
                                           std::optional<ObjectId> endObjectId)
 {
@@ -104,7 +110,8 @@ SubscriptionState::add_group_subscription(const GroupHandle& groupHandle,
 
     minorSubscriptionStates_
     .emplace_back(*this, ObjectIdentifier(groupHandle.groupIdentifier_, *beginObjectId),
-                  ObjectIdentifier(groupHandle.groupIdentifier_, *endObjectId));
+                  ObjectIdentifier(groupHandle.groupIdentifier_, *endObjectId),
+                  abortIfSending);
 
     return false;
 }
@@ -152,7 +159,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
             dataManager_->get_group_handle(GroupIdentifier(trackIdentifier, *currGroupOpt));
 
             if (auto groupHandleSharedPtr = groupHandle.lock())
-                add_group_subscription(*groupHandleSharedPtr);
+                add_group_subscription(*groupHandleSharedPtr, false);
             else
             {
                 subscriptionManager_->notify_subscription_error(*this);
@@ -188,7 +195,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                     return;
                 }
 
-                add_group_subscription(*groupHandleSharedPtr, latestObjectOpt);
+                add_group_subscription(*groupHandleSharedPtr, false, latestObjectOpt);
             }
             else
             {
@@ -220,11 +227,11 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                     return;
                 }
 
-                add_group_subscription(*groupHandleIter->second,
+                add_group_subscription(*groupHandleIter->second, false,
                                        subscriptionMessage_.start_->object_);
 
                 for (; groupHandleIter != trackHandleSharedPtr->groupHandles_.end(); ++groupHandleIter)
-                    add_group_subscription(*groupHandleIter->second);
+                    add_group_subscription(*groupHandleIter->second, false);
             }
             else
             {
@@ -265,21 +272,21 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
 
                 if (beginGroupHandleIter->first == endGroupHandleIter->first)
                 {
-                    add_group_subscription(*beginGroupHandleIter->second,
+                    add_group_subscription(*beginGroupHandleIter->second, true,
                                            subscriptionMessage_.start_->object_,
                                            subscriptionMessage_.end_->object_);
                     return;
                 }
                 else
                 {
-                    add_group_subscription(*beginGroupHandleIter->second,
+                    add_group_subscription(*beginGroupHandleIter->second, false,
                                            subscriptionMessage_.start_->object_);
 
                     for (auto groupHandleIter = std::next(beginGroupHandleIter);
                          groupHandleIter != endGroupHandleIter; ++groupHandleIter)
-                        add_group_subscription(*groupHandleIter->second);
+                        add_group_subscription(*groupHandleIter->second, false);
 
-                    add_group_subscription(*endGroupHandleIter->second, std::nullopt,
+                    add_group_subscription(*endGroupHandleIter->second, false, std::nullopt,
                                            subscriptionMessage_.end_->object_);
                 }
             }
@@ -330,7 +337,7 @@ void ThreadLocalState::operator()()
             if (std::holds_alternative<bool>(fullfillReturn))
             // subscription is being fulfilled with no issues
             {
-                if (!std::get<bool>(fullfillReturn))
+                if (std::get<bool>(fullfillReturn) == false)
                     // subscription is yet to be fulfilled
                     // all other cases the subscription state is destroyed
                     // NOTE: destructor only called if a different subscription

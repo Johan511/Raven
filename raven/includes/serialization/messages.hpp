@@ -196,6 +196,11 @@ struct SubscribeMessage : public ControlMessageBase
                              // range are inclusive. EndGroup and EndObject MUST
                              // specify the same or a later object than
                              // StartGroup and StartObject.
+                             
+        LatestPerGroupInTrack = 0x5,
+        // Open ended subscription where in each group of a track, the latest object
+        // is sent, when a new latest object is received, it will be sent.
+        // If the current send is in progress, it will be aborted
     };
 
     struct GroupObjectPair

@@ -1,9 +1,11 @@
 #include "strong_types.hpp"
+#include <cstdio>
 #include <data_manager.hpp>
 #include <filesystem>
 #include <fstream>
 #include <memory>
 #include <mutex>
+#include <ostream>
 
 namespace depracated
 {
@@ -111,9 +113,8 @@ bool SubgroupHandle::add_object(std::string object)
     if (!groupHandleSharedPtr)
         return false;
 
-
     const auto& groupIdentifier = groupHandleSharedPtr->groupIdentifier_;
-    return dataManager_.store_object(groupIdentifier, beginObjectId_ + numObjects_,
+    return dataManager_.store_object(groupIdentifier, beginObjectId_ + numObjects_++,
                                      std::move(object));
 }
 
@@ -158,7 +159,15 @@ std::optional<SubgroupHandle> SubgroupHandle::cap_and_next()
     objectIds.erase(iter);
     objectIds.insert(endObjectId_.get() | (1ULL << 63));
 
-    return groupHandleSharedPtr->add_open_ended_subgroup();
+    std::uint64_t beginObjectId = groupHandleSharedPtr->objectIds_.empty() ?
+                                  0 :
+                                  *groupHandleSharedPtr->objectIds_.rbegin();
+    beginObjectId &= (~(1ULL << 63)); // mask of last bit
+    groupHandleSharedPtr->objectIds_.insert(beginObjectId);
+    groupHandleSharedPtr->objectIds_.insert(std::numeric_limits<std::uint64_t>::max());
+
+    return SubgroupHandle(groupHandleSharedPtr, dataManager_, ObjectId(beginObjectId),
+                          ObjectId(std::numeric_limits<std::uint64_t>::max()));
 }
 
 TrackIdentifier::TrackIdentifier(std::vector<std::string> trackNamespace, std::string tname)
@@ -219,8 +228,8 @@ SubgroupHandle GroupHandle::add_open_ended_subgroup()
     objectIds_.insert(beginObjectId);
     objectIds_.insert(std::numeric_limits<std::uint64_t>::max());
 
-    return SubgroupHandle(weak_from_this(), dataManager_,
-                          ObjectId(beginObjectId), ObjectId(beginObjectId));
+    return SubgroupHandle(weak_from_this(), dataManager_, ObjectId(beginObjectId),
+                          ObjectId(std::numeric_limits<std::uint64_t>::max()));
 }
 
 bool GroupHandle::has_object_id(ObjectId objectId)
@@ -279,7 +288,7 @@ TrackHandle::TrackHandle(DataManager& dataManagerHandle, TrackIdentifier trackId
 
 std::string DataManager::get_path_string(const TrackIdentifier& trackIdentifier)
 {
-    std::string pathString = std::string(DATA_DIRECTORY) + "/";
+    std::string pathString = std::string(DATA_DIRECTORY);
     for (const auto& ns : trackIdentifier.tnamespace())
         pathString += ns + "/";
     pathString += trackIdentifier.tname() + "/";
@@ -303,12 +312,14 @@ bool DataManager::store_object(const GroupIdentifier& groupIdentifier,
                                std::string&& object)
 {
     std::string pathString = get_path_string(groupIdentifier) + std::to_string(objectId);
+    std::string tempFilePath = pathString + ".temp";
 
-    std::ofstream file(pathString);
+    std::ofstream file(tempFilePath);
     if (!file.is_open())
         return false;
+    file << std::move(object) << std::flush;
 
-    file << std::move(object);
+    std::filesystem::rename(tempFilePath, pathString);
     return true;
 }
 

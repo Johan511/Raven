@@ -1,6 +1,7 @@
 #pragma once
 #include <boost/functional/hash.hpp>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -321,5 +322,11 @@ public:
 
     // returns true if it could succesfully advance
     bool next(ObjectIdentifier& objectIdentifier, std::uint64_t advanceBy = 1);
+
+    DataManager()
+    {
+        // Remove data directory
+        std::filesystem::remove_all(DATA_DIRECTORY);
+    }
 };
 } // namespace rvn
