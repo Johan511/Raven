@@ -12,7 +12,7 @@
 #include <subscription_builder.hpp>
 #include <utilities.hpp>
 /////////////////////////////////////////////////////////
-#include "test_utilities.hpp"
+#include "../test_utilities.hpp"
 /////////////////////////////////////////////////////////
 
 constexpr std::string messagePayload = "Hello World!";

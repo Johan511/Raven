@@ -109,6 +109,12 @@ public:
 
     ~SubscriptionState()
     {
+        auto connectionStateSharedPtr = connectionStateWeakPtr_.lock();
+        if (!connectionStateSharedPtr)
+            return;
+
+        // TODO
+        // connectionStateSharedPtr->send_subscribe_done();
     }
 };
 

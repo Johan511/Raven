@@ -159,6 +159,7 @@ std::optional<SubgroupHandle> SubgroupHandle::cap_and_next()
     objectIds.erase(iter);
     objectIds.insert(endObjectId_.get() | (1ULL << 63));
 
+    // Duplicated code from add_open_ended_subgroup
     std::uint64_t beginObjectId = groupHandleSharedPtr->objectIds_.empty() ?
                                   0 :
                                   *groupHandleSharedPtr->objectIds_.rbegin();

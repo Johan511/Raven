@@ -56,6 +56,7 @@ FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
         if (QUIC_FAILED(status))
             return SubscriptionStateErr::ConnectionExpired{};
 
+        previouslySentObject_ = objectToSend_;
         bool canAdavance = subscriptionState_->dataManager_->next(objectToSend_);
 
         if (!canAdavance)
@@ -227,11 +228,11 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                     return;
                 }
 
-                add_group_subscription(*groupHandleIter->second, false,
+                add_group_subscription(*groupHandleIter->second, true,
                                        subscriptionMessage_.start_->object_);
 
                 for (; groupHandleIter != trackHandleSharedPtr->groupHandles_.end(); ++groupHandleIter)
-                    add_group_subscription(*groupHandleIter->second, false);
+                    add_group_subscription(*groupHandleIter->second, true);
             }
             else
             {
@@ -272,7 +273,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
 
                 if (beginGroupHandleIter->first == endGroupHandleIter->first)
                 {
-                    add_group_subscription(*beginGroupHandleIter->second, true,
+                    add_group_subscription(*beginGroupHandleIter->second, false,
                                            subscriptionMessage_.start_->object_,
                                            subscriptionMessage_.end_->object_);
                     return;

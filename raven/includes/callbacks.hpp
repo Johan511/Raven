@@ -174,7 +174,7 @@ static constexpr auto server_data_stream_callback =
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         {
-            connectionState.delete_data_stream(dataStream);
+            delete streamContext;
             break;
         }
 

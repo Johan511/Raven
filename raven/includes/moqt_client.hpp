@@ -29,32 +29,6 @@ public:
     // these functions will later be pushed into cgUtils
     // utils::MOQTComplexGetterUtils *cgUtils{this};
 
-    StreamState* get_stream_state(HQUIC connectionHandle, HQUIC streamHandle)
-    {
-        rvn::utils::ASSERT_LOG_THROW(connectionState->connection_.get() == connectionHandle,
-                                     "Connection handle does not match");
-
-        if (connectionState->get_control_stream().has_value() &&
-            connectionState->get_control_stream().value().stream.get() == streamHandle)
-        {
-            return &connectionState->get_control_stream().value();
-        }
-
-        auto& dataStreams = connectionState->get_data_streams();
-
-        auto streamIter =
-        std::find_if(dataStreams.begin(), dataStreams.end(),
-                     [streamHandle](const StreamState& streamState)
-                     { return streamState.stream.get() == streamHandle; });
-
-        if (streamIter != dataStreams.end())
-        {
-            return &(*streamIter);
-        }
-
-        return nullptr;
-    }
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     struct DataStreamUserHandle
     {

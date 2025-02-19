@@ -1,8 +1,8 @@
 /////////////////////////////////////////////////////////
+#include <execution>
 #include <memory>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <thread>
 #include <unistd.h>
 /////////////////////////////////////////////////////////
 #include <boost/interprocess/mapped_region.hpp>
@@ -15,10 +15,9 @@
 #include <subscription_builder.hpp>
 #include <utilities.hpp>
 /////////////////////////////////////////////////////////
-#include "data_manager.hpp"
+#include "../test_utilities.hpp"
 #include "moqt_client.hpp"
 #include "strong_types.hpp"
-#include "test_utilities.hpp"
 /////////////////////////////////////////////////////////
 
 using namespace rvn;
@@ -36,7 +35,6 @@ namespace bip = boost::interprocess;
 // https://github.com/microsoft/msquic/discussions/4813
 // We have solved the problem by making a copy of the buffer
 static constexpr std::uint64_t numObjects = 10'000;
-
 static constexpr std::uint8_t numGroups = 4;
 
 int main()
@@ -69,29 +67,24 @@ int main()
             trackHandle.lock()->add_group(GroupId(3), PublisherPriority(0))
         };
 
+        std::for_each(std::execution::par, groupHandles.begin(), groupHandles.end(),
+                      [](std::weak_ptr<GroupHandle>& groupHandle)
+                      {
+                          std::uint64_t groupId =
+                          groupHandle.lock()->groupIdentifier_.groupId_;
+
+                          auto groupHandleSharedPtr = groupHandle.lock();
+                          for (std::size_t idx = 0; idx < numObjects; ++idx)
+                          {
+                              std::string object = "Group_" + std::to_string(groupId) +
+                                                   "_" + "ID_" + std::to_string(idx);
+                              groupHandleSharedPtr->add_subgroup(1).add_object(
+                              std::move(object));
+                          }
+                      });
         {
             std::unique_lock lock(dataParent->mutex);
             dataParent->serverSetup = true;
-        }
-
-        std::array<std::jthread, numGroups> dataPublishers;
-        for (std::uint8_t i = 0; i < numGroups; i++)
-        {
-            std::shared_ptr<GroupHandle> groupHandleSharedPtr = groupHandles[i].lock();
-            dataPublishers[i] = std::jthread(
-            [i, groupHandleSharedPtr]
-            {
-                std::optional<SubgroupHandle> subgroupHandleOpt =
-                groupHandleSharedPtr->add_open_ended_subgroup();
-                for (std::uint64_t j = 0; j < numObjects; j++)
-                {
-                    subgroupHandleOpt.value().add_object(
-                    "Group" + std::to_string(i) + "_Object" + std::to_string(j));
-
-                    subgroupHandleOpt.emplace(*subgroupHandleOpt->cap_and_next());
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                }
-            });
         }
 
         for (;;)
@@ -125,8 +118,6 @@ int main()
 
         std::unique_ptr<MOQTClient> moqtClient = client_setup();
 
-        NetemRAII netemRAII; // RAII
-
         SubscriptionBuilder subscriptionBuilder;
         subscriptionBuilder.set_track_alias(TrackAlias(0));
         subscriptionBuilder.set_track_namespace({});
@@ -145,7 +136,7 @@ int main()
 
         std::vector<std::thread> streamConsumerThreads;
 
-        while(true)
+        for (std::uint8_t i = 0; i < numGroups; i++)
         {
             auto dataStreamUserHandle = dataStreams.wait_dequeue_ret();
             streamConsumerThreads.emplace_back(

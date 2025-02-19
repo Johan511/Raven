@@ -107,17 +107,4 @@ ConnectionState* MOQT::get_connectionState(HQUIC connectionHandle)
         return iter->second.get();
     }
 }
-StreamState* MOQT::get_stream_state(HQUIC connectionHandle, HQUIC streamHandle)
-{
-    if (hostType_ == HostType::CLIENT)
-    {
-        MOQTClient* thisClient = static_cast<MOQTClient*>(this);
-        return thisClient->get_stream_state(connectionHandle, streamHandle);
-    }
-    else
-    {
-        MOQTServer* thisServer = static_cast<MOQTServer*>(this);
-        return thisServer->get_stream_state(connectionHandle, streamHandle);
-    }
-}
 } // namespace rvn

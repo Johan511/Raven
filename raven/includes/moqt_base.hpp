@@ -159,7 +159,6 @@ public:
     const QUIC_API_TABLE* get_tbl();
 
     ConnectionState* get_connectionState(HQUIC connectionHandle);
-    StreamState* get_stream_state(HQUIC connectionHandle, HQUIC streamHandle);
 
 
 public:

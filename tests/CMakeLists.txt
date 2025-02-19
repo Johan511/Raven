@@ -14,3 +14,7 @@ add_subdirectory(serialization)
 add_raven_test(src/simple_data_transfer.cpp)
 add_raven_test(src/chunk_transfer.cpp)
 add_raven_test(src/deserializer_tests.cpp)
+
+
+add_raven_test(perf/chunk_transfer_perf.cpp)
+target_link_libraries(chunk_transfer_perf PRIVATE Boost::program_options)

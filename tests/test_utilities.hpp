@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <string>
 #include <sys/wait.h>
 /////////////////////////////////////////////////////////
 #include <boost/interprocess/mapped_region.hpp>
@@ -121,7 +122,7 @@ struct NetemRAII
         return "lo";
     }
 
-    NetemRAII()
+    NetemRAII(double lossPercentage, double kBitRate, double delayMs, double delayJitter)
     {
         // Get the correct network interface dynamically
         std::string iface = get_network_interface();
@@ -131,9 +132,13 @@ struct NetemRAII
             abort();
         }
 
-        std::string cmd =
-        "sudo tc qdisc replace dev " + iface +
-        " root netem loss 5% rate 512kbit delay 50ms 10ms distribution normal";
+        std::string cmd = "sudo tc qdisc replace dev " + iface +
+                          " root netem loss " + std::to_string(lossPercentage) +
+                          "% rate " + std::to_string(kBitRate) + "kbit delay " +
+                          std::to_string(delayMs) + "ms " +
+                          std::to_string(delayJitter) + "ms distribution normal";
+        
+                          std::cout << cmd << std::endl;
 
         if (std::system(cmd.c_str()) != 0)
         {

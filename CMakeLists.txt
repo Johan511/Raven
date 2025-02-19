@@ -38,7 +38,12 @@ set(QUIC_STATIC_LINK_CRT "ON" CACHE INTERNAL "QUIC_STATIC_LINK_CRT")
 add_compile_definitions(QUIC_API_ENABLE_PREVIEW_FEATURES)
 add_subdirectory(submodules/msquic)
 set(MSQUIC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/submodules/msquic/src/inc)
-set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/${CMAKE_BUILD_TYPE}/libmsquic.so)
+set(MSQUIC_LINK_LIBRARY "")
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/Debug/libmsquic.so)
+else()
+    set(MSQUIC_LINK_LIBRARY ${CMAKE_BINARY_DIR}/submodules/msquic/bin/Release/libmsquic.so)
+endif()
 
 
 # Setting Raven variables
@@ -52,6 +57,7 @@ add_definitions(-DRAVEN_KEY_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.key")
 add_definitions(-DDUMMY_PAYLOAD_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/dummy_payload.txt")
 add_definitions(-DDATA_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/data/")
 
+find_package(Boost COMPONENTS program_options REQUIRED)
 
 set(RAVEN_SRC "")
 get_all_files_in_directory(${RAVEN_SRC_DIR} RAVEN_SRC)

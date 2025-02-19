@@ -360,8 +360,8 @@ class unique_stream
         {
             // TODO: shutdown function always uses with defaults flag and
             // error code
-            shutdown_func(streamHandle, QUIC_STREAM_SHUTDOWN_FLAG_GRACEFUL, 0);
-            close_func(streamHandle);
+            shutdown_func(streamHandle, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
+            // close_func(streamHandle);
         };
     }
 

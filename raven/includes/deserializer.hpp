@@ -67,8 +67,6 @@ template <typename DeserializedMessageHandler> class Deserializer
     {
         utils::ASSERT_LOG_THROW(numBytes <= size(), "Deserialized more bytes than available",
                                 numBytes, ">", size());
-        // utils::LOG_EVENT(std::cout, "Deserializing", numBytes, "beginIndex",
-        //                  beginIndex_, "size", size());
         // advance begin index
         beginIndex_ += numBytes;
         auto iter = quicBuffers_.begin();

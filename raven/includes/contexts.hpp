@@ -13,6 +13,7 @@
 #include <message_handler.hpp>
 #include <serialization/serialization.hpp>
 #include <utilities.hpp>
+#include <variant>
 #include <wrappers.hpp>
 //////////////////////////////
 
@@ -106,28 +107,30 @@ struct StreamState
 {
     rvn::unique_stream stream;
     struct ConnectionState& connectionState_;
-    std::unique_ptr<StreamContext> streamContext{};
+
+    // Should be explicitly deleted in QUIC_STREAM_EVENT_SHUTDOWN
+    StreamContext* streamContext_;
 
     StreamState(rvn::unique_stream&& stream_, struct ConnectionState& connectionState_)
     : stream(std::move(stream_)), connectionState_(connectionState_)
     {
     }
 
-    void set_stream_context(std::unique_ptr<StreamContext> streamContext_)
+    void set_stream_context(StreamContext* streamContext)
     {
-        this->streamContext = std::move(streamContext_);
+        this->streamContext_ = streamContext;
     }
 };
 
-class DataStreamState : public StreamState, public std::enable_shared_from_this<DataStreamState>
+class DataStreamState : public StreamState
 {
     // return weak_ptr to this for 3rd party to observe lifetime of the StreamState
-    std::shared_ptr<void> lifeTimeFlag_;
+    std::shared_ptr<std::monostate> lifeTimeFlag_;
 
 public:
     // To be used by subscriber to receive objects on this stream
     std::shared_ptr<MPMCQueue<StreamHeaderSubgroupObject>> objectQueue_;
-    std::shared_ptr<StreamHeaderSubgroupMessage> streamHeaderSubgroupMessage_;
+    std::shared_ptr<StreamHeaderSubgroupMessage> streamHeaderSubgroupMessage_{};
 
     DataStreamState(rvn::unique_stream&& stream, struct ConnectionState& connectionState);
     bool can_send_object(const ObjectIdentifier& objectIdentifier) const noexcept;
@@ -153,7 +156,7 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
     std::optional<TrackIdentifier> alias_to_identifier(TrackAlias trackAlias);
     std::optional<TrackAlias> identifier_to_alias(const TrackIdentifier& trackIdentifier);
 
-    StableContainer<DataStreamState> dataStreams;
+    RWProtected<StableContainer<DataStreamState>> dataStreams;
 
     std::optional<StreamState> controlStream;
 
@@ -178,8 +181,6 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
     {
     }
 
-    const StableContainer<DataStreamState>& get_data_streams() const;
-    StableContainer<DataStreamState>& get_data_streams();
     std::optional<StreamState>& get_control_stream();
     const std::optional<StreamState>& get_control_stream() const;
 

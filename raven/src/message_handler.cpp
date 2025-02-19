@@ -16,7 +16,7 @@ void MessageHandler::operator()(ClientSetupMessage clientSetupMessage)
     ServerSetupMessage serverSetupMessage;
     serverSetupMessage.selectedVersion_ = 0;
 
-    streamState_.streamContext->connectionState_.send_control_buffer(
+    streamState_.streamContext_->connectionState_.send_control_buffer(
     serialization::serialize(serverSetupMessage));
 }
 
@@ -24,7 +24,7 @@ void MessageHandler::operator()(ServerSetupMessage serverSetupMessage)
 {
     utils::LOG_EVENT(std::cout, "Server Setup Message received: \n", serverSetupMessage);
     MOQTClient& moqtClient =
-    static_cast<MOQTClient&>(streamState_.streamContext->moqtObject_);
+    static_cast<MOQTClient&>(streamState_.streamContext_->moqtObject_);
     moqtClient.ravenConnectionSetupFlag_.store(true, std::memory_order_release);
 }
 
@@ -42,8 +42,8 @@ void MessageHandler::operator()(SubscribeMessage subscribeMessage)
 
 void MessageHandler::operator()(StreamHeaderSubgroupObject streamHeaderSubgroupObject)
 {
-    utils::LOG_EVENT(std::cout, "Stream Header Subgroup Object received: \n",
-                     streamHeaderSubgroupObject);
+    // utils::LOG_EVENT(std::cout, "Stream Header Subgroup Object received: \n",
+    //                  streamHeaderSubgroupObject);
 
     DataStreamState& dataStreamState = static_cast<DataStreamState&>(streamState_);
     dataStreamState.objectQueue_->enqueue(streamHeaderSubgroupObject);
@@ -51,14 +51,14 @@ void MessageHandler::operator()(StreamHeaderSubgroupObject streamHeaderSubgroupO
 
 void MessageHandler::operator()(StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
 {
-    utils::LOG_EVENT(std::cout, "Stream Header Subgroup Message received: \n",
-                     streamHeaderSubgroupMessage);
+    // utils::LOG_EVENT(std::cout, "Stream Header Subgroup Message received: \n",
+                    //  streamHeaderSubgroupMessage);
 
     DataStreamState& dataStreamState = static_cast<DataStreamState&>(streamState_);
     dataStreamState.set_header(std::move(streamHeaderSubgroupMessage));
 
     MOQTClient& moqtClient =
-    static_cast<MOQTClient&>(streamState_.streamContext->moqtObject_);
+    static_cast<MOQTClient&>(streamState_.streamContext_->moqtObject_);
 
     moqtClient.dataStreamUserHandles_.enqueue(
     { dataStreamState.get_life_time_flag(),
