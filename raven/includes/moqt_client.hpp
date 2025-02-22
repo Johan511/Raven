@@ -39,6 +39,14 @@ public:
 
     MPMCQueue<DataStreamUserHandle> dataStreamUserHandles_;
 
+    // Alternative deliever method where we enqueue all received objects into a single queue
+    struct EnrichedObjectMessage
+    {
+        std::shared_ptr<StreamHeaderSubgroupMessage> header_;
+        StreamHeaderSubgroupObject object_;
+    };
+    MPMCQueue<EnrichedObjectMessage> receivedObjects_;
+
     void subscribe(SubscribeMessage&& subscribeMessage)
     {
         QUIC_BUFFER* quicBuffer = serialization::serialize(subscribeMessage);

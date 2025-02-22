@@ -97,15 +97,12 @@ template <typename... Args> QUIC_BUFFER* serialize(Args&&... args)
     ds::chunk c;
     (detail::serialize(c, args), ...);
 
-    QUIC_BUFFER* totalQuicBuffer =
-    static_cast<QUIC_BUFFER*>(malloc(sizeof(QUIC_BUFFER) + c.size()));
+    QUIC_BUFFER* quicBuffer = static_cast<QUIC_BUFFER*>(malloc(sizeof(QUIC_BUFFER)));
 
-    totalQuicBuffer->Length = c.size();
-    totalQuicBuffer->Buffer =
-    reinterpret_cast<uint8_t*>(totalQuicBuffer) + sizeof(QUIC_BUFFER);
+    auto [data, size] = c.release();
+    quicBuffer->Length = size;
+    quicBuffer->Buffer = data;
 
-    memcpy(totalQuicBuffer->Buffer, c.data(), c.size());
-
-    return totalQuicBuffer;
+    return quicBuffer;
 }
 } // namespace rvn::serialization

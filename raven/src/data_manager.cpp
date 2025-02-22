@@ -1,3 +1,5 @@
+#include "serialization/messages.hpp"
+#include "serialization/serialization.hpp"
 #include "strong_types.hpp"
 #include <cstdio>
 #include <data_manager.hpp>
@@ -5,7 +7,6 @@
 #include <fstream>
 #include <memory>
 #include <mutex>
-#include <ostream>
 
 namespace depracated
 {
@@ -312,13 +313,27 @@ bool DataManager::store_object(const GroupIdentifier& groupIdentifier,
                                std::uint64_t objectId,
                                std::string&& object)
 {
+    auto groupHandleSharedPtr = get_group_handle(groupIdentifier).lock();
+    if (groupHandleSharedPtr == nullptr)
+        return false;
+
+    StreamHeaderSubgroupObject subgroupObject;
+    subgroupObject.objectId_ = objectId;
+    subgroupObject.payload_ = object;
+
+    QUIC_BUFFER* quicBuffer = serialization::serialize(subgroupObject);
+
+    groupHandleSharedPtr->groupCache_.write(
+    [quicBuffer, objectId](auto& cache)
+    { cache.emplace(ObjectId(objectId), quicBuffer); });
+
     std::string pathString = get_path_string(groupIdentifier) + std::to_string(objectId);
     std::string tempFilePath = pathString + ".temp";
 
     std::ofstream file(tempFilePath);
     if (!file.is_open())
         return false;
-    file << std::move(object) << std::flush;
+    file << subgroupObject.payload_;
 
     std::filesystem::rename(tempFilePath, pathString);
     return true;
@@ -436,13 +451,38 @@ ObjectOrStatus DataManager::get_object(const ObjectIdentifier& objectIdentifier)
     if (!groupHandleSharedPtr->has_object_id(objectIdentifier.objectId_))
         return DoesNotExist{ "Object does not exist" };
 
+    QUIC_BUFFER* quicBuffer = groupHandleSharedPtr->groupCache_.read(
+    [&objectIdentifier](const auto& groupCache) -> QUIC_BUFFER*
+    {
+        auto iter = groupCache.find(objectIdentifier.objectId_);
+        if (iter != groupCache.end())
+            return iter->second;
+        return nullptr;
+    });
+
+    if (quicBuffer != nullptr)
+        return quicBuffer;
+    else
+        return NotFound{ "Object not found" };
+
     std::string pathString = get_path_string(objectIdentifier);
     std::ifstream file(pathString);
     if (!file.is_open())
         return NotFound{ "Object not found" };
 
     std::string object(std::istreambuf_iterator<char>(file), {});
-    return object;
+
+    StreamHeaderSubgroupObject subgroupObject;
+    subgroupObject.objectId_ = objectIdentifier.objectId_;
+    subgroupObject.payload_ = std::move(object);
+
+    quicBuffer = serialization::serialize(subgroupObject);
+
+    groupHandleSharedPtr->groupCache_.write(
+    [quicBuffer, &objectIdentifier](auto& cache)
+    { cache.emplace(objectIdentifier.objectId_, quicBuffer); });
+
+    return quicBuffer;
 }
 
 bool DataManager::next(ObjectIdentifier& objectIdentifier, std::uint64_t advanceBy)

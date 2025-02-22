@@ -181,7 +181,9 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
         new StreamSendContext(objectPayload, 1, iter->streamContext_);
 
         return moqtObject_.get_tbl()->StreamSend(iter->stream.get(), objectPayload,
-                                                 1, QUIC_SEND_FLAG_NONE, streamSendContext);
+                                                 1, QUIC_SEND_FLAG_PRIORITY_WORK,
+                                                 streamSendContext);
+        return QUIC_STATUS_SUCCESS;
     };
 
     QUIC_STATUS trySendStatus = dataStreams.read(sendObjectLambda);
@@ -212,8 +214,7 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
         rvn::unique_stream(moqtObject_.get_tbl(),
                            { connection_.get(), QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
                              moqtObject_.data_stream_cb_wrapper, streamContext },
-                           { QUIC_STREAM_START_FLAG_FAIL_BLOCKED |
-                             QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL });
+                           { QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL });
 
         QUIC_STATUS status = dataStreams.write(
         [&, streamIn = std::move(stream), this](StableContainer<DataStreamState>& dataStreams) mutable
@@ -236,7 +237,8 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
 
             return moqtObject_.get_tbl()->StreamSend(streamState.stream.get(),
                                                      objectHeaderQuicBuffer, 1,
-                                                     QUIC_SEND_FLAG_NONE, streamSendContext);
+                                                     QUIC_SEND_FLAG_DELAY_SEND,
+                                                     streamSendContext);
         });
 
         if (QUIC_FAILED(status))
@@ -250,8 +252,6 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
 
 void ConnectionState::abort_if_sending(const ObjectIdentifier& oid)
 {
-    // std::cout << "Aborting send of object: " << oid << std::endl;
-
     dataStreams.write(
     [&](StableContainer<DataStreamState>& dataStreams)
     {
@@ -259,7 +259,8 @@ void ConnectionState::abort_if_sending(const ObjectIdentifier& oid)
                                  [&](DataStreamState& streamState)
                                  { return streamState.can_send_object(oid); });
 
-        dataStreams.erase(iter);
+        if (iter != dataStreams.end())
+            dataStreams.erase(iter);
     });
 }
 

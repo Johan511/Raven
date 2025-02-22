@@ -153,10 +153,9 @@ static constexpr auto server_control_stream_callback =
 // Data Stream Start flags = QUIC_STREAM_START_FLAG_FAIL_BLOCKED |
 // QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL
 static constexpr auto server_data_stream_callback =
-[](HQUIC dataStream, void* context, QUIC_STREAM_EVENT* event)
+[]([[maybe_unused]] HQUIC dataStream, void* context, QUIC_STREAM_EVENT* event)
 {
     StreamContext* streamContext = static_cast<StreamContext*>(context);
-    ConnectionState& connectionState = streamContext->connectionState_;
 
     // TODO: wait for streamSetup
     switch (event->Type)

@@ -1,3 +1,4 @@
+#include "moqt_server.hpp"
 #include "serialization/messages.hpp"
 #include <contexts.hpp>
 #include <message_handler.hpp>
@@ -42,17 +43,19 @@ void MessageHandler::operator()(SubscribeMessage subscribeMessage)
 
 void MessageHandler::operator()(StreamHeaderSubgroupObject streamHeaderSubgroupObject)
 {
-    // utils::LOG_EVENT(std::cout, "Stream Header Subgroup Object received: \n",
-    //                  streamHeaderSubgroupObject);
+    MOQTClient& moqtClient =
+    static_cast<MOQTClient&>(streamState_.connectionState_.moqtObject_);
 
     DataStreamState& dataStreamState = static_cast<DataStreamState&>(streamState_);
-    dataStreamState.objectQueue_->enqueue(streamHeaderSubgroupObject);
+
+    moqtClient.receivedObjects_.enqueue({ dataStreamState.streamHeaderSubgroupMessage_,
+                                          std::move(streamHeaderSubgroupObject) });
 }
 
 void MessageHandler::operator()(StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
 {
     // utils::LOG_EVENT(std::cout, "Stream Header Subgroup Message received: \n",
-                    //  streamHeaderSubgroupMessage);
+    //  streamHeaderSubgroupMessage);
 
     DataStreamState& dataStreamState = static_cast<DataStreamState&>(streamState_);
     dataStreamState.set_header(std::move(streamHeaderSubgroupMessage));

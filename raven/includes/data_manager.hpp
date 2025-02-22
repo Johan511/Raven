@@ -1,7 +1,9 @@
 #pragma once
+#include "definitions.hpp"
 #include <boost/functional/hash.hpp>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -70,7 +72,7 @@ struct DoesNotExist
     const char* reason = "Object does not exist";
 };
 
-using ObjectOrStatus = std::variant<std::string, NotFound, DoesNotExist>;
+using ObjectOrStatus = std::variant<QUIC_BUFFER*, NotFound, DoesNotExist>;
 
 class TrackIdentifier
 {
@@ -225,6 +227,18 @@ private:
 
     std::shared_mutex objectIdsMtx_;
     std::set<std::uint64_t, Comparator> objectIds_;
+
+    struct ObjectIdHash
+    {
+        std::uint64_t operator()(const ObjectId& oid) const noexcept
+        {
+            return oid.get();
+        }
+    };
+
+    using ObjectIdEqual = std::equal_to<ObjectId>;
+
+    RWProtected<std::unordered_map<ObjectId, QUIC_BUFFER*, ObjectIdHash, ObjectIdEqual>> groupCache_;
 
 public:
     GroupHandle(GroupIdentifier groupIdentifier,

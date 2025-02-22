@@ -8,6 +8,7 @@
 #include <subscription_manager.hpp>
 #include <unistd.h>
 #include <utilities.hpp>
+#include <variant>
 extern "C"
 {
 #include <msquic.h>
@@ -38,15 +39,13 @@ FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
     if (std::holds_alternative<DoesNotExist>(objectOrStatus))
         return SubscriptionStateErr::ObjectDoesNotExist{};
     else if (std::holds_alternative<NotFound>(objectOrStatus))
+    {
         // will try later (TODO: might lead to infinite loop, handle case by limiting retries)
         return false;
+    }
     else
     {
-        auto object = std::get<std::string>(objectOrStatus);
-        StreamHeaderSubgroupObject objectMsg;
-        objectMsg.objectId_ = objectToSend_.objectId_;
-        objectMsg.payload_ = std::move(object);
-        QUIC_BUFFER* quicBuffer = serialization::serialize(objectMsg);
+        QUIC_BUFFER* quicBuffer = std::get<QUIC_BUFFER*>(objectOrStatus);
 
         if (abortIfSending_ && previouslySentObject_.has_value())
             connectionStateSharedPtr->abort_if_sending(*previouslySentObject_);
@@ -230,7 +229,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
 
                 add_group_subscription(*groupHandleIter->second, true,
                                        subscriptionMessage_.start_->object_);
-
+                ++groupHandleIter;
                 for (; groupHandleIter != trackHandleSharedPtr->groupHandles_.end(); ++groupHandleIter)
                     add_group_subscription(*groupHandleIter->second, true);
             }

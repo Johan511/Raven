@@ -92,8 +92,8 @@ public:
         //  bufferCount is always 1
         // the way we allocate buffers is  malloc(sizeof(QUIC_BUFFER)) and this
         // becomes our (QUIC_BUFFER *) buffers
+        free(buffer->Buffer);
         free(buffer);
-        bufferCount = 0;
     }
 
     // callback called when the send is succsfull
@@ -130,7 +130,7 @@ class DataStreamState : public StreamState
 public:
     // To be used by subscriber to receive objects on this stream
     std::shared_ptr<MPMCQueue<StreamHeaderSubgroupObject>> objectQueue_;
-    std::shared_ptr<StreamHeaderSubgroupMessage> streamHeaderSubgroupMessage_{};
+    std::shared_ptr<StreamHeaderSubgroupMessage> streamHeaderSubgroupMessage_;
 
     DataStreamState(rvn::unique_stream&& stream, struct ConnectionState& connectionState);
     bool can_send_object(const ObjectIdentifier& objectIdentifier) const noexcept;

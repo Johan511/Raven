@@ -29,7 +29,7 @@ static inline std::unique_ptr<rvn::MOQTClient> client_setup()
 {
     std::unique_ptr<rvn::MOQTClient> moqtClient = std::make_unique<rvn::MOQTClient>();
 
-    QUIC_REGISTRATION_CONFIG RegConfig = { "test1", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
+    QUIC_REGISTRATION_CONFIG RegConfig = { "test1", QUIC_EXECUTION_PROFILE_TYPE_REAL_TIME };
     moqtClient->set_regConfig(&RegConfig);
 
     QUIC_SETTINGS Settings;
@@ -40,6 +40,8 @@ static inline std::unique_ptr<rvn::MOQTClient> client_setup()
     Settings.IsSet.PeerUnidiStreamCount = TRUE;
     Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
     Settings.StreamMultiReceiveEnabled = TRUE;
+    Settings.IsSet.SendBufferingEnabled = TRUE;
+    Settings.SendBufferingEnabled = FALSE;
     moqtClient->set_Settings(&Settings, sizeof(Settings));
 
     QUIC_CREDENTIAL_CONFIG credConfig;
@@ -69,7 +71,7 @@ static inline std::unique_ptr<rvn::MOQTServer> server_setup()
     auto dm = std::make_shared<rvn::DataManager>();
     std::unique_ptr<rvn::MOQTServer> moqtServer = std::make_unique<rvn::MOQTServer>(dm);
 
-    QUIC_REGISTRATION_CONFIG RegConfig = { "test1", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
+    QUIC_REGISTRATION_CONFIG RegConfig = { "test1", QUIC_EXECUTION_PROFILE_TYPE_REAL_TIME };
     moqtServer->set_regConfig(&RegConfig);
 
     moqtServer->set_listenerCb(rvn::callbacks::server_listener_callback);
@@ -90,6 +92,8 @@ static inline std::unique_ptr<rvn::MOQTServer> server_setup()
     Settings.IsSet.PeerBidiStreamCount = TRUE;
     Settings.IsSet.StreamMultiReceiveEnabled = TRUE;
     Settings.StreamMultiReceiveEnabled = TRUE;
+    Settings.IsSet.SendBufferingEnabled = TRUE;
+    Settings.SendBufferingEnabled = FALSE;
     moqtServer->set_Settings(&Settings, sizeof(Settings));
 
     // certificates
@@ -137,8 +141,8 @@ struct NetemRAII
                           "% rate " + std::to_string(kBitRate) + "kbit delay " +
                           std::to_string(delayMs) + "ms " +
                           std::to_string(delayJitter) + "ms distribution normal";
-        
-                          std::cout << cmd << std::endl;
+
+        std::cout << cmd << std::endl;
 
         if (std::system(cmd.c_str()) != 0)
         {

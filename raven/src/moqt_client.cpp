@@ -7,7 +7,19 @@
 
 namespace rvn
 {
-MOQTClient::MOQTClient() : MOQT(HostType::CLIENT) {};
+MOQTClient::MOQTClient() : MOQT(HostType::CLIENT)
+{
+    std::uint8_t rawExecConfig[QUIC_EXECUTION_CONFIG_MIN_SIZE + 2 * sizeof(uint16_t)] = { 0 };
+    QUIC_EXECUTION_CONFIG* execConfig = (QUIC_EXECUTION_CONFIG*)rawExecConfig;
+    execConfig->ProcessorCount = 2;
+    execConfig->ProcessorList[0] = 2;
+    execConfig->ProcessorList[1] = 3;
+
+    QUIC_STATUS status = tbl->SetParam(nullptr, QUIC_PARAM_GLOBAL_EXECUTION_CONFIG,
+                                       sizeof(rawExecConfig), execConfig);
+    if (QUIC_FAILED(status))
+        exit(1);
+};
 
 void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* ServerName, uint16_t ServerPort)
 {

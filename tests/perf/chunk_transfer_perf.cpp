@@ -1,5 +1,6 @@
 /////////////////////////////////////////////////////////
 #include <atomic>
+#include <cstring>
 #include <dlfcn.h>
 #include <memory>
 #include <sys/types.h>
@@ -41,23 +42,7 @@ namespace po = boost::program_options;
 std::uint64_t numObjects = 1'000;
 constexpr std::uint8_t numGroups = 4;
 
-static long numMsQuicWorkers = 2;
-
-long sysconf(int name)
-{
-    // Get the real sysconf
-    static long (*real_sysconf)(int) = NULL;
-    if (!real_sysconf)
-    {
-        real_sysconf =
-        reinterpret_cast<long (*)(int)>(dlsym(RTLD_NEXT, "sysconf"));
-    }
-
-    if (name == _SC_NPROCESSORS_ONLN)
-        return numMsQuicWorkers;
-    // For everything else, call the real sysconf
-    return real_sysconf(name);
-}
+std::uint16_t numMsQuicWorkers = 2;
 
 std::uint64_t get_current_ms_timestamp()
 {
@@ -67,11 +52,16 @@ std::uint64_t get_current_ms_timestamp()
 }
 
 
-std::string generate_object(std::uint8_t groupId, std::uint64_t objectId)
+std::string generate_object(std::uint64_t groupId, std::uint64_t objectId)
 {
     std::uint64_t currTime = get_current_ms_timestamp();
-    std::string object(reinterpret_cast<const char*>(&currTime), sizeof(currTime));
-    object.resize(4096);
+    std::string object((1 << 16) * (1 << groupId), 0);
+    std::memcpy(object.data(), reinterpret_cast<const char*>(&currTime), sizeof(currTime));
+    std::memcpy(object.data() + sizeof(std::uint64_t),
+                reinterpret_cast<const char*>(&groupId), sizeof(groupId));
+    std::memcpy(object.data() + 2 * sizeof(std::uint64_t),
+                reinterpret_cast<const char*>(&objectId), sizeof(objectId));
+
     return object;
 }
 
@@ -83,7 +73,7 @@ int main(int argc, char* argv[])
     // clang-format off
     poptions.add_options()
         ("help,h", "help")
-        ("quic_threads,w", po::value<std::uint8_t>()->default_value(4), "Number of QUIC threads")
+        ("quic_threads,w", po::value<std::uint16_t>()->default_value(4), "Number of QUIC threads")
         ("objects,o", po::value<std::uint64_t>()->default_value(1'000), "Number of objects")
         ("loss_percentage,l", po::value<double>()->default_value(5), "Packet loss percentage")
         ("bit_rate,b", po::value<double>()->default_value(4096), "Bit rate in kbits per second")
@@ -103,7 +93,7 @@ int main(int argc, char* argv[])
 
     //////////////////////////////////////////////////////////////////////////
     // Setting Command Link arguments
-    numMsQuicWorkers = vm["quic_threads"].as<std::uint8_t>();
+    numMsQuicWorkers = vm["quic_threads"].as<std::uint16_t>();
     numObjects = vm["objects"].as<std::uint64_t>();
     //////////////////////////////////////////////////////////////////////////
 
@@ -154,9 +144,7 @@ int main(int argc, char* argv[])
                 {
                     std::string object = generate_object(groupId, objectId);
                     subgroupHandleOpt.value().add_object(std::move(object));
-
                     subgroupHandleOpt.emplace(*subgroupHandleOpt->cap_and_next());
-
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                 }
                 subgroupHandleOpt->cap();
@@ -216,47 +204,28 @@ int main(int argc, char* argv[])
         auto subMessage = subscriptionBuilder.build();
 
         moqtClient->subscribe(std::move(subMessage));
-
-        auto& dataStreams = moqtClient->dataStreamUserHandles_;
-
-        std::vector<std::thread> streamConsumerThreads;
         std::atomic_int8_t numEndObjectsReceived = 0;
+
+        auto& receivedObjectsQueue = moqtClient->receivedObjects_;
         while (true)
         {
             if (numEndObjectsReceived == numGroups)
                 break;
 
-            rvn::MOQTClient::DataStreamUserHandle dataStreamUserHandle;
-            if (!dataStreams.try_dequeue(dataStreamUserHandle))
-                continue;
+            auto enrichedObject = receivedObjectsQueue.wait_dequeue_ret();
 
-            streamConsumerThreads.emplace_back(
-            [&numEndObjectsReceived](MOQTClient::DataStreamUserHandle&& dataStreamUserHandle)
-            {
-                auto& objectQueue = dataStreamUserHandle.objectQueue_;
+            if (enrichedObject.object_.objectId_ == numObjects - 1)
+                numEndObjectsReceived++;
 
-                for (;;)
-                {
-                    auto streamHeaderSubgroupObject = objectQueue->wait_dequeue_ret();
-                    std::uint64_t currTimestamp = get_current_ms_timestamp();
-                    std::uint64_t* sentTimestamp = reinterpret_cast<std::uint64_t*>(
-                    streamHeaderSubgroupObject.payload_.data());
+            std::uint64_t currTimestamp = get_current_ms_timestamp();
+            std::uint64_t* sentTimestamp =
+            reinterpret_cast<std::uint64_t*>(enrichedObject.object_.payload_.data());
+            std::uint64_t* groupId = sentTimestamp + 1;
+            std::uint64_t* objectId = groupId + 1;
 
-                    std::cout << currTimestamp - *sentTimestamp << std::endl;
-
-                    if (streamHeaderSubgroupObject.objectId_ == numObjects - 1)
-                        numEndObjectsReceived++;
-
-                    if (auto ptr = dataStreamUserHandle.streamLifeTimeFlag_.lock(); ptr == nullptr)
-                    {
-                        std::cout << ptr << std::endl;
-                        break;
-                    }
-                }
-            },
-            std::move(dataStreamUserHandle));
-
-            streamConsumerThreads.back().detach();
+            std::cout << "[Perf Log]: " << currTimestamp - *sentTimestamp << " "
+                      << *groupId << " " << *objectId << " "
+                      << enrichedObject.object_.payload_.size() << std::endl;
         }
 
         {

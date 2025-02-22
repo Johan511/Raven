@@ -1,6 +1,7 @@
 #pragma once
 ///////////////////////////////////////////////////////////////////////////////
 #include "strong_types.hpp"
+#include <chrono>
 #include <limits>
 #include <optional>
 #include <stdexcept>
@@ -76,17 +77,7 @@ template <typename DeserializedMessageHandler> class Deserializer
             ++iter;
         }
         quicBuffers_.erase(quicBuffers_.begin(), iter);
-
-        if (quicBuffers_.size() == 0)
-            utils::ASSERT_LOG_THROW(beginIndex_ == 0,
-                                    "beginIndex_ should be 0 when no buffers "
-                                    "are left");
-        else
-        {
-            utils::ASSERT_LOG_THROW(beginIndex_ < quicBuffers_.front()->Length,
-                                    "beginIndex_ should be less than first "
-                                    "buffer length");
-        }
+        cachedSize_ = std::numeric_limits<std::uint64_t>::max();
     }
 
     // returns optinal value, std::numeric_limits<std::uint64_t>::max() is the nullopt
@@ -292,8 +283,13 @@ template <typename DeserializedMessageHandler> class Deserializer
 
         std::string payload;
         payload.reserve(subGroupObjectPayloadLength_.value());
-        for (std::uint64_t i = 0; i < subGroupObjectPayloadLength_; ++i)
-            payload.push_back(at(i));
+        for (std::uint64_t i = 0; i < subGroupObjectPayloadLength_;)
+        {
+            auto bytes = chunked_at(i);
+            i += bytes.size();
+            for (const auto& byte : bytes)
+                payload.push_back(byte);
+        }
         bytes_deserialized_hook(subGroupObjectPayloadLength_.value());
 
         auto msg =
@@ -383,41 +379,56 @@ template <typename DeserializedMessageHandler> class Deserializer
         }
     }
 
-    std::uint8_t& at(std::size_t index) const
+    std::uint8_t& at(std::size_t index) const noexcept
     {
-        utils::ASSERT_LOG_THROW(index < size(), "index in at() is greater than size",
-                                index, "<", size());
-        if (quicBuffers_.size() == 0)
-            throw std::runtime_error("No buffers to read from, at()");
         index += beginIndex_;
         std::size_t bufferMaxIdx = quicBuffers_.front()->Length;
         auto bufferIter = quicBuffers_.begin();
         while (index >= bufferMaxIdx)
         {
             ++bufferIter;
-            utils::ASSERT_LOG_THROW(bufferIter != quicBuffers_.end(),
-                                    "Index out of bounds, at()");
             bufferMaxIdx += (*bufferIter)->Length;
         }
 
         return (*bufferIter)->Buffer[index - bufferMaxIdx + (*bufferIter)->Length];
     }
 
-    std::uint64_t size() const noexcept
+    std::span<const std::uint8_t> chunked_at(std::size_t index) const noexcept
     {
-        std::uint64_t totalLen = 0;
-        for (const auto& buffer : quicBuffers_)
+        index += beginIndex_;
+        std::size_t bufferMaxIdx = quicBuffers_.front()->Length;
+        auto bufferIter = quicBuffers_.begin();
+        while (index >= bufferMaxIdx)
         {
-            totalLen += buffer->Length;
+            ++bufferIter;
+            bufferMaxIdx += (*bufferIter)->Length;
         }
 
+        return { std::addressof(
+                 (*bufferIter)->Buffer[index - bufferMaxIdx + (*bufferIter)->Length]),
+                 std::addressof((*bufferIter)->Buffer[(*bufferIter)->Length]) };
+    }
+
+    mutable std::uint64_t cachedSize_;
+    std::uint64_t size() const noexcept
+    {
+        if (cachedSize_ != std::numeric_limits<std::uint64_t>::max())
+            return cachedSize_;
+
+        std::uint64_t totalLen = 0;
+        for (const auto& buffer : quicBuffers_)
+            totalLen += buffer->Length;
+
         totalLen -= beginIndex_;
+
+        cachedSize_ = totalLen;
         return totalLen;
     }
 
 public:
     Deserializer(bool isControlStream, DeserializedMessageHandler messageHandler = {})
-    : messageHandler_(messageHandler), dataStreamHeader_(std::nullopt)
+    : messageHandler_(messageHandler), dataStreamHeader_(std::nullopt),
+      cachedSize_(std::numeric_limits<std::uint64_t>::max())
     {
         if (isControlStream)
         {
@@ -434,6 +445,7 @@ public:
     void append_buffer(UniqueQuicBuffer buffer)
     {
         std::unique_lock<std::mutex> lock(quicBuffersMutex_);
+        cachedSize_ = std::numeric_limits<std::uint64_t>::max();
         quicBuffers_.emplace_back(std::move(buffer));
 
         process_state_machine_input();

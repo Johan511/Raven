@@ -2,6 +2,7 @@
 
 #include <bitset>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <ostream>
@@ -66,6 +67,17 @@ public:
         append(other.data_, other.currSize_);
 
         return *this;
+    }
+
+    std::tuple<std::uint8_t*, std::uint64_t> release()
+    {
+        std::uint8_t* data = data_;
+        std::uint64_t size = currSize_;
+
+        currSize_ = 0;
+        maxSize_ = 0;
+        data_ = nullptr;
+        return { data, size };
     }
 
     chunk(const chunk& other)
