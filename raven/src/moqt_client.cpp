@@ -1,22 +1,19 @@
 #include <atomic>
 #include <contexts.hpp>
 #include <moqt.hpp>
+#include <msquic.h>
 #include <serialization/messages.hpp>
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
 namespace rvn
 {
-MOQTClient::MOQTClient() : MOQT(HostType::CLIENT)
+MOQTClient::MOQTClient(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> execConfigTuple)
+: MOQT(HostType::CLIENT)
 {
-    std::uint8_t rawExecConfig[QUIC_EXECUTION_CONFIG_MIN_SIZE + 2 * sizeof(uint16_t)] = { 0 };
-    QUIC_EXECUTION_CONFIG* execConfig = (QUIC_EXECUTION_CONFIG*)rawExecConfig;
-    execConfig->ProcessorCount = 2;
-    execConfig->ProcessorList[0] = 2;
-    execConfig->ProcessorList[1] = 3;
-
+    auto [execConfig, execConfigLen] = execConfigTuple;
     QUIC_STATUS status = tbl->SetParam(nullptr, QUIC_PARAM_GLOBAL_EXECUTION_CONFIG,
-                                       sizeof(rawExecConfig), execConfig);
+                                       execConfigLen, execConfig);
     if (QUIC_FAILED(status))
         exit(1);
 };

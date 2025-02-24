@@ -51,7 +51,7 @@ int main()
 
     std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>(dm);
 
-    QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
+    QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_TYPE_REAL_TIME };
     moqtServer->set_regConfig(&RegConfig);
 
     moqtServer->set_listenerCb(callbacks::server_listener_callback);

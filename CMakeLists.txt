@@ -16,7 +16,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
 
 if(ENABLE_QUIC_LOGGING)
 set(QUIC_ENABLE_LOGGING "ON" CACHE INTERNAL "QUIC_ENABLE_LOGGING")
-set(QUIC_LOGGING_TYPE "stdout" CACHE INTERNAL "stdout")
+set(QUIC_LOGGING_TYPE "lttng" CACHE INTERNAL "lttng")
 endif()
 
 if(RAVEN_WITH_ASAN)
@@ -57,7 +57,7 @@ add_definitions(-DRAVEN_KEY_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.key")
 add_definitions(-DDUMMY_PAYLOAD_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/dummy_payload.txt")
 add_definitions(-DDATA_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/data/")
 
-find_package(Boost COMPONENTS program_options REQUIRED)
+find_package(Boost COMPONENTS program_options log REQUIRED)
 
 set(RAVEN_SRC "")
 get_all_files_in_directory(${RAVEN_SRC_DIR} RAVEN_SRC)

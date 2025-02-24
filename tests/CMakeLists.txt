@@ -17,4 +17,5 @@ add_raven_test(src/deserializer_tests.cpp)
 
 
 add_raven_test(perf/chunk_transfer_perf.cpp)
-target_link_libraries(chunk_transfer_perf PRIVATE Boost::program_options)
+target_link_libraries(chunk_transfer_perf PRIVATE Boost::program_options Boost::log)
+target_compile_definitions(chunk_transfer_perf PRIVATE -DBOOST_LOG_DYN_LINK)

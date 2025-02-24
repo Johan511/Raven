@@ -25,9 +25,11 @@ static const char* CertFile = RAVEN_CERT_FILE_PATH;
 static const char* KeyFile = RAVEN_KEY_FILE_PATH;
 
 
-static inline std::unique_ptr<rvn::MOQTClient> client_setup()
+static inline std::unique_ptr<rvn::MOQTClient>
+client_setup(QUIC_EXECUTION_CONFIG* executionConfig = nullptr, std::uint64_t execConfigLen = 0)
 {
-    std::unique_ptr<rvn::MOQTClient> moqtClient = std::make_unique<rvn::MOQTClient>();
+    std::unique_ptr<rvn::MOQTClient> moqtClient =
+    std::make_unique<rvn::MOQTClient>(std::make_tuple(executionConfig, execConfigLen));
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "test1", QUIC_EXECUTION_PROFILE_TYPE_REAL_TIME };
     moqtClient->set_regConfig(&RegConfig);
@@ -164,3 +166,10 @@ struct NetemRAII
         }
     }
 };
+
+static inline std::uint64_t get_current_ms_timestamp()
+{
+    auto now = std::chrono::system_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
+    .count();
+}

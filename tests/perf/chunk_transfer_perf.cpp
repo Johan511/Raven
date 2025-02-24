@@ -1,8 +1,9 @@
 /////////////////////////////////////////////////////////
 #include <atomic>
 #include <cstring>
-#include <dlfcn.h>
 #include <memory>
+#include <msquic.h>
+#include <mutex>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <thread>
@@ -11,8 +12,8 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
+#include <boost/log/trivial.hpp>
 #include <boost/program_options.hpp>
-#include <boost/program_options/variables_map.hpp>
 /////////////////////////////////////////////////////////
 #include <callbacks.hpp>
 #include <contexts.hpp>
@@ -34,23 +35,17 @@ struct InterprocessSynchronizationData
     boost::interprocess::interprocess_mutex mutex_;
     bool serverSetup_;
     bool clientDone_;
+    std::uint64_t numberMsQuicRegisterations_;
 };
 
 namespace bip = boost::interprocess;
 namespace po = boost::program_options;
 
-std::uint64_t numObjects = 1'000;
 constexpr std::uint8_t numGroups = 4;
+constexpr std::uint16_t numMsQuicWorkers = 3;
 
-std::uint16_t numMsQuicWorkers = 2;
-
-std::uint64_t get_current_ms_timestamp()
-{
-    auto now = std::chrono::system_clock::now();
-    return std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
-    .count();
-}
-
+std::uint64_t numObjects = 1'000;
+std::uint64_t msBetweenObjects = 500;
 
 std::string generate_object(std::uint64_t groupId, std::uint64_t objectId)
 {
@@ -73,12 +68,12 @@ int main(int argc, char* argv[])
     // clang-format off
     poptions.add_options()
         ("help,h", "help")
-        ("quic_threads,w", po::value<std::uint16_t>()->default_value(4), "Number of QUIC threads")
         ("objects,o", po::value<std::uint64_t>()->default_value(1'000), "Number of objects")
         ("loss_percentage,l", po::value<double>()->default_value(5), "Packet loss percentage")
         ("bit_rate,b", po::value<double>()->default_value(4096), "Bit rate in kbits per second")
         ("delay_ms,d", po::value<double>()->default_value(50), "Network delay in milliseconds")
-        ("delay_jitter,j", po::value<double>()->default_value(10), "Network delay jitter in milliseconds");
+        ("delay_jitter,j", po::value<double>()->default_value(10), "Network delay jitter in milliseconds")
+        ("sample_time,s", po::value<std::uint64_t>()->default_value(500), "Milliseconds between objects");
     // clang-format on
 
     po::variables_map vm;
@@ -93,8 +88,8 @@ int main(int argc, char* argv[])
 
     //////////////////////////////////////////////////////////////////////////
     // Setting Command Link arguments
-    numMsQuicWorkers = vm["quic_threads"].as<std::uint16_t>();
     numObjects = vm["objects"].as<std::uint64_t>();
+    msBetweenObjects = vm["sample_time"].as<std::uint64_t>();
     //////////////////////////////////////////////////////////////////////////
 
     std::string sharedMemoryName = "chunk_transfer_test_";
@@ -109,6 +104,7 @@ int main(int argc, char* argv[])
 
     dataParent->serverSetup_ = false;
     dataParent->clientDone_ = false;
+    dataParent->numberMsQuicRegisterations_ = 1;
 
     if (fork())
     {
@@ -145,7 +141,7 @@ int main(int argc, char* argv[])
                     std::string object = generate_object(groupId, objectId);
                     subgroupHandleOpt.value().add_object(std::move(object));
                     subgroupHandleOpt.emplace(*subgroupHandleOpt->cap_and_next());
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(msBetweenObjects));
                 }
                 subgroupHandleOpt->cap();
             });
@@ -172,14 +168,20 @@ int main(int argc, char* argv[])
         double delayMs = vm["delay_ms"].as<double>();
         double delayJitter = vm["delay_jitter"].as<double>();
 
+        std::uint16_t clientId;
+        {
+            std::unique_lock lock(dataParent->mutex_);
+            clientId = dataParent->numberMsQuicRegisterations_++;
+        }
+
         NetemRAII netemRAII(lossPercentage, bitRate, delayMs, delayJitter);
 
         // Open shared memory
         bip::shared_memory_object shmChild(bip::open_only, sharedMemoryName.c_str(),
                                            bip::read_write);
-        bip::mapped_region regionChildl(shmChild, bip::read_write);
+        bip::mapped_region regionChild(shmChild, bip::read_write);
         InterprocessSynchronizationData* dataChild =
-        static_cast<InterprocessSynchronizationData*>(regionChildl.get_address());
+        static_cast<InterprocessSynchronizationData*>(regionChild.get_address());
 
 
         for (;;)
@@ -189,8 +191,20 @@ int main(int argc, char* argv[])
                 break;
         }
 
+        constexpr std::uint64_t execConfigLen =
+        sizeof(QUIC_EXECUTION_CONFIG) + numMsQuicWorkers * sizeof(std::uint16_t);
+        std::uint8_t rawExecutionConfig[sizeof(QUIC_EXECUTION_CONFIG) + numMsQuicWorkers * sizeof(std::uint16_t)];
+        QUIC_EXECUTION_CONFIG* executionConfig =
+        reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawExecutionConfig);
+        executionConfig->ProcessorCount = numMsQuicWorkers;
+        for (std::uint16_t i = 0; i < numMsQuicWorkers; i++)
+        {
+            executionConfig->ProcessorList[i] =
+            (clientId * numMsQuicWorkers + i) % std::thread::hardware_concurrency();
+        }
 
-        std::unique_ptr<MOQTClient> moqtClient = client_setup();
+        std::unique_ptr<MOQTClient> moqtClient =
+        client_setup(executionConfig, execConfigLen);
 
         SubscriptionBuilder subscriptionBuilder;
         subscriptionBuilder.set_track_alias(TrackAlias(0));
@@ -223,9 +237,8 @@ int main(int argc, char* argv[])
             std::uint64_t* groupId = sentTimestamp + 1;
             std::uint64_t* objectId = groupId + 1;
 
-            std::cout << "[Perf Log]: " << currTimestamp - *sentTimestamp << " "
-                      << *groupId << " " << *objectId << " "
-                      << enrichedObject.object_.payload_.size() << std::endl;
+            BOOST_LOG_TRIVIAL(trace) << currTimestamp - *sentTimestamp << " "
+                                     << *groupId << " " << *objectId;
         }
 
         {

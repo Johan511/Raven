@@ -29,7 +29,7 @@ int main()
 
     std::unique_ptr<MOQTClient> moqtClient = std::make_unique<MOQTClient>();
 
-    QUIC_REGISTRATION_CONFIG RegConfig = { "example1", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
+    QUIC_REGISTRATION_CONFIG RegConfig = { "example1", QUIC_EXECUTION_PROFILE_TYPE_REAL_TIME };
     moqtClient->set_regConfig(&RegConfig);
 
     QUIC_SETTINGS Settings;

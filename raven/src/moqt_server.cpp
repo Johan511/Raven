@@ -11,16 +11,20 @@ MOQTServer::MOQTServer(std::shared_ptr<DataManager> dataManager)
 : MOQT(HostType::SERVER), dataManager_(dataManager),
   subscriptionManager_(std::make_shared<SubscriptionManager>(*dataManager_))
 {
-    std::uint8_t rawExecConfig[QUIC_EXECUTION_CONFIG_MIN_SIZE + 2 * sizeof(uint16_t)] = { 0 };
+    std::uint8_t rawExecConfig[QUIC_EXECUTION_CONFIG_MIN_SIZE + 6 * sizeof(uint16_t)] = { 0 };
     QUIC_EXECUTION_CONFIG* execConfig = (QUIC_EXECUTION_CONFIG*)rawExecConfig;
-    execConfig->ProcessorCount = 2;
+    execConfig->ProcessorCount = 6;
     execConfig->ProcessorList[0] = 0;
     execConfig->ProcessorList[1] = 1;
+    execConfig->ProcessorList[2] = 2;
+    execConfig->ProcessorList[3] = 3;
+    execConfig->ProcessorList[4] = 4;
+    execConfig->ProcessorList[5] = 5;
 
-    QUIC_STATUS status = tbl->SetParam(nullptr, QUIC_PARAM_GLOBAL_EXECUTION_CONFIG,
-                                       sizeof(rawExecConfig), execConfig);
-    if (QUIC_FAILED(status))
-        exit(1);
+    // QUIC_STATUS status = tbl->SetParam(nullptr, QUIC_PARAM_GLOBAL_EXECUTION_CONFIG,
+    //                                    sizeof(rawExecConfig), execConfig);
+    // if (QUIC_FAILED(status))
+    //     exit(1);
 };
 
 void MOQTServer::start_listener(QUIC_ADDR* LocalAddress)

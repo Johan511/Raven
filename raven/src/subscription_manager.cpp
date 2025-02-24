@@ -48,7 +48,9 @@ FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
         QUIC_BUFFER* quicBuffer = std::get<QUIC_BUFFER*>(objectOrStatus);
 
         if (abortIfSending_ && previouslySentObject_.has_value())
+        {
             connectionStateSharedPtr->abort_if_sending(*previouslySentObject_);
+        }
 
         QUIC_STATUS status =
         connectionStateSharedPtr->send_object(objectToSend_, quicBuffer);
