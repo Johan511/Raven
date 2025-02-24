@@ -26,10 +26,10 @@ static const char* KeyFile = RAVEN_KEY_FILE_PATH;
 
 
 static inline std::unique_ptr<rvn::MOQTClient>
-client_setup(QUIC_EXECUTION_CONFIG* executionConfig = nullptr, std::uint64_t execConfigLen = 0)
+client_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig = { nullptr, 0 })
 {
     std::unique_ptr<rvn::MOQTClient> moqtClient =
-    std::make_unique<rvn::MOQTClient>(std::make_tuple(executionConfig, execConfigLen));
+    std::make_unique<rvn::MOQTClient>(executionConfig);
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "test1", QUIC_EXECUTION_PROFILE_TYPE_REAL_TIME };
     moqtClient->set_regConfig(&RegConfig);
@@ -68,10 +68,12 @@ client_setup(QUIC_EXECUTION_CONFIG* executionConfig = nullptr, std::uint64_t exe
 }
 
 
-static inline std::unique_ptr<rvn::MOQTServer> server_setup()
+static inline std::unique_ptr<rvn::MOQTServer>
+server_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig = { nullptr, 0 })
 {
     auto dm = std::make_shared<rvn::DataManager>();
-    std::unique_ptr<rvn::MOQTServer> moqtServer = std::make_unique<rvn::MOQTServer>(dm);
+    std::unique_ptr<rvn::MOQTServer> moqtServer =
+    std::make_unique<rvn::MOQTServer>(dm, executionConfig);
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "test1", QUIC_EXECUTION_PROFILE_TYPE_REAL_TIME };
     moqtServer->set_regConfig(&RegConfig);

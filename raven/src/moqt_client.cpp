@@ -3,6 +3,7 @@
 #include <moqt.hpp>
 #include <msquic.h>
 #include <serialization/messages.hpp>
+#include <stdexcept>
 #include <utilities.hpp>
 #include <wrappers.hpp>
 
@@ -15,7 +16,7 @@ MOQTClient::MOQTClient(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> execCon
     QUIC_STATUS status = tbl->SetParam(nullptr, QUIC_PARAM_GLOBAL_EXECUTION_CONFIG,
                                        execConfigLen, execConfig);
     if (QUIC_FAILED(status))
-        exit(1);
+        throw std::runtime_error("Could not set execution config");
 };
 
 void MOQTClient::start_connection(QUIC_ADDRESS_FAMILY Family, const char* ServerName, uint16_t ServerPort)

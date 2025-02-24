@@ -30,22 +30,27 @@
 
 using namespace rvn;
 
+////////////////////////////////////////////////////////////////////
 struct InterprocessSynchronizationData
 {
     boost::interprocess::interprocess_mutex mutex_;
     bool serverSetup_;
     bool clientDone_;
-    std::uint64_t numberMsQuicRegisterations_;
+    std::uint64_t processorIdBegin_;
 };
-
+////////////////////////////////////////////////////////////////////
 namespace bip = boost::interprocess;
 namespace po = boost::program_options;
-
-constexpr std::uint8_t numGroups = 4;
-constexpr std::uint16_t numMsQuicWorkers = 3;
-
+////////////////////////////////////////////////////////////////////
+constexpr std::uint16_t numMsQuicWorkersPerServer = 6;
+constexpr std::uint16_t numMsQuicWorkersPerClient = 3;
+std::uint16_t numProcessors = std::thread::hardware_concurrency();
+////////////////////////////////////////////////////////////////////
 std::uint64_t numObjects = 1'000;
 std::uint64_t msBetweenObjects = 500;
+constexpr std::uint8_t numGroups = 4;
+////////////////////////////////////////////////////////////////////
+
 
 std::string generate_object(std::uint64_t groupId, std::uint64_t objectId)
 {
@@ -104,12 +109,30 @@ int main(int argc, char* argv[])
 
     dataParent->serverSetup_ = false;
     dataParent->clientDone_ = false;
-    dataParent->numberMsQuicRegisterations_ = 1;
+    dataParent->processorIdBegin_ = numMsQuicWorkersPerServer;
 
     if (fork())
     {
         // parent process, server
-        std::unique_ptr<MOQTServer> moqtServer = server_setup();
+        std::uint8_t rawServerConfig[sizeof(QUIC_EXECUTION_CONFIG) +
+                                     numMsQuicWorkersPerServer * sizeof(std::uint16_t)];
+        QUIC_EXECUTION_CONFIG* serverConfig =
+        reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawServerConfig);
+        serverConfig->ProcessorCount = numMsQuicWorkersPerServer;
+
+        if (numProcessors < numMsQuicWorkersPerServer)
+        {
+            std::cerr
+            << "Number of processors is less than the number of server workers"
+            << std::endl;
+            exit(1);
+        }
+
+        for (std::uint16_t i = 0; i < numMsQuicWorkersPerServer; i++)
+            serverConfig->ProcessorList[i] = i;
+
+        std::unique_ptr<MOQTServer> moqtServer =
+        server_setup(std::make_tuple(serverConfig, sizeof(rawServerConfig)));
 
         auto dm = moqtServer->dataManager_;
         auto trackHandle = dm->add_track_identifier({}, "track");
@@ -168,12 +191,6 @@ int main(int argc, char* argv[])
         double delayMs = vm["delay_ms"].as<double>();
         double delayJitter = vm["delay_jitter"].as<double>();
 
-        std::uint16_t clientId;
-        {
-            std::unique_lock lock(dataParent->mutex_);
-            clientId = dataParent->numberMsQuicRegisterations_++;
-        }
-
         NetemRAII netemRAII(lossPercentage, bitRate, delayMs, delayJitter);
 
         // Open shared memory
@@ -191,20 +208,38 @@ int main(int argc, char* argv[])
                 break;
         }
 
+        std::uint16_t clientFirstProcessorId;
+        {
+            std::unique_lock lock(dataParent->mutex_);
+            clientFirstProcessorId = dataParent->processorIdBegin_;
+            dataParent->processorIdBegin_ += numMsQuicWorkersPerClient;
+        }
+
         constexpr std::uint64_t execConfigLen =
-        sizeof(QUIC_EXECUTION_CONFIG) + numMsQuicWorkers * sizeof(std::uint16_t);
-        std::uint8_t rawExecutionConfig[sizeof(QUIC_EXECUTION_CONFIG) + numMsQuicWorkers * sizeof(std::uint16_t)];
+        sizeof(QUIC_EXECUTION_CONFIG) + numMsQuicWorkersPerClient * sizeof(std::uint16_t);
+
+        std::uint8_t rawExecutionConfig[execConfigLen];
         QUIC_EXECUTION_CONFIG* executionConfig =
         reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawExecutionConfig);
-        executionConfig->ProcessorCount = numMsQuicWorkers;
-        for (std::uint16_t i = 0; i < numMsQuicWorkers; i++)
+
+        executionConfig->ProcessorCount = numMsQuicWorkersPerClient;
+        /*
+            We want to map the client workers to the processors after the server workers
+            so i = clientFirstProcessorId + j (j = 0, 1, 2, ..., numMsQuicWorkersPerClient - 1)
+            is mapped to [numMsQuicWorkersPerServer, numCores)
+        */
+        for (std::uint16_t workerId = 0; workerId < numMsQuicWorkersPerClient; workerId++)
         {
-            executionConfig->ProcessorList[i] =
-            (clientId * numMsQuicWorkers + i) % std::thread::hardware_concurrency();
+            std::uint16_t processorId = clientFirstProcessorId + workerId;
+            // processorId should be mapped to [numMsQuicWorkersPerServer, numCores)
+            processorId %= (numProcessors - numMsQuicWorkersPerServer);
+            processorId += numMsQuicWorkersPerServer;
+
+            executionConfig->ProcessorList[workerId] = processorId;
         }
 
         std::unique_ptr<MOQTClient> moqtClient =
-        client_setup(executionConfig, execConfigLen);
+        client_setup(std::make_tuple(executionConfig, execConfigLen));
 
         SubscriptionBuilder subscriptionBuilder;
         subscriptionBuilder.set_track_alias(TrackAlias(0));
