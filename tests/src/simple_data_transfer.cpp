@@ -15,7 +15,7 @@
 #include "../test_utilities.hpp"
 /////////////////////////////////////////////////////////
 
-constexpr std::string messagePayload = "Hello World!";
+const std::string messagePayload("Hello World!");
 
 using namespace rvn;
 
