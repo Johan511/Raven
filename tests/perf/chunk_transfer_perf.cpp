@@ -55,7 +55,8 @@ constexpr std::uint8_t numGroups = 4;
 std::string generate_object(std::uint64_t groupId, std::uint64_t objectId)
 {
     std::uint64_t currTime = get_current_ms_timestamp();
-    std::string object((1 << 16) * (1 << groupId), 0);
+    // size of object is (1 << 16) * 4 ^ x (x is groupId)
+    std::string object((1 << 16) * (1 << (2 * groupId)), 0);
     std::memcpy(object.data(), reinterpret_cast<const char*>(&currTime), sizeof(currTime));
     std::memcpy(object.data() + sizeof(std::uint64_t),
                 reinterpret_cast<const char*>(&groupId), sizeof(groupId));
