@@ -30,6 +30,20 @@ MinorSubscriptionState::MinorSubscriptionState(SubscriptionState& subscriptionSt
 // returns true if fulfilling is done
 FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
 {
+    if (objectWaitSignal_.has_value())
+    {
+        // we wait on the flag, only is flag is ready, we do acquire operation
+        // might have performance benefits on weaker memory models (ARM, POWERPC...)
+        if ((*objectWaitSignal_)->load(std::memory_order_relaxed) == ObjectWaitStatus::Ready)
+        {
+            (*objectWaitSignal_)->load(std::memory_order_acquire);
+            // resets the std::optional<> to std::nullopt
+            objectWaitSignal_.reset();
+        }
+        else
+            return false;
+    }
+
     auto connectionStateSharedPtr = subscriptionState_->connectionStateWeakPtr_.lock();
     if (!connectionStateSharedPtr)
         return SubscriptionStateErr::ConnectionExpired{};
@@ -38,9 +52,9 @@ FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
 
     if (std::holds_alternative<DoesNotExist>(objectOrStatus))
         return SubscriptionStateErr::ObjectDoesNotExist{};
-    else if (std::holds_alternative<NotFound>(objectOrStatus))
+    else if (std::holds_alternative<ObjectWaitSignal>(objectOrStatus))
     {
-        // will try later (TODO: might lead to infinite loop, handle case by limiting retries)
+        objectWaitSignal_ = std::move(std::get<ObjectWaitSignal>(objectOrStatus));
         return false;
     }
     else
@@ -57,7 +71,16 @@ FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
         if (QUIC_FAILED(status))
             return SubscriptionStateErr::ConnectionExpired{};
 
-        previouslySentObject_ = objectToSend_;
+        if (previouslySentObject_.has_value())
+        {
+            // we do not want to copy because copying track identifier is rather
+            // expensive operation (seq cst atomic add of shared_ptr)
+            previouslySentObject_->groupId_ = objectToSend_.groupId_;
+            previouslySentObject_->objectId_ = objectToSend_.objectId_;
+        }
+        else
+            previouslySentObject_ = objectToSend_;
+
         bool canAdavance = subscriptionState_->dataManager_->next(objectToSend_);
 
         if (!canAdavance)
@@ -81,6 +104,8 @@ FullfillSomeReturn SubscriptionState::fulfill_some()
         {
             if (std::get<bool>(fullfillReturn) == false)
             {
+                // This unfortunately does not seem to be using move constructor though (according to perf report)
+                // TODO: debug the issue
                 *beginIter++ = std::move(*traversalIter);
                 allFullfilled = false;
             }
@@ -209,11 +234,6 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
         }
         case SubscribeMessage::FilterType::AbsoluteStart:
         {
-            ObjectIdentifier firstObjectIdentifier{ trackIdentifier,
-                                                    subscriptionMessage_.start_->group_,
-                                                    subscriptionMessage_.start_->object_ };
-            // there is no last object to be sent because we are sending all objects
-
             std::weak_ptr<TrackHandle> trackHandle =
             dataManager_->get_track_handle(trackIdentifier);
 
@@ -244,15 +264,6 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
         }
         case SubscribeMessage::FilterType::AbsoluteRange:
         {
-            ObjectIdentifier firstObjectIdentifier{ trackIdentifier,
-                                                    subscriptionMessage_.start_->group_,
-                                                    subscriptionMessage_.start_->object_ };
-
-            ObjectIdentifier lastObjectIdentifier{ trackIdentifier,
-                                                   subscriptionMessage_.end_->group_,
-                                                   subscriptionMessage_.end_->object_ };
-
-
             std::weak_ptr<TrackHandle> trackHandle =
             dataManager_->get_track_handle(trackIdentifier);
 
@@ -340,10 +351,8 @@ void ThreadLocalState::operator()()
             // subscription is being fulfilled with no issues
             {
                 if (std::get<bool>(fullfillReturn) == false)
-                    // subscription is yet to be fulfilled
-                    // all other cases the subscription state is destroyed
-                    // NOTE: destructor only called if a different subscription
-                    // is moved into its place coz Wolfgang
+                    // This unfortunately does not seem to be using move constructor though (according to perf report)
+                    // TODO: debug the issue
                     *beginIter++ = std::move(*traversalIter);
             }
             else if (std::holds_alternative<SubscriptionStateErr::ConnectionExpired>(fullfillReturn))

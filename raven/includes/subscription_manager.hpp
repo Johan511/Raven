@@ -36,6 +36,7 @@ class MinorSubscriptionState
     std::optional<ObjectIdentifier> lastObjectToBeSent_;
 
     bool abortIfSending_;
+    std::optional<ObjectWaitSignal> objectWaitSignal_;
 
 public:
     MinorSubscriptionState(SubscriptionState& subscriptionState,

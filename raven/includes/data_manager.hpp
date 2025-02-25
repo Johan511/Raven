@@ -72,7 +72,19 @@ struct DoesNotExist
     const char* reason = "Object does not exist";
 };
 
-using ObjectOrStatus = std::variant<QUIC_BUFFER*, NotFound, DoesNotExist>;
+/*
+    Used to signal if the object has published and can be read
+    Returned when the object is not found,
+    and we do not want the reader to keep querying on a spin loop
+    as it causes R/W contention and too many seq cst atomic operations
+*/
+enum class ObjectWaitStatus
+{
+    Wait,
+    Ready
+};
+using ObjectWaitSignal = std::shared_ptr<std::atomic<ObjectWaitStatus>>;
+using ObjectOrStatus = std::variant<QUIC_BUFFER*, ObjectWaitSignal, DoesNotExist>;
 
 class TrackIdentifier
 {
@@ -239,6 +251,7 @@ private:
     using ObjectIdEqual = std::equal_to<ObjectId>;
 
     RWProtected<std::unordered_map<ObjectId, QUIC_BUFFER*, ObjectIdHash, ObjectIdEqual>> groupCache_;
+    RWProtected<std::unordered_map<ObjectId, ObjectWaitSignal, ObjectIdHash, ObjectIdEqual>> objectWaitSignals_;
 
 public:
     GroupHandle(GroupIdentifier groupIdentifier,
@@ -306,7 +319,7 @@ class DataManager
     std::string get_path_string(const ObjectIdentifier& objectIdentifier);
 
     bool store_object(const GroupIdentifier& groupIdentifier,
-                      std::uint64_t objectId,
+                      ObjectId objectId,
                       std::string&& object);
 
 public:

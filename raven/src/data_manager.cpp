@@ -115,7 +115,8 @@ bool SubgroupHandle::add_object(std::string object)
         return false;
 
     const auto& groupIdentifier = groupHandleSharedPtr->groupIdentifier_;
-    return dataManager_.store_object(groupIdentifier, beginObjectId_ + numObjects_++,
+    return dataManager_.store_object(groupIdentifier,
+                                     ObjectId(beginObjectId_ + numObjects_++),
                                      std::move(object));
 }
 
@@ -310,7 +311,7 @@ std::string DataManager::get_path_string(const ObjectIdentifier& objectIdentifie
 }
 
 bool DataManager::store_object(const GroupIdentifier& groupIdentifier,
-                               std::uint64_t objectId,
+                               ObjectId objectId,
                                std::string&& object)
 {
     auto groupHandleSharedPtr = get_group_handle(groupIdentifier).lock();
@@ -335,6 +336,13 @@ bool DataManager::store_object(const GroupIdentifier& groupIdentifier,
         return false;
     file << subgroupObject.payload_;
 
+    groupHandleSharedPtr->objectWaitSignals_.write(
+    [&objectId](auto& waitSignals)
+    {
+        auto iter = waitSignals.find(objectId);
+        if (iter != waitSignals.end())
+            iter->second->store(ObjectWaitStatus::Ready, std::memory_order_release);
+    });
     std::filesystem::rename(tempFilePath, pathString);
     return true;
 }
@@ -462,13 +470,22 @@ ObjectOrStatus DataManager::get_object(const ObjectIdentifier& objectIdentifier)
 
     if (quicBuffer != nullptr)
         return quicBuffer;
-    else
-        return NotFound{ "Object not found" };
 
     std::string pathString = get_path_string(objectIdentifier);
     std::ifstream file(pathString);
     if (!file.is_open())
-        return NotFound{ "Object not found" };
+    {
+        return groupHandleSharedPtr->objectWaitSignals_.write(
+        [&objectIdentifier](auto& waitSignals)
+        {
+            auto [iter, success] =
+            waitSignals.try_emplace(objectIdentifier.objectId_,
+                                    std::make_shared<std::atomic<ObjectWaitStatus>>(
+                                    ObjectWaitStatus::Wait));
+
+            return iter->second;
+        });
+    }
 
     std::string object(std::istreambuf_iterator<char>(file), {});
 
