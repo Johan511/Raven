@@ -28,7 +28,7 @@ MinorSubscriptionState::MinorSubscriptionState(SubscriptionState& subscriptionSt
 }
 
 // returns true if fulfilling is done
-FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
+FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
 {
     if (objectWaitSignal_.has_value())
     {
@@ -90,36 +90,36 @@ FullfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
 }
 
 // returns true if fulfilling is done
-FullfillSomeReturn SubscriptionState::fulfill_some()
+FulfillSomeReturn SubscriptionState::fulfill_some()
 {
-    bool allFullfilled = true;
+    bool allFulfilled = true;
     auto beginIter = minorSubscriptionStates_.begin();
     auto endIter = minorSubscriptionStates_.end();
 
     for (auto traversalIter = beginIter; traversalIter != endIter; ++traversalIter)
     {
-        auto fullfillReturn = traversalIter->fulfill_some_minor();
+        auto fulfillReturn = traversalIter->fulfill_some_minor();
 
-        if (std::holds_alternative<bool>(fullfillReturn))
+        if (std::holds_alternative<bool>(fulfillReturn))
         {
-            if (std::get<bool>(fullfillReturn) == false)
+            if (std::get<bool>(fulfillReturn) == false)
             {
                 // This unfortunately does not seem to be using move constructor though (according to perf report)
                 // TODO: debug the issue
                 *beginIter++ = std::move(*traversalIter);
-                allFullfilled = false;
+                allFulfilled = false;
             }
         }
         else
-            return fullfillReturn;
+            return fulfillReturn;
     }
 
     minorSubscriptionStates_.erase(beginIter, endIter);
-    return allFullfilled;
+    return allFulfilled;
 }
 
 
-FullfillSomeReturn
+FulfillSomeReturn
 SubscriptionState::add_group_subscription(const GroupHandle& groupHandle,
                                           bool abortIfSending,
                                           std::optional<ObjectId> beginObjectId,
@@ -345,21 +345,21 @@ void ThreadLocalState::operator()()
 
         for (auto traversalIter = beginIter; traversalIter != endIter; ++traversalIter)
         {
-            auto fullfillReturn = traversalIter->fulfill_some();
+            auto fulfillReturn = traversalIter->fulfill_some();
 
-            if (std::holds_alternative<bool>(fullfillReturn))
+            if (std::holds_alternative<bool>(fulfillReturn))
             // subscription is being fulfilled with no issues
             {
-                if (std::get<bool>(fullfillReturn) == false)
+                if (std::get<bool>(fulfillReturn) == false)
                     // This unfortunately does not seem to be using move constructor though (according to perf report)
                     // TODO: debug the issue
                     *beginIter++ = std::move(*traversalIter);
             }
-            else if (std::holds_alternative<SubscriptionStateErr::ConnectionExpired>(fullfillReturn))
+            else if (std::holds_alternative<SubscriptionStateErr::ConnectionExpired>(fulfillReturn))
             {
                 // Nothing to be done
             }
-            else if (std::holds_alternative<SubscriptionStateErr::ObjectDoesNotExist>(fullfillReturn))
+            else if (std::holds_alternative<SubscriptionStateErr::ObjectDoesNotExist>(fulfillReturn))
                 subscriptionManager_.notify_subscription_error(*traversalIter);
             else
                 assert(false);

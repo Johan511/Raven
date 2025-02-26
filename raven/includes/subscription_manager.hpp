@@ -21,9 +21,9 @@ struct SubscriptionStateErr
     // clang-format on
 };
 
-// bool is true => subscription fullfilled
+// bool is true => subscription fulfilled
 // bool is false => continue to next object
-using FullfillSomeReturn =
+using FulfillSomeReturn =
 std::variant<bool, SubscriptionStateErr::ConnectionExpired, SubscriptionStateErr::ObjectDoesNotExist>;
 
 // Each stream corresponds to one minor subscription state
@@ -45,7 +45,7 @@ public:
                            bool abortIfSending);
 
     // returs true if minor subscription state has been fulfilled
-    FullfillSomeReturn fulfill_some_minor();
+    FulfillSomeReturn fulfill_some_minor();
 
     ~MinorSubscriptionState()
     {
@@ -69,7 +69,7 @@ class SubscriptionState
     void error_handler(SubscriptionStateErr::ConnectionExpired);
     void error_handler(SubscriptionStateErr::ObjectDoesNotExist);
 
-    FullfillSomeReturn
+    FulfillSomeReturn
     add_group_subscription(const GroupHandle& groupHandle,
                            bool abortIfSending,
                            std::optional<ObjectId> beginObjectId = {},
@@ -82,7 +82,7 @@ public:
                       SubscriptionManager& subscriptionManager,
                       SubscribeMessage subscriptionMessage);
 
-    FullfillSomeReturn fulfill_some();
+    FulfillSomeReturn fulfill_some();
 
     std::weak_ptr<ConnectionState>& get_connection_state_weak_ptr() noexcept
     {

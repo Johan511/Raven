@@ -27,6 +27,8 @@
 #include "serialization/messages.hpp"
 #include "strong_types.hpp"
 /////////////////////////////////////////////////////////
+#include "./chunk_transfer_perf_lttng.h"
+/////////////////////////////////////////////////////////
 
 using namespace rvn;
 
@@ -187,19 +189,24 @@ int main(int argc, char* argv[])
     }
     else
     {
+        //////////////////////////////////////////////////////////////////////////
+        // Setting up NetEm parameters
         double lossPercentage = vm["loss_percentage"].as<double>();
         double bitRate = vm["bit_rate"].as<double>();
         double delayMs = vm["delay_ms"].as<double>();
         double delayJitter = vm["delay_jitter"].as<double>();
 
         NetemRAII netemRAII(lossPercentage, bitRate, delayMs, delayJitter);
+        //////////////////////////////////////////////////////////////////////////
 
+        //////////////////////////////////////////////////////////////////////////
         // Open shared memory
         bip::shared_memory_object shmChild(bip::open_only, sharedMemoryName.c_str(),
                                            bip::read_write);
         bip::mapped_region regionChild(shmChild, bip::read_write);
         InterprocessSynchronizationData* dataChild =
         static_cast<InterprocessSynchronizationData*>(regionChild.get_address());
+        //////////////////////////////////////////////////////////////////////////
 
 
         for (;;)
@@ -257,6 +264,7 @@ int main(int argc, char* argv[])
         std::atomic_int8_t numEndObjectsReceived = 0;
 
         auto& receivedObjectsQueue = moqtClient->receivedObjects_;
+        pid_t thisClientPid = getpid();
         while (true)
         {
             if (numEndObjectsReceived == numGroups)
@@ -273,8 +281,9 @@ int main(int argc, char* argv[])
             std::uint64_t* groupId = sentTimestamp + 1;
             std::uint64_t* objectId = groupId + 1;
 
-            BOOST_LOG_TRIVIAL(trace) << currTimestamp - *sentTimestamp << " "
-                                     << *groupId << " " << *objectId;
+            lttng_ust_tracepoint(chunk_transfer_perf_lttng, object_recv, thisClientPid,
+                                 currTimestamp - *sentTimestamp, *groupId, *objectId,
+                                 enrichedObject.object_.payload_.size());
         }
 
         {
