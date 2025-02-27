@@ -27,21 +27,29 @@ MinorSubscriptionState::MinorSubscriptionState(SubscriptionState& subscriptionSt
 {
 }
 
+bool MinorSubscriptionState::is_waiting_for_object()
+{
+    if (!objectWaitSignal_.has_value())
+        // not waiting on object to be ready
+        return true;
+
+    // we wait on the flag, only is flag is ready, we do acquire operation
+    // might have performance benefits on weaker memory models (ARM, POWERPC...)
+    return (*objectWaitSignal_)->load(std::memory_order_relaxed) == ObjectWaitStatus::Ready;
+
+    // We only return that it is true, we have to reset the flag in the
+    // fulfill_some_minor function and also have an acquire load on the flag
+}
+
+
 // returns true if fulfilling is done
 FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
 {
     if (objectWaitSignal_.has_value())
     {
-        // we wait on the flag, only is flag is ready, we do acquire operation
-        // might have performance benefits on weaker memory models (ARM, POWERPC...)
-        if ((*objectWaitSignal_)->load(std::memory_order_relaxed) == ObjectWaitStatus::Ready)
-        {
-            (*objectWaitSignal_)->load(std::memory_order_acquire);
-            // resets the std::optional<> to std::nullopt
-            objectWaitSignal_.reset();
-        }
-        else
-            return false;
+        // we have to reset the flag
+        (*objectWaitSignal_)->load(std::memory_order_acquire);
+        objectWaitSignal_.reset();
     }
 
     auto connectionStateSharedPtr = subscriptionState_->connectionStateWeakPtr_.lock();
@@ -98,15 +106,21 @@ FulfillSomeReturn SubscriptionState::fulfill_some()
 
     for (auto traversalIter = beginIter; traversalIter != endIter; ++traversalIter)
     {
-        auto fulfillReturn = traversalIter->fulfill_some_minor();
+        // by default we assume that minor subscriptions is not fulfilled
+        FulfillSomeReturn fulfillReturn = false;
+
+        // not waiting on object to be ready or waiting on it and it is ready
+        // basically the mathematical logical statement: (waiting -> ready)
+        if (traversalIter->is_waiting_for_object())
+            fulfillReturn = traversalIter->fulfill_some_minor();
 
         if (std::holds_alternative<bool>(fulfillReturn))
         {
             if (std::get<bool>(fulfillReturn) == false)
             {
-                // This unfortunately does not seem to be using move constructor though (according to perf report)
-                // TODO: debug the issue
-                *beginIter++ = std::move(*traversalIter);
+                if (beginIter != traversalIter)
+                    *beginIter = std::move(*traversalIter);
+                ++beginIter;
                 allFulfilled = false;
             }
         }
@@ -322,22 +336,32 @@ void ThreadLocalState::operator()()
 {
     while (true)
     {
+        // relaxed load and store works because there is no data dependencies
+        // with cleanup_ used to denate that destructor of SubscriptionManager
+        // is called, subscription threads should exit now
         if (subscriptionManager_.cleanup_.load(std::memory_order_relaxed)) [[unlikely]]
             break;
 
         auto& subscriptionQueue_ = subscriptionManager_.subscriptionQueue_;
 
-        std::tuple<std::weak_ptr<ConnectionState>, SubscribeMessage> subscriptionTuple;
-        while (subscriptionQueue_.try_dequeue(subscriptionTuple))
+        // If we believe it there are pending subscriptions, dequeue them
+        // Why are we doing size_approx? Because constructing weak_ptr is a rather expensive lock opertion
+        // We want to do it only if we believe there are pending subscriptions
+        if (subscriptionQueue_.size_approx() != 0)
         {
-            auto connectionStateWeakPtr = std::move(std::get<0>(subscriptionTuple));
-            auto subscriptionMessage = std::move(std::get<1>(subscriptionTuple));
+            std::tuple<std::weak_ptr<ConnectionState>, SubscribeMessage> subscriptionTuple;
+            while (subscriptionQueue_.try_dequeue(subscriptionTuple))
+            {
+                auto connectionStateWeakPtr = std::move(std::get<0>(subscriptionTuple));
+                auto subscriptionMessage = std::move(std::get<1>(subscriptionTuple));
 
-            subscriptionStates_.emplace_back(std::move(connectionStateWeakPtr),
-                                             subscriptionManager_.dataManager_, subscriptionManager_,
-                                             std::move(subscriptionMessage));
-            if (subscriptionStates_.back().cleanup_)
-                subscriptionStates_.pop_back();
+                subscriptionStates_.emplace_back(std::move(connectionStateWeakPtr),
+                                                 subscriptionManager_.dataManager_,
+                                                 subscriptionManager_,
+                                                 std::move(subscriptionMessage));
+                if (subscriptionStates_.back().cleanup_)
+                    subscriptionStates_.pop_back();
+            }
         }
 
         auto beginIter = subscriptionStates_.begin();

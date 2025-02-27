@@ -47,6 +47,9 @@ public:
     // returs true if minor subscription state has been fulfilled
     FulfillSomeReturn fulfill_some_minor();
 
+    // need this function to be inlined (for better performance) as it is called in tight loop
+    inline bool is_waiting_for_object();
+
     // TODO: cleanup in destructor, notify client that minor subscription has ended
     // WARNING: adding destructor will disable implicitly generated move operations
 };

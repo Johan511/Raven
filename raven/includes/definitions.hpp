@@ -42,6 +42,11 @@ public:
         mpmcQueue.wait_dequeue(t);
         return t;
     }
+
+    __attribute__((no_sanitize("thread"))) size_t size_approx()
+    {
+        return mpmcQueue.size_approx();
+    }
 };
 
 template <typename T> class RWProtected
