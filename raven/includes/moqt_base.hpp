@@ -199,9 +199,7 @@ protected:
 
 
 public:
-    ~MOQT()
-    {
-    }
+    virtual ~MOQT() = default;
 };
 
 } // namespace rvn

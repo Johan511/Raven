@@ -47,10 +47,8 @@ public:
     // returs true if minor subscription state has been fulfilled
     FulfillSomeReturn fulfill_some_minor();
 
-    ~MinorSubscriptionState()
-    {
-        // TODO: notify the connection state if it exists that cleanup should be done
-    }
+    // TODO: cleanup in destructor, notify client that minor subscription has ended
+    // WARNING: adding destructor will disable implicitly generated move operations
 };
 
 // Each subscription state corresponds to one subscription message
@@ -94,15 +92,8 @@ public:
         return connectionStateWeakPtr_;
     }
 
-    ~SubscriptionState()
-    {
-        auto connectionStateSharedPtr = connectionStateWeakPtr_.lock();
-        if (!connectionStateSharedPtr)
-            return;
-
-        // TODO
-        // connectionStateSharedPtr->send_subscribe_done();
-    }
+    // TODO: removing this destructor causes groups not to advance or abort, need to investigate
+    ~SubscriptionState() = default;
 };
 
 struct ThreadLocalState

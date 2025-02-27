@@ -281,9 +281,11 @@ int main(int argc, char* argv[])
             std::uint64_t* groupId = sentTimestamp + 1;
             std::uint64_t* objectId = groupId + 1;
 
-            lttng_ust_tracepoint(chunk_transfer_perf_lttng, object_recv, thisClientPid,
-                                 currTimestamp - *sentTimestamp, *groupId, *objectId,
-                                 enrichedObject.object_.payload_.size());
+            std::cout << "Client PID: " << thisClientPid
+                      << ", Latency: " << (currTimestamp - *sentTimestamp) << " ms"
+                      << ", Group ID: " << *groupId << ", Object ID: " << *objectId
+                      << ", Payload Size: " << enrichedObject.object_.payload_.size()
+                      << " bytes\n";
         }
 
         {
