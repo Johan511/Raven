@@ -89,11 +89,8 @@ public:
     }
     void destroy_buffers()
     {
-        //  bufferCount is always 1
-        // the way we allocate buffers is  malloc(sizeof(QUIC_BUFFER)) and this
-        // becomes our (QUIC_BUFFER *) buffers
-        free(buffer->Buffer);
-        free(buffer);
+        // We do nothing in destroy buffers as some part of the codebase uses 0 copy send
+        // TODO: fix this
     }
 
     // callback called when the send is succsfull

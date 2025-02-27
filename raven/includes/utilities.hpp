@@ -85,13 +85,16 @@ static void print(std::ostream& os, T value, Args... args)
 }
 
 template <typename... Args>
-static void ASSERT_LOG_THROW(bool assertion, Args... args)
+static void
+ASSERT_LOG_THROW([[maybe_unused]] bool assertion, [[maybe_unused]] Args... args)
 {
+#ifdef RAVEN_ENABLE_ASSERTIONS
     if (!assertion)
     {
         print(std::cerr, args...);
-        // throw std::runtime_error("Assertion failed");
+        exit(1);
     }
+#endif
 }
 
 template <typename... Args>
