@@ -44,6 +44,8 @@ client_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig =
     Settings.StreamMultiReceiveEnabled = TRUE;
     Settings.IsSet.SendBufferingEnabled = TRUE;
     Settings.SendBufferingEnabled = FALSE;
+    Settings.IsSet.MaxAckDelayMs = TRUE;
+    Settings.MaxAckDelayMs = 1;
     moqtClient->set_Settings(&Settings, sizeof(Settings));
 
     QUIC_CREDENTIAL_CONFIG credConfig;
