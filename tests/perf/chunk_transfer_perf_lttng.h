@@ -21,6 +21,16 @@ LTTNG_UST_TP_FIELDS(lttng_ust_field_integer(pid_t, pid, pid)
                     lttng_ust_field_integer(uint64_t, objectId, objectId)
                     lttng_ust_field_integer(uint64_t, objectSize, objectSize)))
 
+
+LTTNG_UST_TRACEPOINT_EVENT(
+chunk_transfer_perf_lttng,
+netem,
+LTTNG_UST_TP_ARGS(double, lossPercentage, double, kBitRate, double, delayMs, double, delayJitter),
+LTTNG_UST_TP_FIELDS(lttng_ust_field_float(double, lossPercentage, lossPercentage)
+                    lttng_ust_field_float(double, kBitRate, kBitRate)
+                    lttng_ust_field_float(double, delayMs, delayMs)
+                    lttng_ust_field_float(double, delayJitter, delayJitter)))
+
 #endif /* _chunk_transfer_perf_lttng */
 
 #include <lttng/tracepoint-event.h>

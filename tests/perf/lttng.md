@@ -3,6 +3,7 @@ LTTNG commands to run
 ```sh
 $ lttng create chunk_transfer_perf
 $ lttng enable-event --userspace chunk_transfer_perf_lttng:object_recv 
+$ lttng enable-event --userspace chunk_transfer_perf_lttng:netem
 $ lttng start
 $ lttng stop
 ```

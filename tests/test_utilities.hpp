@@ -148,8 +148,6 @@ struct NetemRAII
                           std::to_string(delayMs) + "ms " +
                           std::to_string(delayJitter) + "ms distribution normal";
 
-        std::cout << cmd << std::endl;
-
         if (std::system(cmd.c_str()) != 0)
         {
             std::cerr << "Failed to set network emulation." << std::endl;

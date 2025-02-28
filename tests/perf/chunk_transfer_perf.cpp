@@ -197,6 +197,8 @@ int main(int argc, char* argv[])
         double delayJitter = vm["delay_jitter"].as<double>();
 
         NetemRAII netemRAII(lossPercentage, bitRate, delayMs, delayJitter);
+        lttng_ust_tracepoint(chunk_transfer_perf_lttng, netem, lossPercentage,
+                             bitRate, delayMs, delayJitter);
         //////////////////////////////////////////////////////////////////////////
 
         //////////////////////////////////////////////////////////////////////////
