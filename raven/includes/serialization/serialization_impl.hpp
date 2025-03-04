@@ -137,4 +137,34 @@ serialize_return_t serialize(ds::chunk& c, const StreamHeaderSubgroupObject& msg
 serialize_return_t
 serialize(ds::chunk& c, const rvn::SubscribeErrorMessage& subscribeErrorMessage);
 
+template <typename ToEndianess = NetworkEndian>
+serialize_return_t
+serialize(ds::chunk& c, const rvn::TrackStatusRequestMessage& trackStatusRequestMessage, ToEndianess = network_endian) 
+{
+    std::uint64_t msgLen = 0;
+    //we need to find out the length of the message we would be serializing
+    {
+        msgLen += mock_serialize<ds::quic_var_int>(trackStatusRequestMessage.trackNamespace_.size());
+        msgLen += trackStatusRequestMessage.trackNamespace_.size();
+
+        msgLen += mock_serialize<ds::quic_var_int>(trackStatusRequestMessage.trackName_.size());
+        msgLen += trackStatusRequestMessage.trackName_.size();
+    }
+    //Header
+    std::uint64_t headerLen = 0;
+    headerLen += serialize<ds::quic_var_int>(c, utils::to_underlying
+    (MoQtMessageType::TRACK_STATUS_REQUEST),
+                                ToEndianess{});
+    headerLen += serialize<ds::quic_var_int>(c, msgLen, ToEndianess{});
+
+    //Body
+    serialize<ds::quic_var_int>(c, trackStatusRequestMessage.trackNamespace_.size(), ToEndianess{});
+    c.append(trackStatusRequestMessage.trackNamespace_.data(), trackStatusRequestMessage.trackNamespace_.size());
+
+    serialize<ds::quic_var_int>(c, trackStatusRequestMessage.trackName_.size(), ToEndianess{});
+    c.append(trackStatusRequestMessage.trackName_.data(), trackStatusRequestMessage.trackName_.size());
+
+    return headerLen + msgLen;
+}
+
 } // namespace rvn::serialization::detail
