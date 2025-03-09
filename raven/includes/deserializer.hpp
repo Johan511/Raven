@@ -1,10 +1,8 @@
 #pragma once
 ///////////////////////////////////////////////////////////////////////////////
 #include "strong_types.hpp"
-#include <chrono>
 #include <limits>
 #include <optional>
-#include <stdexcept>
 #include <utility>
 ///////////////////////////////////////////////////////////////////////////////
 #include <non_contiguous_span.hpp>
@@ -409,6 +407,7 @@ template <typename DeserializedMessageHandler> class Deserializer
                  std::addressof((*bufferIter)->Buffer[(*bufferIter)->Length]) };
     }
 
+    // computing size is a relatively expensive operation, so we cache the size
     mutable std::uint64_t cachedSize_;
     std::uint64_t size() const noexcept
     {
@@ -426,9 +425,10 @@ template <typename DeserializedMessageHandler> class Deserializer
     }
 
 public:
+    std::uint64_t numBytesReceived;
     Deserializer(bool isControlStream, DeserializedMessageHandler messageHandler = {})
     : messageHandler_(messageHandler), dataStreamHeader_(std::nullopt),
-      cachedSize_(std::numeric_limits<std::uint64_t>::max())
+      cachedSize_(std::numeric_limits<std::uint64_t>::max()), numBytesReceived(0)
     {
         if (isControlStream)
         {
@@ -445,7 +445,9 @@ public:
     void append_buffer(UniqueQuicBuffer buffer)
     {
         std::unique_lock<std::mutex> lock(quicBuffersMutex_);
-        cachedSize_ = std::numeric_limits<std::uint64_t>::max();
+        if (cachedSize_ != std::numeric_limits<std::uint64_t>::max())
+            cachedSize_ += buffer->Length;
+        numBytesReceived += buffer->Length;
         quicBuffers_.emplace_back(std::move(buffer));
 
         process_state_machine_input();

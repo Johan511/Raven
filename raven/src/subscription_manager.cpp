@@ -20,10 +20,10 @@ namespace rvn
 MinorSubscriptionState::MinorSubscriptionState(SubscriptionState& subscriptionState,
                                                ObjectIdentifier objectToSend,
                                                std::optional<ObjectIdentifier> lastObjectToBeSent,
-                                               bool abortIfSending)
+                                               bool mustBeSent)
 : subscriptionState_(std::addressof(subscriptionState)),
   objectToSend_(std::move(objectToSend)),
-  lastObjectToBeSent_(std::move(lastObjectToBeSent)), abortIfSending_(abortIfSending)
+  lastObjectToBeSent_(std::move(lastObjectToBeSent)), mustBeSent_(mustBeSent)
 {
 }
 
@@ -69,7 +69,7 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
     {
         QUIC_BUFFER* quicBuffer = std::get<QUIC_BUFFER*>(objectOrStatus);
 
-        if (abortIfSending_ && previouslySentObject_.has_value())
+        if (!mustBeSent_ && previouslySentObject_.has_value())
         {
             connectionStateSharedPtr->abort_if_sending(*previouslySentObject_);
         }
@@ -135,7 +135,7 @@ FulfillSomeReturn SubscriptionState::fulfill_some()
 
 FulfillSomeReturn
 SubscriptionState::add_group_subscription(const GroupHandle& groupHandle,
-                                          bool abortIfSending,
+                                          bool mustBeSent,
                                           std::optional<ObjectId> beginObjectId,
                                           std::optional<ObjectId> endObjectId)
 {
@@ -152,7 +152,7 @@ SubscriptionState::add_group_subscription(const GroupHandle& groupHandle,
     minorSubscriptionStates_
     .emplace_back(*this, ObjectIdentifier(groupHandle.groupIdentifier_, *beginObjectId),
                   ObjectIdentifier(groupHandle.groupIdentifier_, *endObjectId),
-                  abortIfSending);
+                  mustBeSent);
 
     return false;
 }
@@ -200,7 +200,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
             dataManager_->get_group_handle(GroupIdentifier(trackIdentifier, *currGroupOpt));
 
             if (auto groupHandleSharedPtr = groupHandle.lock())
-                add_group_subscription(*groupHandleSharedPtr, false);
+                add_group_subscription(*groupHandleSharedPtr, true);
             else
             {
                 subscriptionManager_->notify_subscription_error(*this);
@@ -236,7 +236,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                     return;
                 }
 
-                add_group_subscription(*groupHandleSharedPtr, false, latestObjectOpt);
+                add_group_subscription(*groupHandleSharedPtr, true, latestObjectOpt);
             }
             else
             {
@@ -267,7 +267,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                                        subscriptionMessage_.start_->object_);
                 ++groupHandleIter;
                 for (; groupHandleIter != trackHandleSharedPtr->groupHandles_.end(); ++groupHandleIter)
-                    add_group_subscription(*groupHandleIter->second, true);
+                    add_group_subscription(*groupHandleIter->second, false);
             }
             else
             {
@@ -299,21 +299,21 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
 
                 if (beginGroupHandleIter->first == endGroupHandleIter->first)
                 {
-                    add_group_subscription(*beginGroupHandleIter->second, false,
+                    add_group_subscription(*beginGroupHandleIter->second, true,
                                            subscriptionMessage_.start_->object_,
                                            subscriptionMessage_.end_->object_);
                     return;
                 }
                 else
                 {
-                    add_group_subscription(*beginGroupHandleIter->second, false,
+                    add_group_subscription(*beginGroupHandleIter->second, true,
                                            subscriptionMessage_.start_->object_);
 
                     for (auto groupHandleIter = std::next(beginGroupHandleIter);
                          groupHandleIter != endGroupHandleIter; ++groupHandleIter)
-                        add_group_subscription(*groupHandleIter->second, false);
+                        add_group_subscription(*groupHandleIter->second, true);
 
-                    add_group_subscription(*endGroupHandleIter->second, false, std::nullopt,
+                    add_group_subscription(*endGroupHandleIter->second, true, std::nullopt,
                                            subscriptionMessage_.end_->object_);
                 }
             }

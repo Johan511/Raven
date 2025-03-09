@@ -1,4 +1,3 @@
-#include "moqt_server.hpp"
 #include "serialization/messages.hpp"
 #include <contexts.hpp>
 #include <message_handler.hpp>

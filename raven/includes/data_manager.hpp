@@ -322,6 +322,10 @@ class DataManager
                       ObjectId objectId,
                       std::string&& object);
 
+    bool store_object(std::shared_ptr<GroupHandle> groupHandleWeakPtr,
+                      ObjectId objectId,
+                      std::string&& object);
+
 public:
     std::weak_ptr<TrackHandle>
     add_track_identifier(std::vector<std::string> tracknamespace, std::string trackname)

@@ -35,14 +35,14 @@ class MinorSubscriptionState
     ObjectIdentifier objectToSend_;
     std::optional<ObjectIdentifier> lastObjectToBeSent_;
 
-    bool abortIfSending_;
+    bool mustBeSent_;
     std::optional<ObjectWaitSignal> objectWaitSignal_;
 
 public:
     MinorSubscriptionState(SubscriptionState& subscriptionState,
                            ObjectIdentifier objectToSend,
                            std::optional<ObjectIdentifier> lastObjectToBeSent,
-                           bool abortIfSending);
+                           bool mustBeSent);
 
     // returs true if minor subscription state has been fulfilled
     FulfillSomeReturn fulfill_some_minor();
@@ -72,7 +72,7 @@ class SubscriptionState
 
     FulfillSomeReturn
     add_group_subscription(const GroupHandle& groupHandle,
-                           bool abortIfSending,
+                           bool mustBeSent,
                            std::optional<ObjectId> beginObjectId = {},
                            std::optional<ObjectId> endObjectId = {});
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "definitions.hpp"
+#include <chrono>
 #include <contexts.hpp>
 #include <moqt.hpp>
 #include <msquic.h>
@@ -191,8 +193,6 @@ static constexpr auto client_data_stream_callback =
     StreamContext* streamContext = static_cast<StreamContext*>(context);
     ConnectionState& connectionState = streamContext->connectionState_;
     MOQT& moqtObject = streamContext->moqtObject_;
-
-    // moqtObject.get_tbl()->StreamReceiveSetEnabled(dataStream, true);
 
     // TODO: wait for stream setup
     switch (event->Type)

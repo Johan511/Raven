@@ -32,6 +32,7 @@ enum class StreamType
 
 struct StreamContext
 {
+    TimePoint streamCreationTimePoint_;
     std::atomic_bool streamHasBeenConstructed{};
     class MOQT& moqtObject_;
     /*  We can not have reference to StreamState
@@ -48,7 +49,8 @@ struct StreamContext
     */
     std::optional<serialization::Deserializer<MessageHandler>> deserializer_;
     StreamContext(MOQT& moqtObject, ConnectionState& connectionState)
-    : moqtObject_(moqtObject), connectionState_(connectionState) {};
+    : streamCreationTimePoint_(Clock::now()), moqtObject_(moqtObject),
+      connectionState_(connectionState) {};
 
     // deserializer can not be constructed in the constructor and has to be done seperately
     void construct_deserializer(StreamState& streamState, bool isControlStream);

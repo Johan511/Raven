@@ -114,8 +114,7 @@ bool SubgroupHandle::add_object(std::string object)
     if (!groupHandleSharedPtr)
         return false;
 
-    const auto& groupIdentifier = groupHandleSharedPtr->groupIdentifier_;
-    return dataManager_.store_object(groupIdentifier,
+    return dataManager_.store_object(std::move(groupHandleSharedPtr),
                                      ObjectId(beginObjectId_ + numObjects_++),
                                      std::move(object));
 }
@@ -310,14 +309,10 @@ std::string DataManager::get_path_string(const ObjectIdentifier& objectIdentifie
            std::to_string(objectIdentifier.objectId_);
 }
 
-bool DataManager::store_object(const GroupIdentifier& groupIdentifier,
+bool DataManager::store_object(std::shared_ptr<GroupHandle> groupHandleSharedPtr,
                                ObjectId objectId,
                                std::string&& object)
 {
-    auto groupHandleSharedPtr = get_group_handle(groupIdentifier).lock();
-    if (groupHandleSharedPtr == nullptr)
-        return false;
-
     StreamHeaderSubgroupObject subgroupObject;
     subgroupObject.objectId_ = objectId;
     subgroupObject.payload_ = object;
@@ -328,7 +323,8 @@ bool DataManager::store_object(const GroupIdentifier& groupIdentifier,
     [quicBuffer, objectId](auto& cache)
     { cache.emplace(ObjectId(objectId), quicBuffer); });
 
-    std::string pathString = get_path_string(groupIdentifier) + std::to_string(objectId);
+    std::string pathString =
+    get_path_string(groupHandleSharedPtr->groupIdentifier_) + std::to_string(objectId);
     std::string tempFilePath = pathString + ".temp";
 
     std::ofstream file(tempFilePath);
@@ -345,6 +341,17 @@ bool DataManager::store_object(const GroupIdentifier& groupIdentifier,
     });
     std::filesystem::rename(tempFilePath, pathString);
     return true;
+}
+
+bool DataManager::store_object(const GroupIdentifier& groupIdentifier,
+                               ObjectId objectId,
+                               std::string&& object)
+{
+    auto groupHandleSharedPtr = get_group_handle(groupIdentifier).lock();
+    if (groupHandleSharedPtr == nullptr)
+        return false;
+
+    return store_object(std::move(groupHandleSharedPtr), objectId, std::move(object));
 }
 
 std::optional<ObjectId> DataManager::get_first_object(const GroupIdentifier& groupIdentifier)

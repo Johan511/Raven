@@ -214,7 +214,7 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
         rvn::unique_stream(moqtObject_.get_tbl(),
                            { connection_.get(), QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
                              moqtObject_.data_stream_cb_wrapper, streamContext },
-                           { QUIC_STREAM_START_FLAG_SHUTDOWN_ON_FAIL });
+                           { QUIC_STREAM_START_FLAG_IMMEDIATE });
 
         QUIC_STATUS status = dataStreams.write(
         [&, streamIn = std::move(stream), this](StableContainer<DataStreamState>& dataStreams) mutable

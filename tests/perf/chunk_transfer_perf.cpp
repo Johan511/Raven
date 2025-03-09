@@ -48,17 +48,16 @@ constexpr std::uint16_t numMsQuicWorkersPerServer = 6;
 constexpr std::uint16_t numMsQuicWorkersPerClient = 3;
 std::uint16_t numProcessors = std::thread::hardware_concurrency();
 ////////////////////////////////////////////////////////////////////
-std::uint64_t numObjects = 1'000;
-std::uint64_t msBetweenObjects = 500;
-constexpr std::uint8_t numGroups = 4;
+std::uint64_t numObjects;
+std::uint64_t msBetweenObjects;
+constexpr std::uint8_t numGroups = 5;
 ////////////////////////////////////////////////////////////////////
 
 
 std::string generate_object(std::uint64_t groupId, std::uint64_t objectId)
 {
     std::uint64_t currTime = get_current_ms_timestamp();
-    // size of object is (1 << 16) * 4 ^ x (x is groupId)
-    std::string object((1 << 16) * (1 << (2 * groupId)), 0);
+    std::string object((1 << 15) * (1 << groupId), 0);
     std::memcpy(object.data(), reinterpret_cast<const char*>(&currTime), sizeof(currTime));
     std::memcpy(object.data() + sizeof(std::uint64_t),
                 reinterpret_cast<const char*>(&groupId), sizeof(groupId));
@@ -81,7 +80,7 @@ int main(int argc, char* argv[])
         ("bit_rate,b", po::value<double>()->default_value(4096), "Bit rate in kbits per second")
         ("delay_ms,d", po::value<double>()->default_value(50), "Network delay in milliseconds")
         ("delay_jitter,j", po::value<double>()->default_value(10), "Network delay jitter in milliseconds")
-        ("sample_time,s", po::value<std::uint64_t>()->default_value(500), "Milliseconds between objects");
+        ("sample_time,s", po::value<std::uint64_t>()->default_value(250), "Milliseconds between objects");
     // clang-format on
 
     po::variables_map vm;
@@ -122,6 +121,8 @@ int main(int argc, char* argv[])
         QUIC_EXECUTION_CONFIG* serverConfig =
         reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawServerConfig);
         serverConfig->ProcessorCount = numMsQuicWorkersPerServer;
+        serverConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
+        serverConfig->PollingIdleTimeoutUs = 50000;
 
         if (numProcessors < numMsQuicWorkersPerServer)
         {
@@ -134,6 +135,9 @@ int main(int argc, char* argv[])
         for (std::uint16_t i = 0; i < numMsQuicWorkersPerServer; i++)
             serverConfig->ProcessorList[i] = i;
 
+        std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
+        std::system(setNicenessString.c_str());
+
         std::unique_ptr<MOQTServer> moqtServer =
         server_setup(std::make_tuple(serverConfig, sizeof(rawServerConfig)));
 
@@ -141,10 +145,11 @@ int main(int argc, char* argv[])
         auto trackHandle = dm->add_track_identifier({}, "track");
 
         std::array groupHandles = {
-            trackHandle.lock()->add_group(GroupId(0), PublisherPriority(3)), // high priorty means would be sent first
-            trackHandle.lock()->add_group(GroupId(1), PublisherPriority(2)),
-            trackHandle.lock()->add_group(GroupId(2), PublisherPriority(1)),
-            trackHandle.lock()->add_group(GroupId(3), PublisherPriority(0))
+            trackHandle.lock()->add_group(GroupId(0), PublisherPriority(4)), // high priorty means would be sent first
+            trackHandle.lock()->add_group(GroupId(1), PublisherPriority(3)),
+            trackHandle.lock()->add_group(GroupId(2), PublisherPriority(2)),
+            trackHandle.lock()->add_group(GroupId(3), PublisherPriority(1)),
+            trackHandle.lock()->add_group(GroupId(4), PublisherPriority(0))
         };
 
         {
@@ -209,7 +214,8 @@ int main(int argc, char* argv[])
         InterprocessSynchronizationData* dataChild =
         static_cast<InterprocessSynchronizationData*>(regionChild.get_address());
         //////////////////////////////////////////////////////////////////////////
-
+        std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
+        std::system(setNicenessString.c_str());
 
         for (;;)
         {
@@ -233,6 +239,10 @@ int main(int argc, char* argv[])
         reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawExecutionConfig);
 
         executionConfig->ProcessorCount = numMsQuicWorkersPerClient;
+        executionConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
+        executionConfig->PollingIdleTimeoutUs = 50000;
+
+
         /*
             We want to map the client workers to the processors after the server workers
             so i = clientFirstProcessorId + j (j = 0, 1, 2, ..., numMsQuicWorkersPerClient - 1)
@@ -282,6 +292,9 @@ int main(int argc, char* argv[])
             reinterpret_cast<std::uint64_t*>(enrichedObject.object_.payload_.data());
             std::uint64_t* groupId = sentTimestamp + 1;
             std::uint64_t* objectId = groupId + 1;
+
+            std::cout << currTimestamp - *sentTimestamp << " " << *groupId
+                      << " " << *objectId << '\n';
 
             lttng_ust_tracepoint(chunk_transfer_perf_lttng, object_recv, thisClientPid,
                                  currTimestamp - *sentTimestamp, *groupId, *objectId,

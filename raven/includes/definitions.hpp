@@ -1,6 +1,7 @@
 #pragma once
 
 #include <blockingconcurrentqueue.h>
+#include <chrono>
 #include <list>
 #include <shared_mutex>
 #include <utility>
@@ -73,5 +74,7 @@ public:
     }
 };
 
+using Clock = std::chrono::steady_clock;
+using TimePoint = std::chrono::time_point<Clock>;
 
 } // namespace rvn
