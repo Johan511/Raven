@@ -237,6 +237,9 @@ private:
         }
     };
 
+    // stores number of concrete objects that is, objects which have been stored
+    std::atomic<std::uint64_t> numStoredObjects_;
+
     std::shared_mutex objectIdsMtx_;
     std::set<std::uint64_t, Comparator> objectIds_;
 
@@ -346,7 +349,10 @@ public:
 
     std::optional<GroupId> get_first_group(const TrackIdentifier&);
     std::optional<ObjectId> get_first_object(const GroupIdentifier&);
-    std::optional<ObjectId> get_latest_object(const GroupIdentifier&);
+
+    // last object might be concrete (stored) or just registered (expected to be published, at some point)
+    std::optional<ObjectId> get_latest_registered_object(const GroupIdentifier&);
+    std::optional<ObjectId> get_latest_concrete_object(const GroupIdentifier&);
 
     std::optional<PublisherPriority>
     get_publisher_priority(const GroupIdentifier& groupIdentifier);

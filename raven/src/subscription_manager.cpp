@@ -145,14 +145,14 @@ SubscriptionState::add_group_subscription(const GroupHandle& groupHandle,
         return SubscriptionStateErr::ObjectDoesNotExist{};
 
     if (endObjectId == std::nullopt)
-        endObjectId = dataManager_->get_latest_object(groupHandle.groupIdentifier_);
+        endObjectId =
+        dataManager_->get_latest_registered_object(groupHandle.groupIdentifier_);
     if (endObjectId == std::nullopt)
         return SubscriptionStateErr::ObjectDoesNotExist{};
 
     minorSubscriptionStates_
     .emplace_back(*this, ObjectIdentifier(groupHandle.groupIdentifier_, *beginObjectId),
-                  ObjectIdentifier(groupHandle.groupIdentifier_, *endObjectId),
-                  mustBeSent);
+                  ObjectIdentifier(groupHandle.groupIdentifier_, *endObjectId), mustBeSent);
 
     return false;
 }
@@ -228,8 +228,8 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
 
             if (auto groupHandleSharedPtr = groupHandle.lock())
             {
-                auto latestObjectOpt =
-                dataManager_->get_latest_object(groupHandleSharedPtr->groupIdentifier_);
+                auto latestObjectOpt = dataManager_->get_latest_registered_object(
+                groupHandleSharedPtr->groupIdentifier_);
                 if (!latestObjectOpt.has_value())
                 {
                     subscriptionManager_->notify_subscription_error(*this);
@@ -267,7 +267,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                                        subscriptionMessage_.start_->object_);
                 ++groupHandleIter;
                 for (; groupHandleIter != trackHandleSharedPtr->groupHandles_.end(); ++groupHandleIter)
-                    add_group_subscription(*groupHandleIter->second, false);
+                    add_group_subscription(*groupHandleIter->second, true);
             }
             else
             {
@@ -316,6 +316,27 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                     add_group_subscription(*endGroupHandleIter->second, true, std::nullopt,
                                            subscriptionMessage_.end_->object_);
                 }
+            }
+            else
+            {
+                subscriptionManager_->notify_subscription_error(*this);
+                return;
+            }
+            break;
+        }
+        case SubscribeMessage::FilterType::LatestPerGroupInTrack:
+        {
+            std::weak_ptr<TrackHandle> trackHandle =
+            dataManager_->get_track_handle(trackIdentifier);
+
+            if (auto trackHandleSharedPtr = trackHandle.lock())
+            {
+                std::shared_lock l(trackHandleSharedPtr->groupHandlesMtx_);
+                for (auto& groupHandleIter : trackHandleSharedPtr->groupHandles_)
+                    // TODO: update it such that mustBeSent is true for base layers
+                    add_group_subscription(*groupHandleIter.second, false,
+                                           dataManager_->get_latest_concrete_object(
+                                           groupHandleIter.second->groupIdentifier_));
             }
             else
             {

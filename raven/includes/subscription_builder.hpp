@@ -116,13 +116,17 @@ public:
         {
             static constexpr auto filterType = SubscribeMessage::FilterType::AbsoluteRange;
         };
-
+        struct LatestPerGroupInTrack
+        {
+            static constexpr auto filterType = SubscribeMessage::FilterType::LatestPerGroupInTrack;
+        };
 
     public:
         static constexpr auto latestGroup = LatestGroup{};
         static constexpr auto latestObject = LatestObject{};
         static constexpr auto absoluteStart = AbsoluteStart{};
         static constexpr auto absoluteRange = AbsoluteRange{};
+        static constexpr auto latestPerGroupInTrack = LatestPerGroupInTrack{};
     }; // namespace Filter
 
 
@@ -155,6 +159,13 @@ public:
         subscribeMessage_.filterType_ = f.filterType;
         subscribeMessage_.start_ = start;
         subscribeMessage_.end_ = end;
+        setElementsCounter_ |= (1 << utils::to_underlying(SetElements::Range));
+        return *this;
+    }
+
+    SubscriptionBuilder& set_data_range(Filter::LatestPerGroupInTrack f)
+    {
+        subscribeMessage_.filterType_ = f.filterType;
         setElementsCounter_ |= (1 << utils::to_underlying(SetElements::Range));
         return *this;
     }

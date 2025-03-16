@@ -265,8 +265,7 @@ int main(int argc, char* argv[])
         subscriptionBuilder.set_track_alias(TrackAlias(0));
         subscriptionBuilder.set_track_namespace({});
         subscriptionBuilder.set_track_name("track");
-        subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::absoluteStart,
-                                           { GroupId(0), ObjectId(0) });
+        subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestPerGroupInTrack);
         subscriptionBuilder.set_subscriber_priority(0);
         subscriptionBuilder.set_group_order(0);
 

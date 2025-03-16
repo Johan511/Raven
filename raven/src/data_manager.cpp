@@ -1,6 +1,7 @@
 #include "serialization/messages.hpp"
 #include "serialization/serialization.hpp"
 #include "strong_types.hpp"
+#include <atomic>
 #include <cstdio>
 #include <data_manager.hpp>
 #include <filesystem>
@@ -114,9 +115,16 @@ bool SubgroupHandle::add_object(std::string object)
     if (!groupHandleSharedPtr)
         return false;
 
-    return dataManager_.store_object(std::move(groupHandleSharedPtr),
-                                     ObjectId(beginObjectId_ + numObjects_++),
-                                     std::move(object));
+
+    bool storeReturn = dataManager_.store_object(groupHandleSharedPtr,
+                                                 ObjectId(beginObjectId_ + numObjects_++),
+                                                 std::move(object));
+
+    // if store return is true, it means object has been succesfully stored
+    // hb relationship between operations till now and num objects stored makes sense
+    groupHandleSharedPtr->numStoredObjects_.fetch_add(storeReturn, std::memory_order_relaxed);
+
+    return storeReturn;
 }
 
 void SubgroupHandle::cap()
@@ -309,6 +317,7 @@ std::string DataManager::get_path_string(const ObjectIdentifier& objectIdentifie
            std::to_string(objectIdentifier.objectId_);
 }
 
+// returns true if object has been stored
 bool DataManager::store_object(std::shared_ptr<GroupHandle> groupHandleSharedPtr,
                                ObjectId objectId,
                                std::string&& object)
@@ -396,7 +405,8 @@ std::optional<GroupId> DataManager::get_first_group(const TrackIdentifier& track
     return trackHandleSharedPtr->groupHandles_.begin()->first;
 }
 
-std::optional<ObjectId> DataManager::get_latest_object(const GroupIdentifier& groupIdentifier)
+std::optional<ObjectId>
+DataManager::get_latest_registered_object(const GroupIdentifier& groupIdentifier)
 {
     std::shared_lock l(objectHierarchyMtx_);
 
@@ -419,6 +429,35 @@ std::optional<ObjectId> DataManager::get_latest_object(const GroupIdentifier& gr
         return std::nullopt;
 
     return ObjectId(*groupHandleSharedPtr->objectIds_.rbegin() & (~(1ULL << 63)));
+}
+
+std::optional<ObjectId>
+DataManager::get_latest_concrete_object(const GroupIdentifier& groupIdentifier)
+{
+    std::shared_lock l(objectHierarchyMtx_);
+
+    auto iter = objectHierarchy_.find(groupIdentifier);
+    if (iter == objectHierarchy_.end())
+        return std::nullopt;
+
+    std::shared_ptr<TrackHandle> trackHandleSharedPtr = iter->second;
+    l = std::shared_lock(trackHandleSharedPtr->groupHandlesMtx_);
+
+    auto groupHandleIter =
+    trackHandleSharedPtr->groupHandles_.find(groupIdentifier.groupId_);
+    if (groupHandleIter == trackHandleSharedPtr->groupHandles_.end())
+        return std::nullopt;
+
+    std::shared_ptr<GroupHandle> groupHandleSharedPtr = groupHandleIter->second;
+    l = std::shared_lock(groupHandleSharedPtr->objectIdsMtx_);
+
+    auto numObjects =
+    groupHandleSharedPtr->numStoredObjects_.load(std::memory_order_acquire);
+    if (numObjects == 0)
+        return std::nullopt;
+
+    // Race condition of someone deleting the object after the empty check is not possible because of the shared_lock we hold
+    return ObjectId(numObjects - 1);
 }
 
 std::optional<PublisherPriority>
