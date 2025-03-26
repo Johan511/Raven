@@ -21,3 +21,5 @@ add_raven_test(perf/chunk_transfer_perf.cpp perf/chunk_transfer_perf_lttng.c)
 target_link_libraries(chunk_transfer_perf PRIVATE Boost::program_options Boost::log ${LTTNGUST_LIBRARIES})
 target_include_directories(chunk_transfer_perf PRIVATE ${LTTNGUST_INCLUDE_DIRS} perf/)
 target_compile_definitions(chunk_transfer_perf PRIVATE -DBOOST_LOG_DYN_LINK)
+
+add_raven_test(perf/timer_wheel.cpp)
