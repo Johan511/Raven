@@ -17,10 +17,7 @@
 #include <wrappers.hpp>
 //////////////////////////////
 
-extern "C"
-{
 #include <msquic.h>
-}
 
 namespace rvn
 {

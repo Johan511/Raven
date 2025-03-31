@@ -12,17 +12,17 @@ namespace detail
     public:
         ValueType value_;
 
-        explicit StrongTypeImpl(ValueType value) : value_(value)
+        constexpr explicit StrongTypeImpl(ValueType value) : value_(value)
         {
         }
-        explicit StrongTypeImpl() : value_()
+        constexpr explicit StrongTypeImpl() : value_()
         {
         }
-        ValueType& get()
+        constexpr ValueType& get()
         {
             return value_;
         }
-        const ValueType& get() const
+        constexpr const ValueType& get() const
         {
             return value_;
         }
@@ -31,119 +31,119 @@ namespace detail
     template <typename ValueType, typename Derived> class UintCTRPTrait
     {
     private:
-        ValueType& get() noexcept
+        constexpr ValueType& get() noexcept
         {
             return static_cast<Derived&>(*this).get();
         }
 
-        const ValueType& get() const noexcept
+        constexpr const ValueType& get() const noexcept
         {
             return static_cast<const Derived&>(*this).get();
         }
 
     public:
-        operator ValueType() const noexcept
+        constexpr operator ValueType() const noexcept
         {
             return get();
         }
 
-        ValueType hash() const noexcept
+        constexpr ValueType hash() const noexcept
         {
             return get();
         }
         // Arthematic operators
         ////////////////////////////////////////////////////////////////
-        Derived& operator+=(const Derived& other) noexcept
+        constexpr Derived& operator+=(const Derived& other) noexcept
         {
             get() += other.get();
             return *this;
         }
-        Derived& operator-=(const Derived& other) noexcept
+        constexpr Derived& operator-=(const Derived& other) noexcept
         {
             get() -= other.get();
             return *this;
         }
-        Derived& operator*=(const Derived& other) noexcept
+        constexpr Derived& operator*=(const Derived& other) noexcept
         {
             get() *= other.get();
             return *this;
         }
-        Derived& operator/=(const Derived& other) noexcept
+        constexpr Derived& operator/=(const Derived& other) noexcept
         {
             get() /= other.get();
             return *this;
         }
-        Derived& operator%=(const Derived& other) noexcept
+        constexpr Derived& operator%=(const Derived& other) noexcept
         {
             get() %= other.get();
             return *this;
         }
 
-        Derived operator+(const Derived& other) const noexcept
+        constexpr Derived operator+(const Derived& other) const noexcept
         {
             return Derived(get() + other.get());
         }
-        Derived operator-(const Derived& other) const noexcept
+        constexpr Derived operator-(const Derived& other) const noexcept
         {
             return Derived(get() - other.get());
         }
-        Derived operator*(const Derived& other) const noexcept
+        constexpr Derived operator*(const Derived& other) const noexcept
         {
             return Derived(get() * other.get());
         }
-        Derived operator/(const Derived& other) const noexcept
+        constexpr Derived operator/(const Derived& other) const noexcept
         {
             return Derived(get() / other.get());
         }
-        Derived operator%(const Derived& other) const noexcept
+        constexpr Derived operator%(const Derived& other) const noexcept
         {
             return Derived(get() % other.get());
         }
 
         // Comparison operators
-        bool operator==(const Derived& other) const noexcept
+        constexpr bool operator==(const Derived& other) const noexcept
         {
             return get() == other.get();
         }
-        bool operator!=(const Derived& other) const noexcept
+        constexpr bool operator!=(const Derived& other) const noexcept
         {
             return get() != other.get();
         }
-        bool operator<(const Derived& other) const noexcept
+        constexpr bool operator<(const Derived& other) const noexcept
         {
             return get() < other.get();
         }
-        bool operator<=(const Derived& other) const noexcept
+        constexpr bool operator<=(const Derived& other) const noexcept
         {
             return get() <= other.get();
         }
-        bool operator>(const Derived& other) const noexcept
+        constexpr bool operator>(const Derived& other) const noexcept
         {
             return get() > other.get();
         }
-        bool operator>=(const Derived& other) const noexcept
+        constexpr bool operator>=(const Derived& other) const noexcept
         {
             return get() >= other.get();
         }
 
         // Increment and decrement operators
-        Derived& operator++() noexcept
+        constexpr Derived& operator++() noexcept
         {
             ++get();
             return *this;
         }
-        Derived operator++(int) noexcept
+        constexpr Derived operator++(int) noexcept
         {
             Derived temp = *this;
             ++get();
             return temp;
         }
-        Derived& operator--() noexcept
+        constexpr Derived& operator--() noexcept
         {
             --get();
             return *this;
         }
-        Derived operator--(int) noexcept
+        constexpr Derived operator--(int) noexcept
         {
             Derived temp = *this;
             --get();

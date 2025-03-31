@@ -2,6 +2,7 @@
 
 #pragma once
 ////////////////////////////////////////////
+#include <chrono>
 #include <serialization/quic_var_int.hpp>
 #include <strong_types.hpp>
 #include <utilities.hpp>
@@ -55,26 +56,42 @@ struct ControlMessageHeader
 
 enum class ParameterType : std::uint64_t
 {
+    DeliveryTimeout = 0x03,
 };
 
 // Only one parameter of each type should be sent
+
+struct DeliveryTimeoutParameter
+{
+    std::chrono::milliseconds timeout_;
+
+    bool operator==(const DeliveryTimeoutParameter&) const = default;
+
+    friend inline std::ostream&
+    operator<<(std::ostream& os, const DeliveryTimeoutParameter& param)
+    {
+        os << "Timeout: " << param.timeout_.count();
+        return os;
+    }
+};
+
+using ParameterImpl = std::variant<DeliveryTimeoutParameter>;
 struct Parameter
 {
-    ParameterType parameterType_;
-    std::string parameterValue_;
+    ParameterImpl parameter_;
 
     bool operator==(const Parameter&) const = default;
 
     friend inline std::ostream& operator<<(std::ostream& os, const Parameter& parameter)
     {
-        os << "ParameterType: " << utils::to_underlying(parameter.parameterType_)
-           << " ParameterValue: " << parameter.parameterValue_;
+        os << "Parameter: ";
+        std::visit([&os](const auto& param) { os << param; }, parameter.parameter_);
         return os;
     }
 };
 
 ///////////////////////////// Messages ///////////////////////////////
-struct ControlMessageBase
+template <typename DerivedControlMessage> struct ControlMessageBase
 {
     MoQtMessageType messageType_;
 
@@ -85,6 +102,20 @@ struct ControlMessageBase
     virtual ~ControlMessageBase() = default;
 
     bool operator==(const ControlMessageBase&) const = default;
+
+    template <typename ParameterTemplate>
+    std::optional<ParameterTemplate> get_parameter() const
+    {
+        const auto& parameters = static_cast<const DerivedControlMessage*>(this)->parameters_;
+        for (const auto& parameter : parameters)
+        {
+            if (std::holds_alternative<ParameterTemplate>(parameter.parameter_))
+            {
+                return std::get<ParameterTemplate>(parameter.parameter_);
+            }
+        }
+        return std::nullopt;
+    }
 };
 
 
@@ -98,7 +129,7 @@ struct ControlMessageBase
       Setup Parameters (..) ...,
     }
 */
-struct ClientSetupMessage : ControlMessageBase
+struct ClientSetupMessage : ControlMessageBase<ClientSetupMessage>
 {
     /*
         MoQ Transport versions are a 32-bit unsigned integer, encoded as a
@@ -136,7 +167,7 @@ struct ClientSetupMessage : ControlMessageBase
       Setup Parameters (..) ...,
     }
 */
-struct ServerSetupMessage : ControlMessageBase
+struct ServerSetupMessage : ControlMessageBase<ServerSetupMessage>
 {
     MOQTVersion selectedVersion_;
     std::vector<Parameter> parameters_;
@@ -176,7 +207,7 @@ struct ServerSetupMessage : ControlMessageBase
       Subscribe Parameters (..) ...
     }
 */
-struct SubscribeMessage : public ControlMessageBase
+struct SubscribeMessage : public ControlMessageBase<SubscribeMessage>
 {
     enum class FilterType : std::uint64_t
     {
@@ -515,7 +546,7 @@ struct SubscribeOkMessage
     } ;
 */
 
-struct SubscribeErrorMessage : public ControlMessageBase
+struct SubscribeErrorMessage : public ControlMessageBase<SubscribeErrorMessage>
 {
     std::uint64_t subscribeId_;
     std::uint64_t errorCode_;

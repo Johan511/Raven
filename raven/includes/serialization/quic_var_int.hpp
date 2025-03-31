@@ -18,12 +18,12 @@ class quic_var_int : detail::UintCTRPTrait<std::uint64_t, quic_var_int>
     std::uint64_t value_{};
 
 public:
-    quic_var_int(std::uint64_t value) : value_(value)
+    constexpr quic_var_int(std::uint64_t value) : value_(value)
     {
     }
 
     // returns size in bytes
-    std::uint8_t size() const
+    std::uint8_t size() const noexcept
     {
         if (value_ < (1 << 6))
             return 1;
@@ -38,17 +38,17 @@ public:
     // Arthematic operators
     ////////////////////////////////////////////////////////////////
     // Conversion operator to std::uint64_t
-    operator std::uint64_t() const
+    operator std::uint64_t() const noexcept
     {
         return value_;
     }
 
-    const std::uint64_t& get() const
+    const std::uint64_t& get() const noexcept
     {
         return value_;
     }
 
-    std::uint64_t& get()
+    std::uint64_t& get() noexcept
     {
         return value_;
     }

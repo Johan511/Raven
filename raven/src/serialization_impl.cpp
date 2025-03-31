@@ -4,6 +4,32 @@
 namespace rvn::serialization::detail
 {
 ///////////////////////////////////////////////////////////////////////////////////////////////
+// Parameter serialization
+
+[[nodiscard]] serialize_return_t
+mock_serialize(const rvn::DeliveryTimeoutParameter& parameter)
+{
+    return mock_serialize<ds::quic_var_int>(parameter.timeout_.count());
+}
+
+[[nodiscard]] serialize_return_t mock_serialize(const rvn::Parameter& parameter)
+{
+    return std::visit([](const auto& param) { return mock_serialize(param); },
+                      parameter.parameter_);
+}
+
+serialize_return_t serialize(ds::chunk& c, const rvn::DeliveryTimeoutParameter& parameter)
+{
+    serialize<ds::quic_var_int>(c, parameter.timeout_.count());
+    return mock_serialize(parameter);
+}
+serialize_return_t serialize(ds::chunk& c, const rvn::Parameter& parameter)
+{
+    std::visit([&c](const auto& param) { serialize(c, param); }, parameter.parameter_);
+    return mock_serialize(parameter);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
 // Message serialization
 serialize_return_t serialize(ds::chunk& c, const rvn::ClientSetupMessage& clientSetupMessage)
 {
@@ -18,12 +44,7 @@ serialize_return_t serialize(ds::chunk& c, const rvn::ClientSetupMessage& client
         msgLen +=
         mock_serialize<ds::quic_var_int>(clientSetupMessage.parameters_.size());
         for (const auto& parameter : clientSetupMessage.parameters_)
-        {
-            msgLen += mock_serialize<ds::quic_var_int>(
-            static_cast<std::uint32_t>(parameter.parameterType_));
-            msgLen += mock_serialize<ds::quic_var_int>(parameter.parameterValue_.size());
-            msgLen += parameter.parameterValue_.size();
-        }
+            msgLen += mock_serialize(parameter);
     }
 
     std::uint64_t headerLen = 0;
@@ -40,12 +61,7 @@ serialize_return_t serialize(ds::chunk& c, const rvn::ClientSetupMessage& client
 
     serialize<ds::quic_var_int>(c, clientSetupMessage.parameters_.size());
     for (const auto& parameter : clientSetupMessage.parameters_)
-    {
-
-        serialize<ds::quic_var_int>(c, utils::to_underlying(parameter.parameterType_));
-        serialize<ds::quic_var_int>(c, parameter.parameterValue_.size());
-        c.append(parameter.parameterValue_.data(), parameter.parameterValue_.size());
-    }
+        serialize(c, parameter);
 
     return headerLen + msgLen;
 }
@@ -59,12 +75,7 @@ serialize_return_t serialize(ds::chunk& c, const rvn::ServerSetupMessage& server
         msgLen +=
         mock_serialize<ds::quic_var_int>(serverSetupMessage.parameters_.size());
         for (const auto& parameter : serverSetupMessage.parameters_)
-        {
-            msgLen += mock_serialize<ds::quic_var_int>(
-            static_cast<std::uint32_t>(parameter.parameterType_));
-            msgLen += mock_serialize<ds::quic_var_int>(parameter.parameterValue_.size());
-            msgLen += parameter.parameterValue_.size();
-        }
+            msgLen += mock_serialize(parameter);
     }
 
     std::uint64_t headerLen = 0;
@@ -75,11 +86,7 @@ serialize_return_t serialize(ds::chunk& c, const rvn::ServerSetupMessage& server
     serialize<ds::quic_var_int>(c, serverSetupMessage.selectedVersion_);
     serialize<ds::quic_var_int>(c, serverSetupMessage.parameters_.size());
     for (const auto& parameter : serverSetupMessage.parameters_)
-    {
-        serialize<ds::quic_var_int>(c, utils::to_underlying(parameter.parameterType_));
-        serialize<ds::quic_var_int>(c, parameter.parameterValue_.size());
-        c.append(parameter.parameterValue_.data(), parameter.parameterValue_.size());
-    }
+        serialize(c, parameter);
 
     return headerLen + msgLen;
 }
@@ -126,12 +133,7 @@ serialize_return_t serialize(ds::chunk& c, const rvn::SubscribeMessage& subscrib
 
         msgLen += mock_serialize<ds::quic_var_int>(subscribeMessage.parameters_.size());
         for (const auto& parameter : subscribeMessage.parameters_)
-        {
-            msgLen += mock_serialize<ds::quic_var_int>(
-            static_cast<std::uint32_t>(parameter.parameterType_));
-            msgLen += mock_serialize<ds::quic_var_int>(parameter.parameterValue_.size());
-            msgLen += parameter.parameterValue_.size();
-        }
+            msgLen += mock_serialize(parameter);
     }
 
     // header
@@ -172,11 +174,7 @@ serialize_return_t serialize(ds::chunk& c, const rvn::SubscribeMessage& subscrib
 
     serialize<ds::quic_var_int>(c, subscribeMessage.parameters_.size());
     for (const auto& parameter : subscribeMessage.parameters_)
-    {
-        serialize<ds::quic_var_int>(c, utils::to_underlying(parameter.parameterType_));
-        serialize<ds::quic_var_int>(c, parameter.parameterValue_.size());
-        c.append(parameter.parameterValue_.data(), parameter.parameterValue_.size());
-    }
+        serialize(c, parameter);
 
     return headerLen + msgLen;
 }

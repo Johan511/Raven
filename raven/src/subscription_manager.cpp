@@ -1,18 +1,20 @@
+/////////////////////////////////////////////
 #include <atomic>
-#include <contexts.hpp>
-#include <data_manager.hpp>
+#include <chrono>
 #include <memory>
 #include <optional>
+#include <unistd.h>
+#include <variant>
+/////////////////////////////////////////////
+#include <contexts.hpp>
+#include <data_manager.hpp>
+#include <msquic.h>
 #include <serialization/messages.hpp>
 #include <serialization/serialization.hpp>
 #include <subscription_manager.hpp>
-#include <unistd.h>
+#include <timer_wheel.hpp>
 #include <utilities.hpp>
-#include <variant>
-extern "C"
-{
-#include <msquic.h>
-}
+/////////////////////////////////////////////
 
 namespace rvn
 {
@@ -20,10 +22,14 @@ namespace rvn
 MinorSubscriptionState::MinorSubscriptionState(SubscriptionState& subscriptionState,
                                                ObjectIdentifier objectToSend,
                                                std::optional<ObjectIdentifier> lastObjectToBeSent,
-                                               bool mustBeSent)
+                                               bool mustBeSent,
+                                               std::optional<std::chrono::milliseconds> deliveryTimeout)
 : subscriptionState_(std::addressof(subscriptionState)),
   objectToSend_(std::move(objectToSend)),
-  lastObjectToBeSent_(std::move(lastObjectToBeSent)), mustBeSent_(mustBeSent)
+  lastObjectToBeSent_(std::move(lastObjectToBeSent)), mustBeSent_(mustBeSent),
+  deliveryTimeout_(deliveryTimeout),
+  currentDeliveryTimeoutCounter_(std::make_shared<std::atomic<std::uint64_t>>(0)),
+  aimDeliverTimeoutCounter_(1)
 {
 }
 
@@ -69,7 +75,8 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
     {
         QUIC_BUFFER* quicBuffer = std::get<QUIC_BUFFER*>(objectOrStatus);
 
-        if (!mustBeSent_ && previouslySentObject_.has_value())
+        if ((!mustBeSent_ || delivery_timeout_occurred()) &&
+            previouslySentObject_.has_value())
         {
             connectionStateSharedPtr->abort_if_sending(*previouslySentObject_);
         }
@@ -78,6 +85,9 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
         connectionStateSharedPtr->send_object(objectToSend_, quicBuffer);
         if (QUIC_FAILED(status))
             return SubscriptionStateErr::ConnectionExpired{};
+
+        // checks if delivery timeout exists
+        set_deliver_timeout();
 
         if (previouslySentObject_.has_value())
         {
@@ -94,6 +104,26 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
         if (!canAdavance)
             return true;
         return (lastObjectToBeSent_.has_value() && objectToSend_ == *lastObjectToBeSent_);
+    }
+}
+
+bool MinorSubscriptionState::delivery_timeout_occurred()
+{
+    return currentDeliveryTimeoutCounter_->load(std::memory_order_relaxed) ==
+           aimDeliverTimeoutCounter_;
+}
+
+void MinorSubscriptionState::set_deliver_timeout()
+{
+    if (deliveryTimeout_.has_value())
+    {
+        aimDeliverTimeoutCounter_++;
+        TimerHandle()->add_timer(*deliveryTimeout_,
+                                 [current = currentDeliveryTimeoutCounter_,
+                                  aim = aimDeliverTimeoutCounter_](auto...)
+                                 {
+                                     current->store(aim, std::memory_order_relaxed);
+                                 });
     }
 }
 
@@ -136,6 +166,7 @@ FulfillSomeReturn SubscriptionState::fulfill_some()
 FulfillSomeReturn
 SubscriptionState::add_group_subscription(const GroupHandle& groupHandle,
                                           bool mustBeSent,
+                                          std::optional<std::chrono::milliseconds> deliveryTimeout,
                                           std::optional<ObjectId> beginObjectId,
                                           std::optional<ObjectId> endObjectId)
 {
@@ -152,7 +183,8 @@ SubscriptionState::add_group_subscription(const GroupHandle& groupHandle,
 
     minorSubscriptionStates_
     .emplace_back(*this, ObjectIdentifier(groupHandle.groupIdentifier_, *beginObjectId),
-                  ObjectIdentifier(groupHandle.groupIdentifier_, *endObjectId), mustBeSent);
+                  ObjectIdentifier(groupHandle.groupIdentifier_, *endObjectId),
+                  mustBeSent, deliveryTimeout);
 
     return false;
 }
@@ -179,6 +211,11 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
     auto trackIdentifier =
     *connectionStateSharedPtr->alias_to_identifier(subscriptionMessage_.trackAlias_);
 
+    auto deliveryTimeoutParamOpt =
+    subscriptionMessage_.get_parameter<DeliveryTimeoutParameter>();
+    std::optional<std::chrono::milliseconds> deliveryTimeoutOpt;
+    if (deliveryTimeoutParamOpt.has_value())
+        deliveryTimeoutOpt = deliveryTimeoutParamOpt->timeout_;
 
     switch (filterType)
     {
@@ -236,7 +273,8 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                     return;
                 }
 
-                add_group_subscription(*groupHandleSharedPtr, true, latestObjectOpt);
+                add_group_subscription(*groupHandleSharedPtr, true,
+                                       deliveryTimeoutOpt, latestObjectOpt);
             }
             else
             {
@@ -263,7 +301,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                     return;
                 }
 
-                add_group_subscription(*groupHandleIter->second, true,
+                add_group_subscription(*groupHandleIter->second, true, deliveryTimeoutOpt,
                                        subscriptionMessage_.start_->object_);
                 ++groupHandleIter;
                 for (; groupHandleIter != trackHandleSharedPtr->groupHandles_.end(); ++groupHandleIter)
@@ -299,14 +337,14 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
 
                 if (beginGroupHandleIter->first == endGroupHandleIter->first)
                 {
-                    add_group_subscription(*beginGroupHandleIter->second, true,
+                    add_group_subscription(*beginGroupHandleIter->second, true, deliveryTimeoutOpt,
                                            subscriptionMessage_.start_->object_,
                                            subscriptionMessage_.end_->object_);
                     return;
                 }
                 else
                 {
-                    add_group_subscription(*beginGroupHandleIter->second, true,
+                    add_group_subscription(*beginGroupHandleIter->second, true, deliveryTimeoutOpt,
                                            subscriptionMessage_.start_->object_);
 
                     for (auto groupHandleIter = std::next(beginGroupHandleIter);
@@ -334,7 +372,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
                 std::shared_lock l(trackHandleSharedPtr->groupHandlesMtx_);
                 for (auto& groupHandleIter : trackHandleSharedPtr->groupHandles_)
                     // TODO: update it such that mustBeSent is true for base layers
-                    add_group_subscription(*groupHandleIter.second, false,
+                    add_group_subscription(*groupHandleIter.second, false, deliveryTimeoutOpt,
                                            dataManager_->get_latest_concrete_object(
                                            groupHandleIter.second->groupIdentifier_));
             }

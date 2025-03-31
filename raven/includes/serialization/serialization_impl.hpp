@@ -36,27 +36,27 @@ serialize_trivial(ds::chunk& c, const auto& value, ToEndianness = network_endian
     T valueCastToT = value;
     T valueModifiedEndianness;
 
-    if constexpr (std::is_same_v<ToEndianness, NativeEndian> || std::is_same_v<T, std::uint8_t>)
+    if (std::is_same_v<ToEndianness, NativeEndian> || std::is_same_v<T, std::uint8_t>)
     {
         c.append(&valueCastToT, sizeof(T));
         return sizeof(T);
     }
-    else if constexpr (std::is_same_v<ToEndianness, BigEndian>)
+    else if (std::is_same_v<ToEndianness, BigEndian>)
     {
-        if constexpr (std::is_same_v<T, std::uint16_t>)
+        if (std::is_same_v<T, std::uint16_t>)
             valueModifiedEndianness = htobe16(valueCastToT);
-        else if constexpr (std::is_same_v<T, std::uint32_t>)
+        else if (std::is_same_v<T, std::uint32_t>)
             valueModifiedEndianness = htobe32(valueCastToT);
-        else /* if constexpr (std::is_same_v<T, std::uint64_t>) */
+        else /* if  (std::is_same_v<T, std::uint64_t>) */
             valueModifiedEndianness = htobe64(valueCastToT);
     }
-    else /* if constexpr (std::is_same_v<ToEndianness, LittleEndian>) */
+    else /* if  (std::is_same_v<ToEndianness, LittleEndian>) */
     {
-        if constexpr (std::is_same_v<T, std::uint16_t>)
+        if (std::is_same_v<T, std::uint16_t>)
             valueModifiedEndianness = htole16(valueCastToT);
-        else if constexpr (std::is_same_v<T, std::uint32_t>)
+        else if (std::is_same_v<T, std::uint32_t>)
             valueModifiedEndianness = htole32(valueCastToT);
-        else /* if constexpr (std::is_same_v<T, std::uint64_t>) */
+        else /* if  (std::is_same_v<T, std::uint64_t>) */
             valueModifiedEndianness = htole64(valueCastToT);
     }
 
@@ -101,7 +101,8 @@ serialize_return_t serialize(ds::chunk& c, ds::quic_var_int i)
     }
 }
 
-template <typename T> serialize_return_t mock_serialize(ds::quic_var_int i)
+template <typename T>
+[[nodiscard]] serialize_return_t mock_serialize(ds::quic_var_int i)
 {
     static_assert(std::is_same_v<T, ds::quic_var_int>);
 
@@ -118,23 +119,27 @@ serialize_return_t serialize(ds::chunk& c, auto i)
     return serialize_trivial<T>(c, i);
 }
 
-template <UnsignedInteger T> serialize_return_t mock_serialize(const auto&)
+template <UnsignedInteger T>
+[[nodiscard]] serialize_return_t mock_serialize(const auto&)
 {
     return sizeof(T);
 }
+// clang-format off
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
+// Parameter Serialization
+[[nodiscard]]  serialize_return_t mock_serialize(const rvn::DeliveryTimeoutParameter& parameter);
+[[nodiscard]]  serialize_return_t mock_serialize(const rvn::Parameter& parameter);
+ serialize_return_t serialize(ds::chunk& c, const rvn::DeliveryTimeoutParameter& parameter);
+ serialize_return_t serialize(ds::chunk& c, const rvn::Parameter& parameter);
+///////////////////////////////////////////////////////////////////////////////////////////////
 // Message serialization
-serialize_return_t
-serialize(ds::chunk& c, const rvn::ClientSetupMessage& clientSetupMessage);
-serialize_return_t
-serialize(ds::chunk& c, const rvn::ServerSetupMessage& serverSetupMessage);
-serialize_return_t serialize(ds::chunk& c, const rvn::SubscribeMessage& subscribeMessage);
-
-serialize_return_t serialize(ds::chunk& c, const StreamHeaderSubgroupMessage& msg);
-
-serialize_return_t serialize(ds::chunk& c, const StreamHeaderSubgroupObject& msg);
-serialize_return_t
-serialize(ds::chunk& c, const rvn::SubscribeErrorMessage& subscribeErrorMessage);
-
+ serialize_return_t serialize(ds::chunk& c, const rvn::ClientSetupMessage& clientSetupMessage);
+ serialize_return_t serialize(ds::chunk& c, const rvn::ServerSetupMessage& serverSetupMessage);
+ serialize_return_t serialize(ds::chunk& c, const rvn::SubscribeMessage& subscribeMessage);
+ serialize_return_t serialize(ds::chunk& c, const StreamHeaderSubgroupMessage& msg);
+ serialize_return_t serialize(ds::chunk& c, const StreamHeaderSubgroupObject& msg);
+ serialize_return_t serialize(ds::chunk& c, const rvn::SubscribeErrorMessage& subscribeErrorMessage);
+///////////////////////////////////////////////////////////////////////////////////////////////
+// clang-format on
 } // namespace rvn::serialization::detail

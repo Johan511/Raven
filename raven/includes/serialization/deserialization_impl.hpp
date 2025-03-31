@@ -145,15 +145,23 @@ deserialize_params(std::vector<Parameter>& parameters, ConstSpan& span, NetworkE
     {
         std::uint64_t parameterType;
         deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
-        parameter.parameterType_ = static_cast<ParameterType>(parameterType);
 
         std::uint64_t parameterLength;
         deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
 
-        parameter.parameterValue_ = std::string(parameterLength, '\0');
-        span.copy_to(parameter.parameterValue_.data(), parameterLength);
-        span.advance_begin(parameterLength);
-        deserializedBytes += parameterLength;
+        switch (static_cast<ParameterType>(parameterType))
+        {
+            case ParameterType::DeliveryTimeout:
+            {
+                DeliveryTimeoutParameter deliveryTimeoutParameter;
+                std::uint64_t timeoutInMs;
+                deserializedBytes += deserialize<ds::quic_var_int>(timeoutInMs, span);
+                deliveryTimeoutParameter.timeout_ = std::chrono::milliseconds(timeoutInMs);
+                parameter.parameter_ = deliveryTimeoutParameter;
+                break;
+            }
+            default: assert(false);
+        }
     }
 
     return deserializedBytes;
