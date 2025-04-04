@@ -25,11 +25,6 @@ public:
     // so we need to have a optional wrapper
     std::shared_ptr<ConnectionState> connectionState;
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // these functions will later be pushed into cgUtils
-    // utils::MOQTComplexGetterUtils *cgUtils{this};
-
-
     struct DataStreamUserHandle
     {
         std::weak_ptr<void> streamLifeTimeFlag_;

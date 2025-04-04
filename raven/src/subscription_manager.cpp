@@ -27,9 +27,7 @@ MinorSubscriptionState::MinorSubscriptionState(SubscriptionState& subscriptionSt
 : subscriptionState_(std::addressof(subscriptionState)),
   objectToSend_(std::move(objectToSend)),
   lastObjectToBeSent_(std::move(lastObjectToBeSent)), mustBeSent_(mustBeSent),
-  deliveryTimeout_(deliveryTimeout),
-  currentDeliveryTimeoutCounter_(std::make_shared<std::atomic<std::uint64_t>>(0)),
-  aimDeliverTimeoutCounter_(1)
+  subscribeDeliveryTimeout(deliveryTimeout)
 {
 }
 
@@ -73,21 +71,26 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
     }
     else
     {
-        QUIC_BUFFER* quicBuffer = std::get<QUIC_BUFFER*>(objectOrStatus);
+        auto [quicBuffer, objectDeliveryTimeout] = std::get<ObjectType>(objectOrStatus);
 
-        if ((!mustBeSent_ || delivery_timeout_occurred()) &&
-            previouslySentObject_.has_value())
-        {
+        if ((!mustBeSent_) && previouslySentObject_.has_value())
             connectionStateSharedPtr->abort_if_sending(*previouslySentObject_);
-        }
+
+        if (!objectDeliveryTimeout)
+            // now both have value, or neither has value
+            objectDeliveryTimeout = subscribeDeliveryTimeout;
+
+        // need to check only one of them for value
+        if (subscribeDeliveryTimeout)
+            // if subscriber and object both mention a delivery timeout, we need to take the min of the 2
+            if (*objectDeliveryTimeout > *subscribeDeliveryTimeout)
+                *objectDeliveryTimeout = *subscribeDeliveryTimeout;
+
 
         QUIC_STATUS status =
-        connectionStateSharedPtr->send_object(objectToSend_, quicBuffer);
+        connectionStateSharedPtr->send_object(objectToSend_, quicBuffer, objectDeliveryTimeout);
         if (QUIC_FAILED(status))
             return SubscriptionStateErr::ConnectionExpired{};
-
-        // checks if delivery timeout exists
-        set_deliver_timeout();
 
         if (previouslySentObject_.has_value())
         {
@@ -104,26 +107,6 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
         if (!canAdavance)
             return true;
         return (lastObjectToBeSent_.has_value() && objectToSend_ == *lastObjectToBeSent_);
-    }
-}
-
-bool MinorSubscriptionState::delivery_timeout_occurred()
-{
-    return currentDeliveryTimeoutCounter_->load(std::memory_order_relaxed) ==
-           aimDeliverTimeoutCounter_;
-}
-
-void MinorSubscriptionState::set_deliver_timeout()
-{
-    if (deliveryTimeout_.has_value())
-    {
-        aimDeliverTimeoutCounter_++;
-        TimerHandle()->add_timer(*deliveryTimeout_,
-                                 [current = currentDeliveryTimeoutCounter_,
-                                  aim = aimDeliverTimeoutCounter_](auto...)
-                                 {
-                                     current->store(aim, std::memory_order_relaxed);
-                                 });
     }
 }
 

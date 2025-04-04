@@ -162,7 +162,10 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
     QUIC_STATUS send_object(std::weak_ptr<DataStreamState> dataStream,
                             const ObjectIdentifier& objectIdentifier,
                             QUIC_BUFFER* buffer);
-    QUIC_STATUS send_object(const ObjectIdentifier& objectIdentifier, QUIC_BUFFER* buffer);
+    QUIC_STATUS
+    send_object(const ObjectIdentifier& objectIdentifier,
+                QUIC_BUFFER* buffer,
+                std::optional<std::chrono::milliseconds> timeoutDuration);
     void send_control_buffer(QUIC_BUFFER* buffer, QUIC_SEND_FLAGS flags = QUIC_SEND_FLAG_NONE);
     /////////////////////////////////////////////////////////////////////////////
 

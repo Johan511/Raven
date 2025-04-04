@@ -39,21 +39,7 @@ class MinorSubscriptionState
     bool mustBeSent_;
     std::optional<ObjectWaitSignal> objectWaitSignal_;
 
-    std::optional<std::chrono::milliseconds> deliveryTimeout_;
-
-    /*
-        when current == aim, then an stream abort occurs
-        invariant: current <= aim
-
-        when we set a timeout, we increment aim by 1 and the timeout callback will set current to (aim + 1)
-
-        current is read by subscription manager and written (incremented) by the timer callback
-        aim is written (incremented) only by the subscription manager
-    */
-    std::shared_ptr<std::atomic<std::uint64_t>> currentDeliveryTimeoutCounter_;
-    std::uint64_t aimDeliverTimeoutCounter_;
-    bool delivery_timeout_occurred();
-    void set_deliver_timeout();
+    std::optional<std::chrono::milliseconds> subscribeDeliveryTimeout;
 
 public:
     MinorSubscriptionState(SubscriptionState& subscriptionState,

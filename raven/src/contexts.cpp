@@ -1,5 +1,6 @@
 ////////////////////////////////
 #include "moqt_server.hpp"
+#include <chrono>
 #include <contexts.hpp>
 #include <data_manager.hpp>
 #include <definitions.hpp>
@@ -8,6 +9,7 @@
 #include <msquic.h>
 #include <strong_types.hpp>
 #include <subscription_manager.hpp>
+#include <timer_wheel.hpp>
 #include <utilities.hpp>
 #include <variant>
 #include <wrappers.hpp>
@@ -161,7 +163,8 @@ StreamState& ConnectionState::establish_control_stream()
 
 
 QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifier,
-                                         QUIC_BUFFER* objectPayload)
+                                         QUIC_BUFFER* objectPayload,
+                                         std::optional<std::chrono::milliseconds> timeoutDuration)
 {
     auto sendObjectLambda = [&](const StableContainer<DataStreamState>& dataStreams)
     {
@@ -241,10 +244,25 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
                                                      streamSendContext);
         });
 
+        /*
+            Draft specifies that timeout should start from when it receives the object,
+            but we set it from when we start sending the object
+
+            TODO: check if we can set it from when the object is received (Talk to Alan)
+        */
+        if (timeoutDuration)
+            TimerHandle()->add_timer(*timeoutDuration,
+                                     [objectIdentifier,
+                                      connState = this->weak_from_this()](auto...)
+                                     {
+                                         if (auto connStateSharedPtr = connState.lock())
+                                             connStateSharedPtr->abort_if_sending(objectIdentifier);
+                                     });
+
         if (QUIC_FAILED(status))
             return status;
 
-        return send_object(objectIdentifier, objectPayload);
+        return send_object(objectIdentifier, objectPayload, timeoutDuration);
     }
 
     return trySendStatus;

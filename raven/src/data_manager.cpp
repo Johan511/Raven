@@ -8,6 +8,7 @@
 #include <fstream>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 
 namespace depracated
 {
@@ -202,12 +203,28 @@ ObjectIdentifier::ObjectIdentifier(GroupIdentifier groupIdentifier, ObjectId obj
 {
 }
 
+SubGroupId ObjectIdentifier::get_subgroup_id(DataManager& dataManager) const
+{
+    if (subgroupId_.has_value())
+        return *subgroupId_;
+
+    auto groupHandle = dataManager.get_group_handle(*this).lock();
+
+    if (groupHandle == nullptr)
+        throw std::invalid_argument("GroupHandle is null");
+
+    subgroupId_ = groupHandle->get_subgroup_id(objectId_);
+
+    return *subgroupId_;
+}
+
 
 GroupHandle::GroupHandle(GroupIdentifier groupIdentifier,
                          PublisherPriority publisherPriority,
+                         std::optional<std::chrono::milliseconds> deliveryTimeout,
                          DataManager& dataManagerHandle)
-: groupIdentifier_(std::move(groupIdentifier)),
-  publisherPriority_(publisherPriority), dataManager_(dataManagerHandle)
+: groupIdentifier_(std::move(groupIdentifier)), publisherPriority_(publisherPriority),
+  deliveryTimeout_(deliveryTimeout), dataManager_(dataManagerHandle)
 {
     // create directory if it does not exist
     std::string pathString = dataManager_.get_path_string(groupIdentifier_);
@@ -515,7 +532,7 @@ ObjectOrStatus DataManager::get_object(const ObjectIdentifier& objectIdentifier)
     });
 
     if (quicBuffer != nullptr)
-        return quicBuffer;
+        return std::make_tuple(quicBuffer, groupHandleSharedPtr->deliveryTimeout_);
 
     std::string pathString = get_path_string(objectIdentifier);
     std::ifstream file(pathString);
@@ -545,7 +562,7 @@ ObjectOrStatus DataManager::get_object(const ObjectIdentifier& objectIdentifier)
     [quicBuffer, &objectIdentifier](auto& cache)
     { cache.emplace(objectIdentifier.objectId_, quicBuffer); });
 
-    return quicBuffer;
+    return std::make_tuple(quicBuffer, groupHandleSharedPtr->deliveryTimeout_);
 }
 
 bool DataManager::next(ObjectIdentifier& objectIdentifier, std::uint64_t advanceBy)

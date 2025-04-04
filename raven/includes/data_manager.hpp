@@ -1,6 +1,7 @@
 #pragma once
 #include "definitions.hpp"
 #include <boost/functional/hash.hpp>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -9,6 +10,7 @@
 #include <memory>
 #include <set>
 #include <shared_mutex>
+#include <stdexcept>
 #include <string>
 #include <strong_types.hpp>
 #include <unordered_map>
@@ -84,7 +86,8 @@ enum class ObjectWaitStatus
     Ready
 };
 using ObjectWaitSignal = std::shared_ptr<std::atomic<ObjectWaitStatus>>;
-using ObjectOrStatus = std::variant<QUIC_BUFFER*, ObjectWaitSignal, DoesNotExist>;
+using ObjectType = std::tuple<QUIC_BUFFER*, std::optional<std::chrono::milliseconds>>;
+using ObjectOrStatus = std::variant<ObjectType, ObjectWaitSignal, DoesNotExist>;
 
 class TrackIdentifier
 {
@@ -156,8 +159,14 @@ public:
 
 class ObjectIdentifier : public GroupIdentifier
 {
+    // we cache the subgroup id within the object identifier
+    mutable std::optional<SubGroupId> subgroupId_;
+
 public:
     ObjectId objectId_;
+
+
+    SubGroupId get_subgroup_id(class DataManager& dataManager) const;
 
     bool operator==(const ObjectIdentifier& other) const
     {
@@ -215,6 +224,7 @@ public:
     friend class SubgroupHandle;
     GroupIdentifier groupIdentifier_;
     PublisherPriority publisherPriority_;
+    std::optional<std::chrono::milliseconds> deliveryTimeout_;
     class DataManager& dataManager_;
 
     GroupHandle& operator=(const GroupHandle&) = delete;
@@ -225,8 +235,8 @@ private:
     {
         bool operator()(std::uint64_t l, std::uint64_t r) const
         {
-            std::uint64_t lMasked = l & (~(1ULL << 63)); //  mask of last bit
-            std::uint64_t rMasked = r & (~(1ULL << 63)); //  mask of last bit
+            std::uint64_t lMasked = l & (~(1ULL << 63)); //  mask the MSB
+            std::uint64_t rMasked = r & (~(1ULL << 63)); //  mask the MSB
 
 
             // we want {0_begin, 1_end, 1_begin, 2_end, ...}
@@ -259,10 +269,29 @@ private:
 public:
     GroupHandle(GroupIdentifier groupIdentifier,
                 PublisherPriority publisherPriority_,
+                std::optional<std::chrono::milliseconds> deliveryTimeout,
                 DataManager& dataManagerHandle);
 
     SubgroupHandle add_subgroup(std::uint64_t numElements);
     SubgroupHandle add_open_ended_subgroup();
+
+    SubGroupId get_subgroup_id(ObjectId objectId) const
+    {
+        std::uint64_t objectIdInt = objectId.get();
+
+        /*
+            begin is small
+            end is capital
+
+                 x                                        -> upper bound gives 1, subgroup id is 0
+                         x                                -> x == e0, upper bound gives 2, subgroup id is 1
+            [b0     e0) [e0     e1) [e1     e2) [e2     e3)
+        */
+        auto iter = objectIds_.upper_bound(objectIdInt);
+        if (iter == objectIds_.begin())
+            throw std::invalid_argument("ObjectId not found in GroupHandle");
+        return SubGroupId(std::distance(objectIds_.begin(), iter) / 2);
+    }
 
     bool has_object_id(ObjectId objectId);
 
