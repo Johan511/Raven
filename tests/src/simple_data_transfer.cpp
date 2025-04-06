@@ -53,7 +53,7 @@ int main()
         auto dm = moqtServer->dataManager_;
         auto trackHandle = dm->add_track_identifier({}, "track");
         auto groupHandle =
-        trackHandle.lock()->add_group(GroupId(0), PublisherPriority(0));
+        trackHandle.lock()->add_group(GroupId(0), PublisherPriority(0), {});
         auto subgroupHandle = groupHandle.lock()->add_subgroup(ObjectId(1));
         subgroupHandle.add_object(messagePayload);
 

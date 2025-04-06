@@ -22,12 +22,12 @@
 #include <utilities.hpp>
 /////////////////////////////////////////////////////////
 #include "../test_utilities.hpp"
-#include "data_manager.hpp"
 #include "moqt_client.hpp"
 #include "serialization/messages.hpp"
 #include "strong_types.hpp"
 /////////////////////////////////////////////////////////
 #include "./chunk_transfer_perf_lttng.h"
+#include "./object_generator_builder.hpp"
 /////////////////////////////////////////////////////////
 
 using namespace rvn;
@@ -51,6 +51,8 @@ std::uint16_t numProcessors = std::thread::hardware_concurrency();
 std::uint64_t numObjects;
 std::uint64_t msBetweenObjects;
 constexpr std::uint8_t numGroups = 5;
+constexpr ObjectGeneratorFactory::LayerGranularity layerGranularity =
+ObjectGeneratorFactory::GroupGranularity;
 ////////////////////////////////////////////////////////////////////
 
 
@@ -136,48 +138,23 @@ int main(int argc, char* argv[])
             serverConfig->ProcessorList[i] = i;
 
         std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
-        std::system(setNicenessString.c_str());
+        // std::system(setNicenessString.c_str());
 
         std::unique_ptr<MOQTServer> moqtServer =
         server_setup(std::make_tuple(serverConfig, sizeof(rawServerConfig)));
 
         auto dm = moqtServer->dataManager_;
-        auto trackHandle = dm->add_track_identifier({}, "track");
 
-        std::array groupHandles = {
-            trackHandle.lock()->add_group(GroupId(0), PublisherPriority(4)), // high priorty means would be sent first
-            trackHandle.lock()->add_group(GroupId(1), PublisherPriority(3)),
-            trackHandle.lock()->add_group(GroupId(2), PublisherPriority(2)),
-            trackHandle.lock()->add_group(GroupId(3), PublisherPriority(1)),
-            trackHandle.lock()->add_group(GroupId(4), PublisherPriority(0))
-        };
+        ObjectGeneratorFactory objectGeneratorFactory(*dm);
+        auto dataPublishers =
+        objectGeneratorFactory.create(layerGranularity, numGroups, numObjects,
+                                      std::chrono::milliseconds(msBetweenObjects),
+                                      vm["bit_rate"].as<double>() * 1000);
 
         {
             std::unique_lock lock(dataParent->mutex_);
             dataParent->serverSetup_ = true;
         }
-
-        std::array<std::jthread, numGroups> dataPublishers;
-        for (std::uint8_t groupId = 0; groupId < numGroups; groupId++)
-        {
-            std::shared_ptr<GroupHandle> groupHandleSharedPtr =
-            groupHandles[groupId].lock();
-            dataPublishers[groupId] = std::jthread(
-            [groupId, groupHandleSharedPtr]
-            {
-                std::optional<SubgroupHandle> subgroupHandleOpt =
-                groupHandleSharedPtr->add_open_ended_subgroup();
-                for (std::uint64_t objectId = 0; objectId < numObjects; objectId++)
-                {
-                    std::string object = generate_object(groupId, objectId);
-                    subgroupHandleOpt.value().add_object(std::move(object));
-                    subgroupHandleOpt.emplace(*subgroupHandleOpt->cap_and_next());
-                    std::this_thread::sleep_for(std::chrono::milliseconds(msBetweenObjects));
-                }
-                subgroupHandleOpt->cap();
-            });
-        }
-
         for (auto& dataPublisher : dataPublishers)
             dataPublisher.join();
 
@@ -201,7 +178,7 @@ int main(int argc, char* argv[])
         double delayMs = vm["delay_ms"].as<double>();
         double delayJitter = vm["delay_jitter"].as<double>();
 
-        NetemRAII netemRAII(lossPercentage, bitRate, delayMs, delayJitter);
+        // NetemRAII netemRAII(lossPercentage, bitRate, delayMs, delayJitter);
         lttng_ust_tracepoint(chunk_transfer_perf_lttng, netem, lossPercentage,
                              bitRate, delayMs, delayJitter);
         //////////////////////////////////////////////////////////////////////////
@@ -215,7 +192,7 @@ int main(int argc, char* argv[])
         static_cast<InterprocessSynchronizationData*>(regionChild.get_address());
         //////////////////////////////////////////////////////////////////////////
         std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
-        std::system(setNicenessString.c_str());
+        // std::system(setNicenessString.c_str());
 
         for (;;)
         {
@@ -263,7 +240,7 @@ int main(int argc, char* argv[])
 
         SubscriptionBuilder subscriptionBuilder;
         subscriptionBuilder.set_track_alias(TrackAlias(0));
-        subscriptionBuilder.set_track_namespace({});
+        subscriptionBuilder.set_track_namespace({ "namespace1", "namespace2", "namespace3" });
         subscriptionBuilder.set_track_name("track");
         subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestPerGroupInTrack);
         subscriptionBuilder.set_subscriber_priority(0);

@@ -316,7 +316,10 @@ public:
     // should be private because but want to use std::make_shared
     TrackHandle(DataManager& dataManagerHandle, TrackIdentifier trackIdentifier);
 
-    std::weak_ptr<GroupHandle> add_group(GroupId groupId, PublisherPriority publisherPriority)
+    std::weak_ptr<GroupHandle>
+    add_group(GroupId groupId,
+              PublisherPriority publisherPriority,
+              std::optional<std::chrono::milliseconds> deliveryTimeout)
     {
         // writer lock
         std::unique_lock<std::shared_mutex> l(groupHandlesMtx_);
@@ -324,7 +327,7 @@ public:
         auto [iter, success] =
         groupHandles_.try_emplace(groupId,
                                   std::make_shared<GroupHandle>(GroupIdentifier(trackIdentifier_, groupId),
-                                                                publisherPriority,
+                                                                publisherPriority, deliveryTimeout,
                                                                 dataManager_));
 
         return iter->second->weak_from_this();

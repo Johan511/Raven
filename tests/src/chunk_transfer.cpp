@@ -61,10 +61,10 @@ int main()
         auto trackHandle = dm->add_track_identifier({}, "track");
 
         std::array groupHandles = {
-            trackHandle.lock()->add_group(GroupId(0), PublisherPriority(3)), // high priorty means would be sent first
-            trackHandle.lock()->add_group(GroupId(1), PublisherPriority(2)),
-            trackHandle.lock()->add_group(GroupId(2), PublisherPriority(1)),
-            trackHandle.lock()->add_group(GroupId(3), PublisherPriority(0))
+            trackHandle.lock()->add_group(GroupId(0), PublisherPriority(3), {}), // high priorty means would be sent first
+            trackHandle.lock()->add_group(GroupId(1), PublisherPriority(2), {}),
+            trackHandle.lock()->add_group(GroupId(2), PublisherPriority(1), {}),
+            trackHandle.lock()->add_group(GroupId(3), PublisherPriority(0), {})
         };
 
         std::for_each(std::execution::par, groupHandles.begin(), groupHandles.end(),
