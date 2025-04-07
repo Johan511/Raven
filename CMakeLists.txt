@@ -52,7 +52,7 @@ set(RAVEN_INCLUDE_DIR "raven/includes")
 
 set(MOODY_CAMEL_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/submodules/moody_camel")
 
-if(RAVEN_ENABLE_ASSERTIONS)
+if(RAVEN_ENABLE_ASSERTIONS OR (CMAKE_BUILD_TYPE STREQUAL "Debug"))
   add_definitions(-DRAVEN_ENABLE_ASSERTIONS)
 endif()
 add_definitions(-DRAVEN_CERT_FILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/server.cert")

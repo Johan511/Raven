@@ -40,6 +40,7 @@ enum class MoQtMessageType
     TRACK_STATUS_REQUEST = 0xD,
     TRACK_STATUS = 0xE,
     GOAWAY = 0x10,
+    BATCH_SUBSCRIBE = 0x11,
     CLIENT_SETUP = 0x40,
     SERVER_SETUP = 0x41,
     // not in draft v7 // STREAM_HEADER_TRACK = 0x50,
@@ -187,6 +188,39 @@ struct ServerSetupMessage : ControlMessageBase<ServerSetupMessage>
     }
 };
 
+enum class SubscribeFilterType : std::uint64_t
+{
+    LatestGroup = 0x1, // Specifies an open-ended subscription with objects
+                       // from the beginning of the current group.
+
+    LatestObject = 0x2, // Specifies an open-ended subscription beginning
+                        // from the current object of the current group.
+
+    AbsoluteStart = 0x3, // Specifies an open-ended subscription beginning
+                         // from the object identified in the StartGroup and
+                         // StartObject fields.
+
+    AbsoluteRange = 0x4, // Specifies a closed subscription starting at
+                         // StartObject in StartGroup and ending at
+                         // EndObject in EndGroup. The start and end of the
+                         // range are inclusive. EndGroup and EndObject MUST
+                         // specify the same or a later object than
+                         // StartGroup and StartObject.
+
+    LatestPerGroupInTrack = 0x5,
+    // Open ended subscription where in each group of a track, the latest
+    // object is sent, when a new latest object is received, it will be
+    // sent. If the current send is in progress, it will be aborted
+};
+
+struct GroupObjectPair
+{
+    GroupId group_;
+    ObjectId object_;
+
+    bool operator==(const GroupObjectPair& rhs) const = default;
+};
+
 /*
     SUBSCRIBE Message {
       Type (i) = 0x3,
@@ -209,39 +243,6 @@ struct ServerSetupMessage : ControlMessageBase<ServerSetupMessage>
 */
 struct SubscribeMessage : public ControlMessageBase<SubscribeMessage>
 {
-    enum class FilterType : std::uint64_t
-    {
-        LatestGroup = 0x1, // Specifies an open-ended subscription with objects
-                           // from the beginning of the current group.
-
-        LatestObject = 0x2, // Specifies an open-ended subscription beginning
-                            // from the current object of the current group.
-
-        AbsoluteStart = 0x3, // Specifies an open-ended subscription beginning
-                             // from the object identified in the StartGroup and
-                             // StartObject fields.
-
-        AbsoluteRange = 0x4, // Specifies a closed subscription starting at
-                             // StartObject in StartGroup and ending at
-                             // EndObject in EndGroup. The start and end of the
-                             // range are inclusive. EndGroup and EndObject MUST
-                             // specify the same or a later object than
-                             // StartGroup and StartObject.
-
-        LatestPerGroupInTrack = 0x5,
-        // Open ended subscription where in each group of a track, the latest
-        // object is sent, when a new latest object is received, it will be
-        // sent. If the current send is in progress, it will be aborted
-    };
-
-    struct GroupObjectPair
-    {
-        GroupId group_;
-        ObjectId object_;
-
-        bool operator==(const GroupObjectPair& rhs) const = default;
-    };
-
     std::uint64_t subscribeId_;
     TrackAlias trackAlias_;
     // encoding moqt tuple as vector<string>
@@ -249,7 +250,7 @@ struct SubscribeMessage : public ControlMessageBase<SubscribeMessage>
     std::string trackName_;
     std::uint8_t subscriberPriority_;
     std::uint8_t groupOrder_;
-    FilterType filterType_;
+    SubscribeFilterType filterType_;
     std::optional<GroupObjectPair> start_;
     std::optional<GroupObjectPair> end_;
     std::vector<Parameter> parameters_;
@@ -296,6 +297,53 @@ struct SubscribeMessage : public ControlMessageBase<SubscribeMessage>
         << " Parameters: ";
         for (const auto& parameter : msg.parameters_)
             os << parameter;
+        return os;
+    }
+};
+
+/*
+SUBSCRIBE_CLUMPED Message {
+  Type (i) = TBD,
+  Length (i),
+  Track Namespace Prefix (tuple), // can have 0 entries
+  Number of Subscriptions (i),
+  (
+    Subscribe ID (i),
+    Track Alias (i),
+    Track Namespace Suffix (tuple),
+    Track Name Length (i),
+    Track Name (..),
+    Subscriber Priority (8),
+    Group Order (8),
+    Filter Type (i),
+    [StartGroup (i),
+     StartObject (i)],
+    [EndGroup (i)],
+    Number of Parameters (i),
+    Subscribe Parameters (..) ...
+  ) ...
+}
+*/
+struct BatchSubscribeMessage : public ControlMessageBase<BatchSubscribeMessage>
+{
+    std::vector<std::string> trackNamespacePrefix_;
+    // track namespace in these subscribe messages are actually suffixes
+    std::vector<SubscribeMessage> subscriptions_;
+
+    BatchSubscribeMessage()
+    : ControlMessageBase(MoQtMessageType::BATCH_SUBSCRIBE)
+    {
+    }
+
+    bool operator==(const BatchSubscribeMessage& rhs) const = default;
+
+    friend inline std::ostream&
+    operator<<(std::ostream& os, const BatchSubscribeMessage& msg)
+    {
+        os << msg.subscriptions_.size() << " subscriptions: \n";
+        for (const auto& subscription : msg.subscriptions_)
+            os << subscription;
+        os << "End of subscriptions\n";
         return os;
     }
 };

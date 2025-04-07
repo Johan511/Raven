@@ -21,11 +21,12 @@ template <typename IntegralType> void byte_sized_tests()
             detail::serialize_trivial<IntegralType>(c, value);
 
             rvn::ds::ChunkSpan span(c);
-            std::uint64_t deserialized;
+            IntegralType deserialized;
             detail::deserialize_trivial<IntegralType>(deserialized, span);
 
-            rvn::utils::ASSERT_LOG_THROW(value == deserialized, "Value: ", value,
-                                         " Deserialized: ", deserialized);
+            rvn::utils::ASSERT_LOG_THROW(value == deserialized,
+                                         "Value: ", std::uint64_t(value),
+                                         " Deserialized: ", std::uint64_t(deserialized));
 
             c.clear();
         }

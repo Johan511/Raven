@@ -140,6 +140,7 @@ template <UnsignedInteger T>
  serialize_return_t serialize(ds::chunk& c, const StreamHeaderSubgroupMessage& msg);
  serialize_return_t serialize(ds::chunk& c, const StreamHeaderSubgroupObject& msg);
  serialize_return_t serialize(ds::chunk& c, const rvn::SubscribeErrorMessage& subscribeErrorMessage);
+ serialize_return_t serialize(ds::chunk& c, const rvn::BatchSubscribeMessage& batchSubscribeMessage);
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // clang-format on
 } // namespace rvn::serialization::detail

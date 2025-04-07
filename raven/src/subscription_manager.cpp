@@ -202,7 +202,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
 
     switch (filterType)
     {
-        case SubscribeMessage::FilterType::LatestGroup:
+        case SubscribeFilterType::LatestGroup:
         {
             std::optional<GroupId> currGroupOpt =
             connectionStateSharedPtr->get_current_group(subscriptionMessage_.trackAlias_);
@@ -229,7 +229,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
 
             break;
         }
-        case SubscribeMessage::FilterType::LatestObject:
+        case SubscribeFilterType::LatestObject:
         {
             std::optional<GroupId> currGroupOpt =
             connectionStateSharedPtr->get_current_group(subscriptionMessage_.trackAlias_);
@@ -267,7 +267,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
 
             break;
         }
-        case SubscribeMessage::FilterType::AbsoluteStart:
+        case SubscribeFilterType::AbsoluteStart:
         {
             std::weak_ptr<TrackHandle> trackHandle =
             dataManager_->get_track_handle(trackIdentifier);
@@ -297,7 +297,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
             }
             break;
         }
-        case SubscribeMessage::FilterType::AbsoluteRange:
+        case SubscribeFilterType::AbsoluteRange:
         {
             std::weak_ptr<TrackHandle> trackHandle =
             dataManager_->get_track_handle(trackIdentifier);
@@ -345,7 +345,7 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
             }
             break;
         }
-        case SubscribeMessage::FilterType::LatestPerGroupInTrack:
+        case SubscribeFilterType::LatestPerGroupInTrack:
         {
             std::weak_ptr<TrackHandle> trackHandle =
             dataManager_->get_track_handle(trackIdentifier);

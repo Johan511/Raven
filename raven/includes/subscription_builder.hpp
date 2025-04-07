@@ -102,23 +102,23 @@ public:
         friend SubscriptionBuilder;
         struct LatestGroup
         {
-            static constexpr auto filterType = SubscribeMessage::FilterType::LatestGroup;
+            static constexpr auto filterType = SubscribeFilterType::LatestGroup;
         };
         struct LatestObject
         {
-            static constexpr auto filterType = SubscribeMessage::FilterType::LatestObject;
+            static constexpr auto filterType = SubscribeFilterType::LatestObject;
         };
         struct AbsoluteStart
         {
-            static constexpr auto filterType = SubscribeMessage::FilterType::AbsoluteStart;
+            static constexpr auto filterType = SubscribeFilterType::AbsoluteStart;
         };
         struct AbsoluteRange
         {
-            static constexpr auto filterType = SubscribeMessage::FilterType::AbsoluteRange;
+            static constexpr auto filterType = SubscribeFilterType::AbsoluteRange;
         };
         struct LatestPerGroupInTrack
         {
-            static constexpr auto filterType = SubscribeMessage::FilterType::LatestPerGroupInTrack;
+            static constexpr auto filterType = SubscribeFilterType::LatestPerGroupInTrack;
         };
 
     public:
@@ -142,8 +142,7 @@ public:
         setElementsCounter_ |= (1 << utils::to_underlying(SetElements::Range));
         return *this;
     }
-    SubscriptionBuilder&
-    set_data_range(Filter::AbsoluteStart f, SubscribeMessage::GroupObjectPair start)
+    SubscriptionBuilder& set_data_range(Filter::AbsoluteStart f, GroupObjectPair start)
     {
         subscribeMessage_.filterType_ = f.filterType;
         subscribeMessage_.start_ = start;
@@ -152,9 +151,8 @@ public:
     }
 
 
-    SubscriptionBuilder& set_data_range(Filter::AbsoluteRange f,
-                                        SubscribeMessage::GroupObjectPair start,
-                                        SubscribeMessage::GroupObjectPair end)
+    SubscriptionBuilder&
+    set_data_range(Filter::AbsoluteRange f, GroupObjectPair start, GroupObjectPair end)
     {
         subscribeMessage_.filterType_ = f.filterType;
         subscribeMessage_.start_ = start;

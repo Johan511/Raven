@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
+#include <string_view>
 #include <utilities.hpp>
 #include <vector>
 
@@ -13,7 +13,7 @@
 
     The function ignores all charecters apart from the the charecters '0' and '1'
 */
-static inline std::vector<uint8_t> binary_string_to_vector(const std::string& str)
+static inline std::vector<uint8_t> binary_string_to_vector(std::string_view str)
 {
     std::vector<uint8_t> vec;
     vec.reserve((str.size() + 8) / 8);

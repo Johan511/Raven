@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
             serverConfig->ProcessorList[i] = i;
 
         std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
-        // std::system(setNicenessString.c_str());
+        std::system(setNicenessString.c_str());
 
         std::unique_ptr<MOQTServer> moqtServer =
         server_setup(std::make_tuple(serverConfig, sizeof(rawServerConfig)));
@@ -192,7 +192,7 @@ int main(int argc, char* argv[])
         static_cast<InterprocessSynchronizationData*>(regionChild.get_address());
         //////////////////////////////////////////////////////////////////////////
         std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
-        // std::system(setNicenessString.c_str());
+        std::system(setNicenessString.c_str());
 
         for (;;)
         {

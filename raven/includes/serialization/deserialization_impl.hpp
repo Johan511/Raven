@@ -1,5 +1,6 @@
 #pragma once
 
+#include "utilities.hpp"
 #include <serialization/chunk.hpp>
 #include <serialization/endianness.hpp>
 #include <serialization/messages.hpp>
@@ -160,7 +161,8 @@ deserialize_params(std::vector<Parameter>& parameters, ConstSpan& span, NetworkE
                 parameter.parameter_ = deliveryTimeoutParameter;
                 break;
             }
-            default: assert(false);
+            default:
+                utils::ASSERT_LOG_THROW(false, "Unknown parameter type: ", parameterType);
         }
     }
 
@@ -263,11 +265,11 @@ deserialize(rvn::SubscribeMessage& subscribeMessage, ConstSpan& span, NetworkEnd
 
     std::uint64_t filterType;
     deserializedBytes += deserialize<ds::quic_var_int>(filterType, span);
-    subscribeMessage.filterType_ = static_cast<SubscribeMessage::FilterType>(filterType);
-    subscribeMessage.filterType_ = static_cast<SubscribeMessage::FilterType>(filterType);
+    subscribeMessage.filterType_ = static_cast<SubscribeFilterType>(filterType);
+    subscribeMessage.filterType_ = static_cast<SubscribeFilterType>(filterType);
 
-    if ((subscribeMessage.filterType_ == rvn::SubscribeMessage::FilterType::AbsoluteStart) |
-        (subscribeMessage.filterType_ == rvn::SubscribeMessage::FilterType::AbsoluteRange))
+    if ((subscribeMessage.filterType_ == rvn::SubscribeFilterType::AbsoluteStart) |
+        (subscribeMessage.filterType_ == rvn::SubscribeFilterType::AbsoluteRange))
     {
         subscribeMessage.start_.emplace();
         deserializedBytes +=
@@ -276,7 +278,7 @@ deserialize(rvn::SubscribeMessage& subscribeMessage, ConstSpan& span, NetworkEnd
         deserialize<ds::quic_var_int>(subscribeMessage.start_->object_.get(), span);
     }
 
-    if (subscribeMessage.filterType_ == rvn::SubscribeMessage::FilterType::AbsoluteRange)
+    if (subscribeMessage.filterType_ == SubscribeFilterType::AbsoluteRange)
     {
         subscribeMessage.end_.emplace();
         deserializedBytes +=
@@ -286,6 +288,35 @@ deserialize(rvn::SubscribeMessage& subscribeMessage, ConstSpan& span, NetworkEnd
     }
 
     deserializedBytes += deserialize_params(subscribeMessage.parameters_, span);
+
+    return deserializedBytes;
+}
+
+template <typename ConstSpan>
+static inline deserialize_return_t
+deserialize(rvn::BatchSubscribeMessage& batchSubscribeMessage, ConstSpan& span, NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    std::uint64_t numTrackNamespace;
+    deserializedBytes += deserialize<ds::quic_var_int>(numTrackNamespace, span);
+    batchSubscribeMessage.trackNamespacePrefix_.resize(numTrackNamespace);
+    for (auto& ns : batchSubscribeMessage.trackNamespacePrefix_)
+    {
+        std::uint64_t nsLength;
+        deserializedBytes += deserialize<ds::quic_var_int>(nsLength, span);
+
+        ns = std::string(nsLength, '\0');
+        span.copy_to(ns.data(), nsLength);
+        deserializedBytes += nsLength;
+        span.advance_begin(nsLength);
+    }
+
+    std::uint64_t numSubscriptions;
+    deserializedBytes += deserialize<ds::quic_var_int>(numSubscriptions, span);
+    batchSubscribeMessage.subscriptions_.resize(numSubscriptions);
+    for (auto& subscription : batchSubscribeMessage.subscriptions_)
+        deserializedBytes += deserialize(subscription, span);
 
     return deserializedBytes;
 }
