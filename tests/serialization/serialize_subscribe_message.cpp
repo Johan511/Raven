@@ -9,10 +9,8 @@
 using namespace rvn;
 using namespace rvn::serialization;
 
-
-void test1()
-{
-    // clang-format off
+void test1() {
+  // clang-format off
     SubscribeMessage msg;
     msg.subscribeId_ = 0x12345678;
     msg.trackAlias_ = TrackAlias(0x87654321);
@@ -25,12 +23,11 @@ void test1()
     msg.end_ = GroupObjectPair{ GroupId(0x5678), ObjectId(0x1234) };
     // TODO: fix UB due to unininstalized integer values
     msg.parameters_ = {  };
-    // clang-format on
+  // clang-format on
 
-
-    ds::chunk c;
-    serialization::detail::serialize(c, msg);
-    // clang-format off
+  ds::chunk c;
+  serialization::detail::serialize(c, msg);
+  // clang-format off
     /*   [ 00000011 ]    [ 00111101 ] [ 10010010 00110100 01010110 01111000 ] [ 11000000 00000000 00000000 00000000 10000111 01100101 01000011 00100001 ]              [ 00000010 ] 
      * (msg_type: 0x03)    (len: 63)        (subscribeId_: 0x12345678)                                  (trackAlias_: 0x87654321)                            TrackNamespace Tuple num elements
      * 
@@ -44,51 +41,48 @@ void test1()
      *              (start_.group_)                 (start_.object_)              (end_.group_)                 (end_.object_)        (parameters_.size)      (parameterType_)    (parameterValue_.size)
      */
     std::string expectedSerializationString = "00000011 00111101 10010010 00110100 01010110 01111000 11000000 00000000 00000000 00000000 10000111 01100101 01000011 00100001 00000010 00001010 01101110 01100001 01101101 01100101 01110011 01110000 01100001 01100011 01100101 00110001 00001010 01101110 01100001 01101101 01100101 01110011 01110000 01100001 01100011 01100101 00110010 00001001 01110100 01110010 01100001 01100011 01101011 01001110 01100001 01101101 01100101 00010010 00110100 00000100 10000000 00000000 01010110 01111000 01010010 00110100 10000000 00000000 01010110 01111000 01010010 00110100 00000000";
-    // clang-format on
+  // clang-format on
 
+  auto expectedSerialization =
+      binary_string_to_vector(expectedSerializationString);
+  utils::ASSERT_LOG_THROW(c.size() == expectedSerialization.size(),
+                          "Size mismatch\n",
+                          "Expected size: ", expectedSerialization.size(), "\n",
+                          "Actual size: ", c.size(), "\n");
+  for (std::size_t i = 0; i < c.size(); i++)
+    utils::ASSERT_LOG_THROW(
+        c[i] == expectedSerialization[i], "Mismatch at index: ", i, "\n",
+        "Expected: ", expectedSerialization[i], "\n", "Actual: ", c[i], "\n");
 
-    auto expectedSerialization = binary_string_to_vector(expectedSerializationString);
-    utils::ASSERT_LOG_THROW(c.size() == expectedSerialization.size(), "Size mismatch\n",
-                            "Expected size: ", expectedSerialization.size(),
-                            "\n", "Actual size: ", c.size(), "\n");
-    for (std::size_t i = 0; i < c.size(); i++)
-        utils::ASSERT_LOG_THROW(c[i] == expectedSerialization[i], "Mismatch at index: ", i,
-                                "\n", "Expected: ", expectedSerialization[i],
-                                "\n", "Actual: ", c[i], "\n");
+  ds::ChunkSpan span(c);
 
-    ds::ChunkSpan span(c);
+  ControlMessageHeader header;
+  serialization::detail::deserialize(header, span);
 
-    ControlMessageHeader header;
-    serialization::detail::deserialize(header, span);
+  utils::ASSERT_LOG_THROW(
+      header.messageType_ == MoQtMessageType::SUBSCRIBE,
+      "Message type mismatch\n",
+      "Expected: ", utils::to_underlying(MoQtMessageType::SUBSCRIBE), "\n",
+      "Actual: ", utils::to_underlying(header.messageType_), "\n");
 
-    utils::ASSERT_LOG_THROW(header.messageType_ == MoQtMessageType::SUBSCRIBE,
-                            "Message type mismatch\n", "Expected: ",
-                            utils::to_underlying(MoQtMessageType::SUBSCRIBE), "\n",
-                            "Actual: ", utils::to_underlying(header.messageType_), "\n");
+  SubscribeMessage deserializedMsg;
+  serialization::detail::deserialize(deserializedMsg, span);
 
-    SubscribeMessage deserializedMsg;
-    serialization::detail::deserialize(deserializedMsg, span);
-
-    utils::ASSERT_LOG_THROW(msg == deserializedMsg, "Deserialization failed\n",
-                            "Expected: ", msg, "\n", "Actual: ", deserializedMsg, "\n");
+  utils::ASSERT_LOG_THROW(msg == deserializedMsg, "Deserialization failed\n",
+                          "Expected: ", msg, "\n", "Actual: ", deserializedMsg,
+                          "\n");
 }
 
-void tests()
-{
-    try
-    {
-        test1();
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "Test failed\n";
-        std::cerr << e.what() << std::endl;
-    }
+void tests() {
+  try {
+    test1();
+  } catch (const std::exception &e) {
+    std::cerr << "Test failed\n";
+    std::cerr << e.what() << std::endl;
+  }
 }
 
-
-int main()
-{
-    tests();
-    return 0;
+int main() {
+  tests();
+  return 0;
 }

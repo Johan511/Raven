@@ -7,343 +7,326 @@
 #include <serialization/quic_var_int.hpp>
 #include <string>
 
-namespace rvn::serialization::detail
-{
+namespace rvn::serialization::detail {
 ///////////////////////////////////////////////////////////////////////////////////////////////
-// Deserialize trivial types (std::uint8_t, std::uint16_t, std::uint32_t, std::uint64_t)
+// Deserialize trivial types (std::uint8_t, std::uint16_t, std::uint32_t,
+// std::uint64_t)
 
 // Num bytes consumed while deserializing
 using deserialize_return_t = std::uint64_t;
 
-template <typename T, typename ConstSpan, Endianness FromEndianness = NetworkEndian>
-deserialize_return_t
-deserialize_trivial(auto& t, ConstSpan& c, FromEndianness = network_endian)
-{
-    static_assert(std::is_same_v<T, std::uint8_t> || std::is_same_v<T, std::uint16_t> ||
-                  std::is_same_v<T, std::uint32_t> || std::is_same_v<T, std::uint64_t>);
-    static_assert(std::is_same_v<FromEndianness, BigEndian> ||
-                  std::is_same_v<FromEndianness, LittleEndian>);
+template <typename T, typename ConstSpan,
+          Endianness FromEndianness = NetworkEndian>
+deserialize_return_t deserialize_trivial(auto &t, ConstSpan &c,
+                                         FromEndianness = network_endian) {
+  static_assert(
+      std::is_same_v<T, std::uint8_t> || std::is_same_v<T, std::uint16_t> ||
+      std::is_same_v<T, std::uint32_t> || std::is_same_v<T, std::uint64_t>);
+  static_assert(std::is_same_v<FromEndianness, BigEndian> ||
+                std::is_same_v<FromEndianness, LittleEndian>);
 
-    if constexpr (std::is_same_v<FromEndianness, NativeEndian> || sizeof(T) == 1)
-        c.copy_to(&t, sizeof(T));
-    else if constexpr (std::is_same_v<FromEndianness, BigEndian>)
+  if constexpr (std::is_same_v<FromEndianness, NativeEndian> || sizeof(T) == 1)
+    c.copy_to(&t, sizeof(T));
+  else if constexpr (std::is_same_v<FromEndianness, BigEndian>) {
+    if constexpr (std::is_same_v<T, std::uint16_t>) {
+      std::uint16_t spanEndianValue;
+      c.copy_to(&spanEndianValue, sizeof(T));
+      t = be16toh(spanEndianValue);
+    } else if constexpr (std::is_same_v<T, std::uint32_t>) {
+      std::uint32_t spanEndianValue;
+      c.copy_to(&spanEndianValue, sizeof(T));
+      t = be32toh(spanEndianValue);
+    } else /* if constexpr (std::is_same_v<T, std::uint64_t>) */
     {
-        if constexpr (std::is_same_v<T, std::uint16_t>)
-        {
-            std::uint16_t spanEndianValue;
-            c.copy_to(&spanEndianValue, sizeof(T));
-            t = be16toh(spanEndianValue);
-        }
-        else if constexpr (std::is_same_v<T, std::uint32_t>)
-        {
-            std::uint32_t spanEndianValue;
-            c.copy_to(&spanEndianValue, sizeof(T));
-            t = be32toh(spanEndianValue);
-        }
-        else /* if constexpr (std::is_same_v<T, std::uint64_t>) */
-        {
-            std::uint64_t spanEndianValue;
-            c.copy_to(&spanEndianValue, sizeof(T));
-            t = be64toh(spanEndianValue);
-        }
+      std::uint64_t spanEndianValue;
+      c.copy_to(&spanEndianValue, sizeof(T));
+      t = be64toh(spanEndianValue);
     }
-    else /* if constexpr (std::is_same_v<FromEndianness, LittleEndian>) */
+  } else /* if constexpr (std::is_same_v<FromEndianness, LittleEndian>) */
+  {
+    if constexpr (std::is_same_v<T, std::uint16_t>) {
+      std::uint16_t spanEndianValue;
+      c.copy_to(&spanEndianValue, sizeof(T));
+      t = le16toh(spanEndianValue);
+    } else if constexpr (std::is_same_v<T, std::uint32_t>) {
+      std::uint32_t spanEndianValue;
+      c.copy_to(&spanEndianValue, sizeof(T));
+      t = le32toh(spanEndianValue);
+    } else /* if constexpr (std::is_same_v<T, std::uint64_t>) */
     {
-        if constexpr (std::is_same_v<T, std::uint16_t>)
-        {
-            std::uint16_t spanEndianValue;
-            c.copy_to(&spanEndianValue, sizeof(T));
-            t = le16toh(spanEndianValue);
-        }
-        else if constexpr (std::is_same_v<T, std::uint32_t>)
-        {
-            std::uint32_t spanEndianValue;
-            c.copy_to(&spanEndianValue, sizeof(T));
-            t = le32toh(spanEndianValue);
-        }
-        else /* if constexpr (std::is_same_v<T, std::uint64_t>) */
-        {
-            std::uint64_t spanEndianValue;
-            c.copy_to(&spanEndianValue, sizeof(T));
-            t = le64toh(spanEndianValue);
-        }
+      std::uint64_t spanEndianValue;
+      c.copy_to(&spanEndianValue, sizeof(T));
+      t = le64toh(spanEndianValue);
     }
+  }
 
-    c.advance_begin(sizeof(T));
-    return sizeof(T);
+  c.advance_begin(sizeof(T));
+  return sizeof(T);
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////
-// TODO: extern templates for faster preprocessing phase during compilation + lower object size
+// TODO: extern templates for faster preprocessing phase during compilation +
+// lower object size
 /*
     We can't deserialize a quic_var_int from little endian beacuse
     higher order bits are used to indicate the length of the integer
 */
-template <typename T, typename ConstSpan, Endianness FromEndianness = NetworkEndian>
-deserialize_return_t
-deserialize(std::uint64_t& i, ConstSpan& chunk, NetworkEndian = network_endian)
-{
-    static_assert(std::is_same_v<T, ds::quic_var_int>);
+template <typename T, typename ConstSpan,
+          Endianness FromEndianness = NetworkEndian>
+deserialize_return_t deserialize(std::uint64_t &i, ConstSpan &chunk,
+                                 NetworkEndian = network_endian) {
+  static_assert(std::is_same_v<T, ds::quic_var_int>);
 
-    std::uint8_t prefix2Bits = chunk[0] >> 6;
-    switch (prefix2Bits)
-    {
-        case 0b00:
-        {
-            // 1 byte integer
-            using t00 = std::uint8_t;
-            t00 prefixedValue;
-            std::uint64_t numBytesDeserialized =
-            deserialize_trivial<t00>(prefixedValue, chunk, NetworkEndian{});
-            i = prefixedValue & ~(t00(0b11) << 6);
-            return numBytesDeserialized;
-        }
-        case 0b01:
-        {
-            // 2 byte integer
-            using t01 = std::uint16_t;
-            t01 prefixedValue;
-            std::uint64_t numBytesDeserialized =
-            deserialize_trivial<t01>(prefixedValue, chunk, NetworkEndian{});
-            i = prefixedValue & ~(t01(0b11) << 14);
-            return numBytesDeserialized;
-        }
-        case 0b10:
-        {
-            // 4 byte integer
-            using t10 = std::uint32_t;
-            t10 prefixedValue;
-            std::uint64_t numBytesDeserialized =
-            deserialize_trivial<t10>(prefixedValue, chunk, NetworkEndian{});
-            i = prefixedValue & ~(t10(0b11) << 30);
-            return numBytesDeserialized;
-        }
-        case 0b11:
-        {
-            // 8 byte integer
-            using t11 = std::uint64_t;
-            t11 prefixedValue;
-            std::uint64_t numBytesDeserialized =
-            deserialize_trivial<t11>(prefixedValue, chunk, NetworkEndian{});
-            i = prefixedValue & ~(t11(0b11) << 62);
-            return numBytesDeserialized;
-        }
-    }
+  std::uint8_t prefix2Bits = chunk[0] >> 6;
+  switch (prefix2Bits) {
+  case 0b00: {
+    // 1 byte integer
+    using t00 = std::uint8_t;
+    t00 prefixedValue;
+    std::uint64_t numBytesDeserialized =
+        deserialize_trivial<t00>(prefixedValue, chunk, NetworkEndian{});
+    i = prefixedValue & ~(t00(0b11) << 6);
+    return numBytesDeserialized;
+  }
+  case 0b01: {
+    // 2 byte integer
+    using t01 = std::uint16_t;
+    t01 prefixedValue;
+    std::uint64_t numBytesDeserialized =
+        deserialize_trivial<t01>(prefixedValue, chunk, NetworkEndian{});
+    i = prefixedValue & ~(t01(0b11) << 14);
+    return numBytesDeserialized;
+  }
+  case 0b10: {
+    // 4 byte integer
+    using t10 = std::uint32_t;
+    t10 prefixedValue;
+    std::uint64_t numBytesDeserialized =
+        deserialize_trivial<t10>(prefixedValue, chunk, NetworkEndian{});
+    i = prefixedValue & ~(t10(0b11) << 30);
+    return numBytesDeserialized;
+  }
+  case 0b11: {
+    // 8 byte integer
+    using t11 = std::uint64_t;
+    t11 prefixedValue;
+    std::uint64_t numBytesDeserialized =
+        deserialize_trivial<t11>(prefixedValue, chunk, NetworkEndian{});
+    i = prefixedValue & ~(t11(0b11) << 62);
+    return numBytesDeserialized;
+  }
+  }
 
-    assert(false);
-    return 42;
+  assert(false);
+  return 42;
 }
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize_params(std::vector<Parameter>& parameters, ConstSpan& span, NetworkEndian = network_endian)
-{
-    std::uint64_t deserializedBytes = 0;
+deserialize_params(std::vector<Parameter> &parameters, ConstSpan &span,
+                   NetworkEndian = network_endian) {
+  std::uint64_t deserializedBytes = 0;
 
-    std::uint64_t numParameters;
-    deserializedBytes += deserialize<ds::quic_var_int>(numParameters, span);
-    parameters.resize(numParameters);
-    for (auto& parameter : parameters)
-    {
-        std::uint64_t parameterType;
-        deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
+  std::uint64_t numParameters;
+  deserializedBytes += deserialize<ds::quic_var_int>(numParameters, span);
+  parameters.resize(numParameters);
+  for (auto &parameter : parameters) {
+    std::uint64_t parameterType;
+    deserializedBytes += deserialize<ds::quic_var_int>(parameterType, span);
 
-        std::uint64_t parameterLength;
-        deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
+    std::uint64_t parameterLength;
+    deserializedBytes += deserialize<ds::quic_var_int>(parameterLength, span);
 
-        switch (static_cast<ParameterType>(parameterType))
-        {
-            case ParameterType::DeliveryTimeout:
-            {
-                DeliveryTimeoutParameter deliveryTimeoutParameter;
-                std::uint64_t timeoutInMs;
-                deserializedBytes += deserialize<ds::quic_var_int>(timeoutInMs, span);
-                deliveryTimeoutParameter.timeout_ = std::chrono::milliseconds(timeoutInMs);
-                parameter.parameter_ = deliveryTimeoutParameter;
-                break;
-            }
-            default:
-                utils::ASSERT_LOG_THROW(false, "Unknown parameter type: ", parameterType);
-        }
+    switch (static_cast<ParameterType>(parameterType)) {
+    case ParameterType::DeliveryTimeout: {
+      DeliveryTimeoutParameter deliveryTimeoutParameter;
+      std::uint64_t timeoutInMs;
+      deserializedBytes += deserialize<ds::quic_var_int>(timeoutInMs, span);
+      deliveryTimeoutParameter.timeout_ =
+          std::chrono::milliseconds(timeoutInMs);
+      parameter.parameter_ = deliveryTimeoutParameter;
+      break;
     }
+    default:
+      utils::ASSERT_LOG_THROW(false, "Unknown parameter type: ", parameterType);
+    }
+  }
 
-    return deserializedBytes;
+  return deserializedBytes;
 }
 ///////////////////////////////////////////////////////////////////////////////////
 // Message Deserialization
 // precondition: span is from start of message to end of message
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::ClientSetupMessage& clientSetupMessage, ConstSpan& span, NetworkEndian = network_endian)
-{
-    std::uint64_t deserializedBytes = 0;
+deserialize(rvn::ClientSetupMessage &clientSetupMessage, ConstSpan &span,
+            NetworkEndian = network_endian) {
+  std::uint64_t deserializedBytes = 0;
 
-    std::uint64_t numSupportedVersions;
-    deserializedBytes += deserialize<ds::quic_var_int>(numSupportedVersions, span);
-    clientSetupMessage.supportedVersions_.resize(numSupportedVersions);
-    for (auto& version : clientSetupMessage.supportedVersions_)
-    {
-        std::uint64_t version64Bit;
-        deserializedBytes += deserialize<ds::quic_var_int>(version64Bit, span);
-        // We can safely cast to uint32 as version is 32 bit uint
-        // https://www.ietf.org/archive/id/draft-ietf-moq-transport-07.html#section-6.2.1
-        version = static_cast<std::uint32_t>(version64Bit);
-    }
+  std::uint64_t numSupportedVersions;
+  deserializedBytes +=
+      deserialize<ds::quic_var_int>(numSupportedVersions, span);
+  clientSetupMessage.supportedVersions_.resize(numSupportedVersions);
+  for (auto &version : clientSetupMessage.supportedVersions_) {
+    std::uint64_t version64Bit;
+    deserializedBytes += deserialize<ds::quic_var_int>(version64Bit, span);
+    // We can safely cast to uint32 as version is 32 bit uint
+    // https://www.ietf.org/archive/id/draft-ietf-moq-transport-07.html#section-6.2.1
+    version = static_cast<std::uint32_t>(version64Bit);
+  }
 
-    deserializedBytes += deserialize_params(clientSetupMessage.parameters_, span);
+  deserializedBytes += deserialize_params(clientSetupMessage.parameters_, span);
 
-    return deserializedBytes;
+  return deserializedBytes;
 }
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::ControlMessageHeader& controlMessageHeader, ConstSpan& span, NetworkEndian = network_endian)
-{
-    std::uint64_t deserializedBytes = 0;
+deserialize(rvn::ControlMessageHeader &controlMessageHeader, ConstSpan &span,
+            NetworkEndian = network_endian) {
+  std::uint64_t deserializedBytes = 0;
 
-    std::uint64_t messageType;
-    deserializedBytes += deserialize<ds::quic_var_int>(messageType, span);
-    controlMessageHeader.messageType_ = static_cast<MoQtMessageType>(messageType);
+  std::uint64_t messageType;
+  deserializedBytes += deserialize<ds::quic_var_int>(messageType, span);
+  controlMessageHeader.messageType_ = static_cast<MoQtMessageType>(messageType);
 
-    std::uint64_t length;
-    deserializedBytes += deserialize<ds::quic_var_int>(length, span);
-    controlMessageHeader.length_ = length;
+  std::uint64_t length;
+  deserializedBytes += deserialize<ds::quic_var_int>(length, span);
+  controlMessageHeader.length_ = length;
 
-    return deserializedBytes;
+  return deserializedBytes;
 }
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::ServerSetupMessage& serverSetupMessage, ConstSpan& span, NetworkEndian = network_endian)
-{
-    std::uint64_t deserializedBytes = 0;
+deserialize(rvn::ServerSetupMessage &serverSetupMessage, ConstSpan &span,
+            NetworkEndian = network_endian) {
+  std::uint64_t deserializedBytes = 0;
 
-    std::uint64_t selectedVersion;
-    deserializedBytes += deserialize<ds::quic_var_int>(selectedVersion, span);
-    serverSetupMessage.selectedVersion_ = selectedVersion;
+  std::uint64_t selectedVersion;
+  deserializedBytes += deserialize<ds::quic_var_int>(selectedVersion, span);
+  serverSetupMessage.selectedVersion_ = selectedVersion;
 
-    deserializedBytes += deserialize_params(serverSetupMessage.parameters_, span);
+  deserializedBytes += deserialize_params(serverSetupMessage.parameters_, span);
 
-    return deserializedBytes;
+  return deserializedBytes;
 }
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::SubscribeMessage& subscribeMessage, ConstSpan& span, NetworkEndian = network_endian)
-{
-    std::uint64_t deserializedBytes = 0;
+deserialize(rvn::SubscribeMessage &subscribeMessage, ConstSpan &span,
+            NetworkEndian = network_endian) {
+  std::uint64_t deserializedBytes = 0;
 
-    deserializedBytes +=
-    deserialize<ds::quic_var_int>(subscribeMessage.subscribeId_, span);
-    deserializedBytes +=
-    deserialize<ds::quic_var_int>(subscribeMessage.trackAlias_.get(), span);
+  deserializedBytes +=
+      deserialize<ds::quic_var_int>(subscribeMessage.subscribeId_, span);
+  deserializedBytes +=
+      deserialize<ds::quic_var_int>(subscribeMessage.trackAlias_.get(), span);
 
-    std::uint64_t numTrackNamespace;
-    deserializedBytes += deserialize<ds::quic_var_int>(numTrackNamespace, span);
-    subscribeMessage.trackNamespace_.resize(numTrackNamespace);
-    for (auto& ns : subscribeMessage.trackNamespace_)
-    {
-        std::uint64_t nsLength;
-        deserializedBytes += deserialize<ds::quic_var_int>(nsLength, span);
+  std::uint64_t numTrackNamespace;
+  deserializedBytes += deserialize<ds::quic_var_int>(numTrackNamespace, span);
+  subscribeMessage.trackNamespace_.resize(numTrackNamespace);
+  for (auto &ns : subscribeMessage.trackNamespace_) {
+    std::uint64_t nsLength;
+    deserializedBytes += deserialize<ds::quic_var_int>(nsLength, span);
 
-        ns = std::string(nsLength, '\0');
-        span.copy_to(ns.data(), nsLength);
-        deserializedBytes += nsLength;
-        span.advance_begin(nsLength);
-    }
+    ns = std::string(nsLength, '\0');
+    span.copy_to(ns.data(), nsLength);
+    deserializedBytes += nsLength;
+    span.advance_begin(nsLength);
+  }
 
-    std::uint64_t trackNameLength;
-    deserializedBytes += deserialize<ds::quic_var_int>(trackNameLength, span);
-    subscribeMessage.trackName_ = std::string(trackNameLength, '\0');
-    span.copy_to(subscribeMessage.trackName_.data(), trackNameLength);
-    deserializedBytes += trackNameLength;
-    span.advance_begin(trackNameLength);
+  std::uint64_t trackNameLength;
+  deserializedBytes += deserialize<ds::quic_var_int>(trackNameLength, span);
+  subscribeMessage.trackName_ = std::string(trackNameLength, '\0');
+  span.copy_to(subscribeMessage.trackName_.data(), trackNameLength);
+  deserializedBytes += trackNameLength;
+  span.advance_begin(trackNameLength);
 
-    deserializedBytes +=
-    deserialize_trivial<std::uint8_t>(subscribeMessage.subscriberPriority_, span);
-    deserializedBytes +=
-    deserialize_trivial<std::uint8_t>(subscribeMessage.groupOrder_, span);
+  deserializedBytes += deserialize_trivial<std::uint8_t>(
+      subscribeMessage.subscriberPriority_, span);
+  deserializedBytes +=
+      deserialize_trivial<std::uint8_t>(subscribeMessage.groupOrder_, span);
 
-    std::uint64_t filterType;
-    deserializedBytes += deserialize<ds::quic_var_int>(filterType, span);
-    subscribeMessage.filterType_ = static_cast<SubscribeFilterType>(filterType);
-    subscribeMessage.filterType_ = static_cast<SubscribeFilterType>(filterType);
+  std::uint64_t filterType;
+  deserializedBytes += deserialize<ds::quic_var_int>(filterType, span);
+  subscribeMessage.filterType_ = static_cast<SubscribeFilterType>(filterType);
+  subscribeMessage.filterType_ = static_cast<SubscribeFilterType>(filterType);
 
-    if ((subscribeMessage.filterType_ == rvn::SubscribeFilterType::AbsoluteStart) |
-        (subscribeMessage.filterType_ == rvn::SubscribeFilterType::AbsoluteRange))
-    {
-        subscribeMessage.start_.emplace();
-        deserializedBytes +=
-        deserialize<ds::quic_var_int>(subscribeMessage.start_->group_.get(), span);
-        deserializedBytes +=
-        deserialize<ds::quic_var_int>(subscribeMessage.start_->object_.get(), span);
-    }
+  if ((subscribeMessage.filterType_ ==
+       rvn::SubscribeFilterType::AbsoluteStart) |
+      (subscribeMessage.filterType_ ==
+       rvn::SubscribeFilterType::AbsoluteRange)) {
+    subscribeMessage.start_.emplace();
+    deserializedBytes += deserialize<ds::quic_var_int>(
+        subscribeMessage.start_->group_.get(), span);
+    deserializedBytes += deserialize<ds::quic_var_int>(
+        subscribeMessage.start_->object_.get(), span);
+  }
 
-    if (subscribeMessage.filterType_ == SubscribeFilterType::AbsoluteRange)
-    {
-        subscribeMessage.end_.emplace();
-        deserializedBytes +=
-        deserialize<ds::quic_var_int>(subscribeMessage.end_->group_.get(), span);
-        deserializedBytes +=
-        deserialize<ds::quic_var_int>(subscribeMessage.end_->object_.get(), span);
-    }
+  if (subscribeMessage.filterType_ == SubscribeFilterType::AbsoluteRange) {
+    subscribeMessage.end_.emplace();
+    deserializedBytes += deserialize<ds::quic_var_int>(
+        subscribeMessage.end_->group_.get(), span);
+    deserializedBytes += deserialize<ds::quic_var_int>(
+        subscribeMessage.end_->object_.get(), span);
+  }
 
-    deserializedBytes += deserialize_params(subscribeMessage.parameters_, span);
+  deserializedBytes += deserialize_params(subscribeMessage.parameters_, span);
 
-    return deserializedBytes;
+  return deserializedBytes;
 }
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::BatchSubscribeMessage& batchSubscribeMessage, ConstSpan& span, NetworkEndian = network_endian)
-{
-    std::uint64_t deserializedBytes = 0;
+deserialize(rvn::BatchSubscribeMessage &batchSubscribeMessage, ConstSpan &span,
+            NetworkEndian = network_endian) {
+  std::uint64_t deserializedBytes = 0;
 
-    std::uint64_t numTrackNamespace;
-    deserializedBytes += deserialize<ds::quic_var_int>(numTrackNamespace, span);
-    batchSubscribeMessage.trackNamespacePrefix_.resize(numTrackNamespace);
-    for (auto& ns : batchSubscribeMessage.trackNamespacePrefix_)
-    {
-        std::uint64_t nsLength;
-        deserializedBytes += deserialize<ds::quic_var_int>(nsLength, span);
+  std::uint64_t numTrackNamespace;
+  deserializedBytes += deserialize<ds::quic_var_int>(numTrackNamespace, span);
+  batchSubscribeMessage.trackNamespacePrefix_.resize(numTrackNamespace);
+  for (auto &ns : batchSubscribeMessage.trackNamespacePrefix_) {
+    std::uint64_t nsLength;
+    deserializedBytes += deserialize<ds::quic_var_int>(nsLength, span);
 
-        ns = std::string(nsLength, '\0');
-        span.copy_to(ns.data(), nsLength);
-        deserializedBytes += nsLength;
-        span.advance_begin(nsLength);
-    }
+    ns = std::string(nsLength, '\0');
+    span.copy_to(ns.data(), nsLength);
+    deserializedBytes += nsLength;
+    span.advance_begin(nsLength);
+  }
 
-    std::uint64_t numSubscriptions;
-    deserializedBytes += deserialize<ds::quic_var_int>(numSubscriptions, span);
-    batchSubscribeMessage.subscriptions_.resize(numSubscriptions);
-    for (auto& subscription : batchSubscribeMessage.subscriptions_)
-        deserializedBytes += deserialize(subscription, span);
+  std::uint64_t numSubscriptions;
+  deserializedBytes += deserialize<ds::quic_var_int>(numSubscriptions, span);
+  batchSubscribeMessage.subscriptions_.resize(numSubscriptions);
+  for (auto &subscription : batchSubscribeMessage.subscriptions_)
+    deserializedBytes += deserialize(subscription, span);
 
-    return deserializedBytes;
+  return deserializedBytes;
 }
 
 template <typename ConstSpan>
 static inline deserialize_return_t
-deserialize(rvn::SubscribeErrorMessage& subscribeErrorMessage, ConstSpan& span, NetworkEndian = network_endian)
-{
-    std::uint64_t deserializedBytes = 0;
+deserialize(rvn::SubscribeErrorMessage &subscribeErrorMessage, ConstSpan &span,
+            NetworkEndian = network_endian) {
+  std::uint64_t deserializedBytes = 0;
 
-    // Deserialize body
-    deserializedBytes +=
-    deserialize<ds::quic_var_int>(subscribeErrorMessage.subscribeId_, span);
-    deserializedBytes +=
-    deserialize<ds::quic_var_int>(subscribeErrorMessage.errorCode_, span);
+  // Deserialize body
+  deserializedBytes +=
+      deserialize<ds::quic_var_int>(subscribeErrorMessage.subscribeId_, span);
+  deserializedBytes +=
+      deserialize<ds::quic_var_int>(subscribeErrorMessage.errorCode_, span);
 
-    std::uint64_t reasonPhraseLength;
-    deserializedBytes += deserialize<ds::quic_var_int>(reasonPhraseLength, span);
+  std::uint64_t reasonPhraseLength;
+  deserializedBytes += deserialize<ds::quic_var_int>(reasonPhraseLength, span);
 
-    subscribeErrorMessage.reasonPhrase_.resize(reasonPhraseLength);
-    span.copy_to(subscribeErrorMessage.reasonPhrase_.data(), reasonPhraseLength);
-    span.advance_begin(reasonPhraseLength);
+  subscribeErrorMessage.reasonPhrase_.resize(reasonPhraseLength);
+  span.copy_to(subscribeErrorMessage.reasonPhrase_.data(), reasonPhraseLength);
+  span.advance_begin(reasonPhraseLength);
 
-    deserializedBytes +=
-    deserialize<ds::quic_var_int>(subscribeErrorMessage.trackAlias_, span);
+  deserializedBytes +=
+      deserialize<ds::quic_var_int>(subscribeErrorMessage.trackAlias_, span);
 
-    return deserializedBytes;
+  return deserializedBytes;
 }
 
 } // namespace rvn::serialization::detail
