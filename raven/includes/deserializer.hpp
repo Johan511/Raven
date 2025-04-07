@@ -159,6 +159,12 @@ template <typename DeserializedMessageHandler> class Deserializer
             numBytesDeserialized = detail::deserialize(msg, span);
             messageHandler_(std::move(msg));
         }
+        else if (messageType_ == MoQtMessageType::BATCH_SUBSCRIBE)
+        {
+            BatchSubscribeMessage msg;
+            numBytesDeserialized = detail::deserialize(msg, span);
+            messageHandler_(std::move(msg));
+        }
         else
         {
             utils::ASSERT_LOG_THROW(false, "Unsuppored message type",

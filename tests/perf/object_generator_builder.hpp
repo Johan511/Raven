@@ -72,9 +72,10 @@ public:
         const auto trackGranularityGeneratorTask =
         [this, baseBitRate, numObjectsPerLayer, msBetweenObjects](std::uint64_t layerIdx)
         {
-            static const std::string trackName = "track";
             auto trackHandle =
-            dataManager_.add_track_identifier(trackNamespace, trackName).lock();
+            dataManager_
+            .add_track_identifier(trackNamespace, std::to_string(layerIdx))
+            .lock();
 
             std::uint64_t bitRate = baseBitRate << layerIdx;
             std::uint64_t objectSize = get_size_of_object(bitRate, msBetweenObjects);

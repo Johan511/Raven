@@ -40,6 +40,25 @@ void MessageHandler::operator()(SubscribeMessage subscribeMessage)
                                            std::move(subscribeMessage));
 }
 
+void MessageHandler::operator()(BatchSubscribeMessage batchSubscribeMessage)
+{
+    utils::LOG_EVENT(std::cout, "Batch Subscribe Message received: \n", batchSubscribeMessage);
+    for (auto& subscribeMessage : batchSubscribeMessage.subscriptions_)
+    {
+        std::vector<std::string> trackNamespace = batchSubscribeMessage.trackNamespacePrefix_;
+        for (auto&& ns : subscribeMessage.trackNamespace_)
+            trackNamespace.push_back(std::move(ns));
+        subscribeMessage.trackNamespace_ = trackNamespace;
+
+        TrackIdentifier trackIdentifier(trackNamespace, subscribeMessage.trackName_);
+        streamState_.connectionState_.add_track_alias(std::move(trackIdentifier),
+                                                      subscribeMessage.trackAlias_);
+
+        subscriptionManager_->add_subscription(streamState_.connectionState_.weak_from_this(),
+                                               std::move(subscribeMessage));
+    }
+}
+
 void MessageHandler::operator()(StreamHeaderSubgroupObject streamHeaderSubgroupObject)
 {
     MOQTClient& moqtClient =

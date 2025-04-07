@@ -12,7 +12,6 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
-#include <boost/log/trivial.hpp>
 #include <boost/program_options.hpp>
 /////////////////////////////////////////////////////////
 #include <callbacks.hpp>
@@ -52,7 +51,7 @@ std::uint64_t numObjects;
 std::uint64_t msBetweenObjects;
 constexpr std::uint8_t numGroups = 5;
 constexpr ObjectGeneratorFactory::LayerGranularity layerGranularity =
-ObjectGeneratorFactory::GroupGranularity;
+ObjectGeneratorFactory::TrackGranularity;
 ////////////////////////////////////////////////////////////////////
 
 
@@ -138,7 +137,7 @@ int main(int argc, char* argv[])
             serverConfig->ProcessorList[i] = i;
 
         std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
-        std::system(setNicenessString.c_str());
+        // std::system(setNicenessString.c_str());
 
         std::unique_ptr<MOQTServer> moqtServer =
         server_setup(std::make_tuple(serverConfig, sizeof(rawServerConfig)));
@@ -192,7 +191,7 @@ int main(int argc, char* argv[])
         static_cast<InterprocessSynchronizationData*>(regionChild.get_address());
         //////////////////////////////////////////////////////////////////////////
         std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
-        std::system(setNicenessString.c_str());
+        // std::system(setNicenessString.c_str());
 
         for (;;)
         {
@@ -240,7 +239,7 @@ int main(int argc, char* argv[])
 
         SubscriptionBuilder subscriptionBuilder;
         subscriptionBuilder.set_track_alias(TrackAlias(0));
-        subscriptionBuilder.set_track_namespace({ "namespace1", "namespace2", "namespace3" });
+        subscriptionBuilder.set_track_namespace({});
         subscriptionBuilder.set_track_name("track");
         subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestPerGroupInTrack);
         subscriptionBuilder.set_subscriber_priority(0);
@@ -248,7 +247,18 @@ int main(int argc, char* argv[])
 
         auto subMessage = subscriptionBuilder.build();
 
-        moqtClient->subscribe(std::move(subMessage));
+        BatchSubscribeMessage batchSubscribeMessage;
+        batchSubscribeMessage.trackNamespacePrefix_ = { "namespace1", "namespace2", "namespace3" };
+
+        for (std::uint64_t groupId = 0; groupId < numGroups; ++groupId)
+        {
+            subMessage.trackName_ = std::to_string(groupId);
+            subMessage.trackAlias_ = TrackAlias(groupId);
+            batchSubscribeMessage.subscriptions_.push_back(std::move(subMessage));
+        }
+
+
+        moqtClient->subscribe(std::move(batchSubscribeMessage));
         std::atomic_int8_t numEndObjectsReceived = 0;
 
         auto& receivedObjectsQueue = moqtClient->receivedObjects_;

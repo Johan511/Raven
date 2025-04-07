@@ -48,6 +48,12 @@ public:
         connectionState->send_control_buffer(quicBuffer);
     }
 
+    void subscribe(BatchSubscribeMessage&& batchSubscribeMessage)
+    {
+        QUIC_BUFFER* quicBuffer = serialization::serialize(batchSubscribeMessage);
+        connectionState->send_control_buffer(quicBuffer);
+    }
+
 
     MOQTClient(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> execConfigTuple = { nullptr, 0 });
 

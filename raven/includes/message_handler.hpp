@@ -18,5 +18,6 @@ public:
     void operator()(SubscribeMessage subscribeMessage);
     void operator()(StreamHeaderSubgroupObject streamHeaderSubgroupObject);
     void operator()(StreamHeaderSubgroupMessage streamHeaderSubgroupMessage);
+    void operator()(BatchSubscribeMessage batchSubscribeMessage);
 };
 } // namespace rvn
