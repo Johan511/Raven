@@ -32,11 +32,12 @@
 using namespace rvn;
 
 ////////////////////////////////////////////////////////////////////
-struct InterprocessSynchronizationData {
-  boost::interprocess::interprocess_mutex mutex_;
-  bool serverSetup_;
-  bool clientDone_;
-  std::uint64_t processorIdBegin_;
+struct InterprocessSynchronizationData
+{
+    boost::interprocess::interprocess_mutex mutex_;
+    bool serverSetup_;
+    bool clientDone_;
+    std::uint64_t processorIdBegin_;
 };
 ////////////////////////////////////////////////////////////////////
 namespace bip = boost::interprocess;
@@ -50,26 +51,27 @@ std::uint64_t numObjects;
 std::uint64_t msBetweenObjects;
 constexpr std::uint8_t numGroups = 5;
 constexpr ObjectGeneratorFactory::LayerGranularity layerGranularity =
-    ObjectGeneratorFactory::TrackGranularity;
+ObjectGeneratorFactory::TrackGranularity;
 ////////////////////////////////////////////////////////////////////
 
-std::string generate_object(std::uint64_t groupId, std::uint64_t objectId) {
-  std::uint64_t currTime = get_current_ms_timestamp();
-  std::string object((1 << 15) * (1 << groupId), 0);
-  std::memcpy(object.data(), reinterpret_cast<const char *>(&currTime),
-              sizeof(currTime));
-  std::memcpy(object.data() + sizeof(std::uint64_t),
-              reinterpret_cast<const char *>(&groupId), sizeof(groupId));
-  std::memcpy(object.data() + 2 * sizeof(std::uint64_t),
-              reinterpret_cast<const char *>(&objectId), sizeof(objectId));
+std::string generate_object(std::uint64_t groupId, std::uint64_t objectId)
+{
+    std::uint64_t currTime = get_current_ms_timestamp();
+    std::string object((1 << 15) * (1 << groupId), 0);
+    std::memcpy(object.data(), reinterpret_cast<const char*>(&currTime), sizeof(currTime));
+    std::memcpy(object.data() + sizeof(std::uint64_t),
+                reinterpret_cast<const char*>(&groupId), sizeof(groupId));
+    std::memcpy(object.data() + 2 * sizeof(std::uint64_t),
+                reinterpret_cast<const char*>(&objectId), sizeof(objectId));
 
-  return object;
+    return object;
 }
 
-int main(int argc, char *argv[]) {
-  po::options_description poptions("Program Options");
+int main(int argc, char* argv[])
+{
+    po::options_description poptions("Program Options");
 
-  // clang-format off
+    // clang-format off
     poptions.add_options()
         ("help,h", "help")
         ("objects,o", po::value<std::uint64_t>()->default_value(1'000), "Number of objects")
@@ -78,212 +80,215 @@ int main(int argc, char *argv[]) {
         ("delay_ms,d", po::value<double>()->default_value(50), "Network delay in milliseconds")
         ("delay_jitter,j", po::value<double>()->default_value(10), "Network delay jitter in milliseconds")
         ("sample_time,s", po::value<std::uint64_t>()->default_value(250), "Milliseconds between objects");
-  // clang-format on
+    // clang-format on
 
-  po::variables_map vm;
-  po::store(po::parse_command_line(argc, argv, poptions), vm);
-  po::notify(vm);
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, poptions), vm);
+    po::notify(vm);
 
-  if (vm.count("help")) {
-    std::cout << poptions << std::endl;
-    exit(0);
-  }
-
-  //////////////////////////////////////////////////////////////////////////
-  // Setting Command Link arguments
-  numObjects = vm["objects"].as<std::uint64_t>();
-  msBetweenObjects = vm["sample_time"].as<std::uint64_t>();
-  //////////////////////////////////////////////////////////////////////////
-
-  std::string sharedMemoryName = "chunk_transfer_test_";
-  sharedMemoryName += std::to_string(getpid());
-
-  bip::shared_memory_object shmParent(
-      bip::create_only, sharedMemoryName.c_str(), bip::read_write);
-  shmParent.truncate(sizeof(InterprocessSynchronizationData));
-  bip::mapped_region regionParent(shmParent, bip::read_write);
-  InterprocessSynchronizationData *dataParent =
-      new (regionParent.get_address()) InterprocessSynchronizationData();
-
-  dataParent->serverSetup_ = false;
-  dataParent->clientDone_ = false;
-  dataParent->processorIdBegin_ = numMsQuicWorkersPerServer;
-
-  if (fork()) {
-    // parent process, server
-    std::uint8_t
-        rawServerConfig[sizeof(QUIC_EXECUTION_CONFIG) +
-                        numMsQuicWorkersPerServer * sizeof(std::uint16_t)];
-    QUIC_EXECUTION_CONFIG *serverConfig =
-        reinterpret_cast<QUIC_EXECUTION_CONFIG *>(rawServerConfig);
-    serverConfig->ProcessorCount = numMsQuicWorkersPerServer;
-    serverConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
-    serverConfig->PollingIdleTimeoutUs = 50000;
-
-    if (numProcessors < numMsQuicWorkersPerServer) {
-      std::cerr
-          << "Number of processors is less than the number of server workers"
-          << std::endl;
-      exit(1);
+    if (vm.count("help"))
+    {
+        std::cout << poptions << std::endl;
+        exit(0);
     }
 
-    for (std::uint16_t i = 0; i < numMsQuicWorkersPerServer; i++)
-      serverConfig->ProcessorList[i] = i;
+    //////////////////////////////////////////////////////////////////////////
+    // Setting Command Link arguments
+    numObjects = vm["objects"].as<std::uint64_t>();
+    msBetweenObjects = vm["sample_time"].as<std::uint64_t>();
+    //////////////////////////////////////////////////////////////////////////
 
-    std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
-    // std::system(setNicenessString.c_str());
+    std::string sharedMemoryName = "chunk_transfer_test_";
+    sharedMemoryName += std::to_string(getpid());
 
-    std::unique_ptr<MOQTServer> moqtServer =
+    bip::shared_memory_object shmParent(bip::create_only,
+                                        sharedMemoryName.c_str(), bip::read_write);
+    shmParent.truncate(sizeof(InterprocessSynchronizationData));
+    bip::mapped_region regionParent(shmParent, bip::read_write);
+    InterprocessSynchronizationData* dataParent =
+    new (regionParent.get_address()) InterprocessSynchronizationData();
+
+    dataParent->serverSetup_ = false;
+    dataParent->clientDone_ = false;
+    dataParent->processorIdBegin_ = numMsQuicWorkersPerServer;
+
+    if (fork())
+    {
+        // parent process, server
+        std::uint8_t rawServerConfig[sizeof(QUIC_EXECUTION_CONFIG) +
+                                     numMsQuicWorkersPerServer * sizeof(std::uint16_t)];
+        QUIC_EXECUTION_CONFIG* serverConfig =
+        reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawServerConfig);
+        serverConfig->ProcessorCount = numMsQuicWorkersPerServer;
+        serverConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
+        serverConfig->PollingIdleTimeoutUs = 50000;
+
+        if (numProcessors < numMsQuicWorkersPerServer)
+        {
+            std::cerr
+            << "Number of processors is less than the number of server workers"
+            << std::endl;
+            exit(1);
+        }
+
+        for (std::uint16_t i = 0; i < numMsQuicWorkersPerServer; i++)
+            serverConfig->ProcessorList[i] = i;
+
+        std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
+        // std::system(setNicenessString.c_str());
+
+        std::unique_ptr<MOQTServer> moqtServer =
         server_setup(std::make_tuple(serverConfig, sizeof(rawServerConfig)));
 
-    auto dm = moqtServer->dataManager_;
+        auto dm = moqtServer->dataManager_;
 
-    ObjectGeneratorFactory objectGeneratorFactory(*dm);
-    auto dataPublishers = objectGeneratorFactory.create(
-        layerGranularity, numGroups, numObjects,
-        std::chrono::milliseconds(msBetweenObjects),
-        vm["bit_rate"].as<double>() * 1000);
+        ObjectGeneratorFactory objectGeneratorFactory(*dm);
+        auto dataPublishers =
+        objectGeneratorFactory.create(layerGranularity, numGroups, numObjects,
+                                      std::chrono::milliseconds(msBetweenObjects),
+                                      vm["bit_rate"].as<double>() * 1000);
 
+        {
+            std::unique_lock lock(dataParent->mutex_);
+            dataParent->serverSetup_ = true;
+        }
+        for (auto& dataPublisher : dataPublishers)
+            dataPublisher.join();
+
+        for (;;)
+        {
+            std::unique_lock lock(dataParent->mutex_);
+            if (dataParent->clientDone_)
+                break;
+        }
+
+        std::cout << "Server done" << std::endl;
+        wait(NULL);
+        exit(0);
+    }
+    else
     {
-      std::unique_lock lock(dataParent->mutex_);
-      dataParent->serverSetup_ = true;
-    }
-    for (auto &dataPublisher : dataPublishers)
-      dataPublisher.join();
+        //////////////////////////////////////////////////////////////////////////
+        // Setting up NetEm parameters
+        double lossPercentage = vm["loss_percentage"].as<double>();
+        double bitRate = vm["bit_rate"].as<double>();
+        double delayMs = vm["delay_ms"].as<double>();
+        double delayJitter = vm["delay_jitter"].as<double>();
 
-    for (;;) {
-      std::unique_lock lock(dataParent->mutex_);
-      if (dataParent->clientDone_)
-        break;
-    }
+        // NetemRAII netemRAII(lossPercentage, bitRate, delayMs, delayJitter);
+        lttng_ust_tracepoint(chunk_transfer_perf_lttng, netem, lossPercentage,
+                             bitRate, delayMs, delayJitter);
+        //////////////////////////////////////////////////////////////////////////
 
-    std::cout << "Server done" << std::endl;
-    wait(NULL);
-    exit(0);
-  } else {
-    //////////////////////////////////////////////////////////////////////////
-    // Setting up NetEm parameters
-    double lossPercentage = vm["loss_percentage"].as<double>();
-    double bitRate = vm["bit_rate"].as<double>();
-    double delayMs = vm["delay_ms"].as<double>();
-    double delayJitter = vm["delay_jitter"].as<double>();
+        //////////////////////////////////////////////////////////////////////////
+        // Open shared memory
+        bip::shared_memory_object shmChild(bip::open_only, sharedMemoryName.c_str(),
+                                           bip::read_write);
+        bip::mapped_region regionChild(shmChild, bip::read_write);
+        InterprocessSynchronizationData* dataChild =
+        static_cast<InterprocessSynchronizationData*>(regionChild.get_address());
+        //////////////////////////////////////////////////////////////////////////
+        std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
+        // std::system(setNicenessString.c_str());
 
-    // NetemRAII netemRAII(lossPercentage, bitRate, delayMs, delayJitter);
-    lttng_ust_tracepoint(chunk_transfer_perf_lttng, netem, lossPercentage,
-                         bitRate, delayMs, delayJitter);
-    //////////////////////////////////////////////////////////////////////////
+        for (;;)
+        {
+            std::unique_lock lock(dataChild->mutex_);
+            if (dataChild->serverSetup_)
+                break;
+        }
 
-    //////////////////////////////////////////////////////////////////////////
-    // Open shared memory
-    bip::shared_memory_object shmChild(bip::open_only, sharedMemoryName.c_str(),
-                                       bip::read_write);
-    bip::mapped_region regionChild(shmChild, bip::read_write);
-    InterprocessSynchronizationData *dataChild =
-        static_cast<InterprocessSynchronizationData *>(
-            regionChild.get_address());
-    //////////////////////////////////////////////////////////////////////////
-    std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
-    // std::system(setNicenessString.c_str());
+        std::uint16_t clientFirstProcessorId;
+        {
+            std::unique_lock lock(dataParent->mutex_);
+            clientFirstProcessorId = dataParent->processorIdBegin_;
+            dataParent->processorIdBegin_ += numMsQuicWorkersPerClient;
+        }
 
-    for (;;) {
-      std::unique_lock lock(dataChild->mutex_);
-      if (dataChild->serverSetup_)
-        break;
-    }
+        constexpr std::uint64_t execConfigLen =
+        sizeof(QUIC_EXECUTION_CONFIG) + numMsQuicWorkersPerClient * sizeof(std::uint16_t);
 
-    std::uint16_t clientFirstProcessorId;
-    {
-      std::unique_lock lock(dataParent->mutex_);
-      clientFirstProcessorId = dataParent->processorIdBegin_;
-      dataParent->processorIdBegin_ += numMsQuicWorkersPerClient;
-    }
+        std::uint8_t rawExecutionConfig[execConfigLen];
+        QUIC_EXECUTION_CONFIG* executionConfig =
+        reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawExecutionConfig);
 
-    constexpr std::uint64_t execConfigLen =
-        sizeof(QUIC_EXECUTION_CONFIG) +
-        numMsQuicWorkersPerClient * sizeof(std::uint16_t);
+        executionConfig->ProcessorCount = numMsQuicWorkersPerClient;
+        executionConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
+        executionConfig->PollingIdleTimeoutUs = 50000;
 
-    std::uint8_t rawExecutionConfig[execConfigLen];
-    QUIC_EXECUTION_CONFIG *executionConfig =
-        reinterpret_cast<QUIC_EXECUTION_CONFIG *>(rawExecutionConfig);
+        /*
+            We want to map the client workers to the processors after the server
+           workers so i = clientFirstProcessorId + j (j = 0, 1, 2, ...,
+           numMsQuicWorkersPerClient - 1) is mapped to
+           [numMsQuicWorkersPerServer, numCores)
+        */
+        for (std::uint16_t workerId = 0; workerId < numMsQuicWorkersPerClient; workerId++)
+        {
+            std::uint16_t processorId = clientFirstProcessorId + workerId;
+            // processorId should be mapped to [numMsQuicWorkersPerServer, numCores)
+            processorId %= (numProcessors - numMsQuicWorkersPerServer);
+            processorId += numMsQuicWorkersPerServer;
 
-    executionConfig->ProcessorCount = numMsQuicWorkersPerClient;
-    executionConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
-    executionConfig->PollingIdleTimeoutUs = 50000;
+            executionConfig->ProcessorList[workerId] = processorId;
+        }
 
-    /*
-        We want to map the client workers to the processors after the server
-       workers so i = clientFirstProcessorId + j (j = 0, 1, 2, ...,
-       numMsQuicWorkersPerClient - 1) is mapped to [numMsQuicWorkersPerServer,
-       numCores)
-    */
-    for (std::uint16_t workerId = 0; workerId < numMsQuicWorkersPerClient;
-         workerId++) {
-      std::uint16_t processorId = clientFirstProcessorId + workerId;
-      // processorId should be mapped to [numMsQuicWorkersPerServer, numCores)
-      processorId %= (numProcessors - numMsQuicWorkersPerServer);
-      processorId += numMsQuicWorkersPerServer;
-
-      executionConfig->ProcessorList[workerId] = processorId;
-    }
-
-    std::unique_ptr<MOQTClient> moqtClient =
+        std::unique_ptr<MOQTClient> moqtClient =
         client_setup(std::make_tuple(executionConfig, execConfigLen));
 
-    SubscriptionBuilder subscriptionBuilder;
-    subscriptionBuilder.set_track_alias(TrackAlias(0));
-    subscriptionBuilder.set_track_namespace({});
-    subscriptionBuilder.set_track_name("track");
-    subscriptionBuilder.set_data_range(
-        SubscriptionBuilder::Filter::latestPerGroupInTrack);
-    subscriptionBuilder.set_subscriber_priority(0);
-    subscriptionBuilder.set_group_order(0);
+        SubscriptionBuilder subscriptionBuilder;
+        subscriptionBuilder.set_track_alias(TrackAlias(0));
+        subscriptionBuilder.set_track_namespace({});
+        subscriptionBuilder.set_track_name("track");
+        subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestPerGroupInTrack);
+        subscriptionBuilder.set_subscriber_priority(0);
+        subscriptionBuilder.set_group_order(0);
 
-    auto subMessage = subscriptionBuilder.build();
+        auto subMessage = subscriptionBuilder.build();
 
-    BatchSubscribeMessage batchSubscribeMessage;
-    batchSubscribeMessage.trackNamespacePrefix_ = {"namespace1", "namespace2",
-                                                   "namespace3"};
+        BatchSubscribeMessage batchSubscribeMessage;
+        batchSubscribeMessage.trackNamespacePrefix_ = { "namespace1", "namespace2", "namespace3" };
 
-    for (std::uint64_t groupId = 0; groupId < numGroups; ++groupId) {
-      subMessage.trackName_ = std::to_string(groupId);
-      subMessage.trackAlias_ = TrackAlias(groupId);
-      batchSubscribeMessage.subscriptions_.push_back(std::move(subMessage));
+        for (std::uint64_t groupId = 0; groupId < numGroups; ++groupId)
+        {
+            subMessage.trackName_ = std::to_string(groupId);
+            subMessage.trackAlias_ = TrackAlias(groupId);
+            batchSubscribeMessage.subscriptions_.push_back(std::move(subMessage));
+        }
+
+        moqtClient->subscribe(std::move(batchSubscribeMessage));
+        std::atomic_int8_t numEndObjectsReceived = 0;
+
+        auto& receivedObjectsQueue = moqtClient->receivedObjects_;
+        pid_t thisClientPid = getpid();
+        while (true)
+        {
+            if (numEndObjectsReceived == numGroups)
+                break;
+
+            auto enrichedObject = receivedObjectsQueue.wait_dequeue_ret();
+
+            if (enrichedObject.object_.objectId_ == numObjects - 1)
+                numEndObjectsReceived++;
+
+            std::uint64_t currTimestamp = get_current_ms_timestamp();
+            std::uint64_t* sentTimestamp =
+            reinterpret_cast<std::uint64_t*>(enrichedObject.object_.payload_.data());
+            std::uint64_t* groupId = sentTimestamp + 1;
+            std::uint64_t* objectId = groupId + 1;
+
+            std::cout << currTimestamp - *sentTimestamp << " " << *groupId
+                      << " " << *objectId << '\n';
+
+            lttng_ust_tracepoint(chunk_transfer_perf_lttng, object_recv, thisClientPid,
+                                 currTimestamp - *sentTimestamp, *groupId, *objectId,
+                                 enrichedObject.object_.payload_.size());
+        }
+
+        {
+            std::unique_lock lock(dataChild->mutex_);
+            dataChild->clientDone_ = true;
+        }
+        std::cout << "Client done" << std::endl;
+        exit(0);
     }
-
-    moqtClient->subscribe(std::move(batchSubscribeMessage));
-    std::atomic_int8_t numEndObjectsReceived = 0;
-
-    auto &receivedObjectsQueue = moqtClient->receivedObjects_;
-    pid_t thisClientPid = getpid();
-    while (true) {
-      if (numEndObjectsReceived == numGroups)
-        break;
-
-      auto enrichedObject = receivedObjectsQueue.wait_dequeue_ret();
-
-      if (enrichedObject.object_.objectId_ == numObjects - 1)
-        numEndObjectsReceived++;
-
-      std::uint64_t currTimestamp = get_current_ms_timestamp();
-      std::uint64_t *sentTimestamp = reinterpret_cast<std::uint64_t *>(
-          enrichedObject.object_.payload_.data());
-      std::uint64_t *groupId = sentTimestamp + 1;
-      std::uint64_t *objectId = groupId + 1;
-
-      std::cout << currTimestamp - *sentTimestamp << " " << *groupId << " "
-                << *objectId << '\n';
-
-      lttng_ust_tracepoint(chunk_transfer_perf_lttng, object_recv,
-                           thisClientPid, currTimestamp - *sentTimestamp,
-                           *groupId, *objectId,
-                           enrichedObject.object_.payload_.size());
-    }
-
-    {
-      std::unique_lock lock(dataChild->mutex_);
-      dataChild->clientDone_ = true;
-    }
-    std::cout << "Client done" << std::endl;
-    exit(0);
-  }
 }

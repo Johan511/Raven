@@ -15,7 +15,8 @@
 ///////////////////////////////////////////////////////////////////////////////
 #include <msquic.h>
 
-namespace rvn::serialization {
+namespace rvn::serialization
+{
 
 /*
     As we get buffers from the network, we append them to the
@@ -23,153 +24,174 @@ namespace rvn::serialization {
     and construccts the appropriate message and pushes it into the
     message queue
 */
-template <typename DeserializedMessageHandler> class Deserializer {
-  std::vector<UniqueQuicBuffer> quicBuffers_;
-  std::mutex quicBuffersMutex_;
+template <typename DeserializedMessageHandler> class Deserializer
+{
+    std::vector<UniqueQuicBuffer> quicBuffers_;
+    std::mutex quicBuffersMutex_;
 
-  // begin index in first buffer
-  std::uint64_t beginIndex_ = 0;
+    // begin index in first buffer
+    std::uint64_t beginIndex_ = 0;
 
-  enum class DeserializerType : bool { DATA_STREAM, CONTROL_STREAM };
+    enum class DeserializerType : bool
+    {
+        DATA_STREAM,
+        CONTROL_STREAM
+    };
 
-  enum class DeserializerState {
-    // for control stream messages
-    READING_MESSAGE_TYPE,
-    READING_MESSAGE_LENGTH,
-    READING_MESSAGE,
+    enum class DeserializerState
+    {
+        // for control stream messages
+        READING_MESSAGE_TYPE,
+        READING_MESSAGE_LENGTH,
+        READING_MESSAGE,
 
-    // for data stream messages
-    READING_OBJECT_HEADER, // reading the header (first message on data stream)
-                           // rest of the messages are on one of these formats
-                           // (based on header)
-    READING_OBJECT_DATAGRAM,
-    READING_SUBGROUP_OBJECT,
-    READING_FETCH_OBJECT
-  };
+        // for data stream messages
+        READING_OBJECT_HEADER, // reading the header (first message on data stream)
+        // rest of the messages are on one of these formats
+        // (based on header)
+        READING_OBJECT_DATAGRAM,
+        READING_SUBGROUP_OBJECT,
+        READING_FETCH_OBJECT
+    };
 
-  DeserializedMessageHandler messageHandler_;
-  DeserializerType type_;
-  DeserializerState state_;
+    DeserializedMessageHandler messageHandler_;
+    DeserializerType type_;
+    DeserializerState state_;
 
-  // should be called after numBytes have been deserialized
-  void bytes_deserialized_hook(std::uint64_t numBytes) {
-    utils::ASSERT_LOG_THROW(numBytes <= size(),
-                            "Deserialized more bytes than available", numBytes,
-                            ">", size());
-    // advance begin index
-    beginIndex_ += numBytes;
-    auto iter = quicBuffers_.begin();
-    while (iter != quicBuffers_.end() && beginIndex_ >= (*iter)->Length) {
-      beginIndex_ -= (*iter)->Length;
-      ++iter;
+    // should be called after numBytes have been deserialized
+    void bytes_deserialized_hook(std::uint64_t numBytes)
+    {
+        utils::ASSERT_LOG_THROW(numBytes <= size(), "Deserialized more bytes than available",
+                                numBytes, ">", size());
+        // advance begin index
+        beginIndex_ += numBytes;
+        auto iter = quicBuffers_.begin();
+        while (iter != quicBuffers_.end() && beginIndex_ >= (*iter)->Length)
+        {
+            beginIndex_ -= (*iter)->Length;
+            ++iter;
+        }
+        quicBuffers_.erase(quicBuffers_.begin(), iter);
+        cachedSize_ = std::numeric_limits<std::uint64_t>::max();
     }
-    quicBuffers_.erase(quicBuffers_.begin(), iter);
-    cachedSize_ = std::numeric_limits<std::uint64_t>::max();
-  }
 
-  // returns optinal value, std::numeric_limits<std::uint64_t>::max() is the
-  // nullopt
-  std::uint64_t read_quic_var_int() {
-    if (size() == 0)
-      return std::numeric_limits<std::uint64_t>::max();
+    // returns optinal value, std::numeric_limits<std::uint64_t>::max() is the
+    // nullopt
+    std::uint64_t read_quic_var_int()
+    {
+        if (size() == 0)
+            return std::numeric_limits<std::uint64_t>::max();
 
-    std::uint8_t prefix2Bits = at(0) >> 6;
-    std::uint8_t quicVarIntLength = 1 << prefix2Bits;
+        std::uint8_t prefix2Bits = at(0) >> 6;
+        std::uint8_t quicVarIntLength = 1 << prefix2Bits;
 
-    if (size() < quicVarIntLength)
-      return std::numeric_limits<std::uint64_t>::max();
+        if (size() < quicVarIntLength)
+            return std::numeric_limits<std::uint64_t>::max();
 
-    // get the span
-    NonContiguousSpan span(quicBuffers_, beginIndex_);
-    std::uint64_t quicVarInt;
+        // get the span
+        NonContiguousSpan span(quicBuffers_, beginIndex_);
+        std::uint64_t quicVarInt;
 
-    auto numBytesDeserialized =
+        auto numBytesDeserialized =
         detail::deserialize<ds::quic_var_int>(quicVarInt, span);
-    bytes_deserialized_hook(numBytesDeserialized);
+        bytes_deserialized_hook(numBytesDeserialized);
 
-    return quicVarInt;
-  }
-
-  ////////////////////////////////////////////////////////////////////////////
-  // control message related
-  // set after reading control message type
-  MoQtMessageType messageType_;
-  // set after reading control message length
-  std::uint64_t messageLength_ = 0;
-  void read_message_type() {
-    std::uint64_t messageTypeInt;
-    std::uint64_t messageTypeOpt = read_quic_var_int();
-    // if we don't have enough bytes to read the message type
-    if (messageTypeOpt == std::numeric_limits<std::uint64_t>::max())
-      return;
-    messageTypeInt = messageTypeOpt;
-
-    messageType_ = static_cast<MoQtMessageType>(messageTypeInt);
-    state_ = DeserializerState::READING_MESSAGE_LENGTH;
-
-    read_message_length();
-  }
-
-  void read_message_length() {
-    std::uint64_t messageLengthOpt = read_quic_var_int();
-    // if we don't have enough bytes to read the message length
-    if (messageLengthOpt == std::numeric_limits<std::uint64_t>::max())
-      return;
-    messageLength_ = messageLengthOpt;
-    state_ = DeserializerState::READING_MESSAGE;
-
-    read_message();
-  }
-
-  void read_message() {
-    if (size() < messageLength_)
-      return;
-
-    // get the span
-    NonContiguousSpan span(quicBuffers_, beginIndex_);
-
-    std::uint64_t numBytesDeserialized = 0;
-
-    if (messageType_ == MoQtMessageType::CLIENT_SETUP) {
-      ClientSetupMessage msg;
-      numBytesDeserialized = detail::deserialize(msg, span);
-      messageHandler_(std::move(msg));
-    } else if (messageType_ == MoQtMessageType::SERVER_SETUP) {
-      ServerSetupMessage msg;
-      numBytesDeserialized = detail::deserialize(msg, span);
-      messageHandler_(std::move(msg));
-    } else if (messageType_ == MoQtMessageType::SUBSCRIBE) {
-      SubscribeMessage msg;
-      numBytesDeserialized = detail::deserialize(msg, span);
-      messageHandler_(std::move(msg));
-    } else if (messageType_ == MoQtMessageType::BATCH_SUBSCRIBE) {
-      BatchSubscribeMessage msg;
-      numBytesDeserialized = detail::deserialize(msg, span);
-      messageHandler_(std::move(msg));
-    } else {
-      utils::ASSERT_LOG_THROW(false, "Unsuppored message type",
-                              utils::to_underlying(messageType_));
+        return quicVarInt;
     }
 
-    bytes_deserialized_hook(numBytesDeserialized);
-    state_ = DeserializerState::READING_MESSAGE_TYPE;
+    ////////////////////////////////////////////////////////////////////////////
+    // control message related
+    // set after reading control message type
+    MoQtMessageType messageType_;
+    // set after reading control message length
+    std::uint64_t messageLength_ = 0;
+    void read_message_type()
+    {
+        std::uint64_t messageTypeInt;
+        std::uint64_t messageTypeOpt = read_quic_var_int();
+        // if we don't have enough bytes to read the message type
+        if (messageTypeOpt == std::numeric_limits<std::uint64_t>::max())
+            return;
+        messageTypeInt = messageTypeOpt;
 
-    // proceed to next state in cycle
-    read_message_type();
-    return;
-  }
-  ////////////////////////////////////////////////////////////////////////////
+        messageType_ = static_cast<MoQtMessageType>(messageTypeInt);
+        state_ = DeserializerState::READING_MESSAGE_LENGTH;
 
-  ////////////////////////////////////////////////////////////////////////////
-  // Data stream related
-  // TODO: does deserializer need to know this?
-  std::variant<std::nullopt_t, StreamHeaderSubgroupMessage> dataStreamHeader_;
-  enum class ObjectStreamHeaderType {
-    OBJECT_DATAGRAM = 0x1,
-    STREAM_HEADER_SUBGROUP = 0x4,
-    FETCH_HEADER = 0x5
-  };
-  // clang-format off
+        read_message_length();
+    }
+
+    void read_message_length()
+    {
+        std::uint64_t messageLengthOpt = read_quic_var_int();
+        // if we don't have enough bytes to read the message length
+        if (messageLengthOpt == std::numeric_limits<std::uint64_t>::max())
+            return;
+        messageLength_ = messageLengthOpt;
+        state_ = DeserializerState::READING_MESSAGE;
+
+        read_message();
+    }
+
+    void read_message()
+    {
+        if (size() < messageLength_)
+            return;
+
+        // get the span
+        NonContiguousSpan span(quicBuffers_, beginIndex_);
+
+        std::uint64_t numBytesDeserialized = 0;
+
+        if (messageType_ == MoQtMessageType::CLIENT_SETUP)
+        {
+            ClientSetupMessage msg;
+            numBytesDeserialized = detail::deserialize(msg, span);
+            messageHandler_(std::move(msg));
+        }
+        else if (messageType_ == MoQtMessageType::SERVER_SETUP)
+        {
+            ServerSetupMessage msg;
+            numBytesDeserialized = detail::deserialize(msg, span);
+            messageHandler_(std::move(msg));
+        }
+        else if (messageType_ == MoQtMessageType::SUBSCRIBE)
+        {
+            SubscribeMessage msg;
+            numBytesDeserialized = detail::deserialize(msg, span);
+            messageHandler_(std::move(msg));
+        }
+        else if (messageType_ == MoQtMessageType::BATCH_SUBSCRIBE)
+        {
+            BatchSubscribeMessage msg;
+            numBytesDeserialized = detail::deserialize(msg, span);
+            messageHandler_(std::move(msg));
+        }
+        else
+        {
+            utils::ASSERT_LOG_THROW(false, "Unsuppored message type",
+                                    utils::to_underlying(messageType_));
+        }
+
+        bytes_deserialized_hook(numBytesDeserialized);
+        state_ = DeserializerState::READING_MESSAGE_TYPE;
+
+        // proceed to next state in cycle
+        read_message_type();
+        return;
+    }
+    ////////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Data stream related
+    // TODO: does deserializer need to know this?
+    std::variant<std::nullopt_t, StreamHeaderSubgroupMessage> dataStreamHeader_;
+    enum class ObjectStreamHeaderType
+    {
+        OBJECT_DATAGRAM = 0x1,
+        STREAM_HEADER_SUBGROUP = 0x4,
+        FETCH_HEADER = 0x5
+    };
+    // clang-format off
     /*
         Object Header:
         Header Id: 0x1 = OBJECT_DATAGRAM, 0x4 = STREAM_HEADER_SUBGROUP, 0x5 =FETCH_HEADER Header Content
@@ -181,233 +203,255 @@ template <typename DeserializedMessageHandler> class Deserializer {
           Publisher Priority (8),
         }
     */
-  // clang-format on
+    // clang-format on
 
-  std::optional<TrackAlias> trackAlias_;
-  std::optional<GroupId> groupId_;
-  std::optional<SubGroupId> subgroupId_;
-  void read_subgroup_header() {
-    if (!trackAlias_.has_value()) {
-      std::uint64_t trackAliasInt = read_quic_var_int();
-      if (trackAliasInt == std::numeric_limits<std::uint64_t>::max())
-        return;
-      trackAlias_ = TrackAlias(trackAliasInt);
-    }
+    std::optional<TrackAlias> trackAlias_;
+    std::optional<GroupId> groupId_;
+    std::optional<SubGroupId> subgroupId_;
+    void read_subgroup_header()
+    {
+        if (!trackAlias_.has_value())
+        {
+            std::uint64_t trackAliasInt = read_quic_var_int();
+            if (trackAliasInt == std::numeric_limits<std::uint64_t>::max())
+                return;
+            trackAlias_ = TrackAlias(trackAliasInt);
+        }
 
-    if (!groupId_.has_value()) {
-      std::uint64_t groupIdInt = read_quic_var_int();
-      if (groupIdInt == std::numeric_limits<std::uint64_t>::max())
-        return;
-      groupId_ = GroupId(groupIdInt);
-    }
+        if (!groupId_.has_value())
+        {
+            std::uint64_t groupIdInt = read_quic_var_int();
+            if (groupIdInt == std::numeric_limits<std::uint64_t>::max())
+                return;
+            groupId_ = GroupId(groupIdInt);
+        }
 
-    if (!subgroupId_.has_value()) {
-      std::uint64_t subgroupIdInt = read_quic_var_int();
-      if (subgroupIdInt == std::numeric_limits<std::uint64_t>::max())
-        return;
-      subgroupId_ = SubGroupId(subgroupIdInt);
-    }
+        if (!subgroupId_.has_value())
+        {
+            std::uint64_t subgroupIdInt = read_quic_var_int();
+            if (subgroupIdInt == std::numeric_limits<std::uint64_t>::max())
+                return;
+            subgroupId_ = SubGroupId(subgroupIdInt);
+        }
 
-    // to read publisher priority
-    if (size() < sizeof(std::uint8_t))
-      return;
+        // to read publisher priority
+        if (size() < sizeof(std::uint8_t))
+            return;
 
-    std::uint8_t publisherPriority = at(0);
-    bytes_deserialized_hook(1);
+        std::uint8_t publisherPriority = at(0);
+        bytes_deserialized_hook(1);
 
-    auto msg = StreamHeaderSubgroupMessage{
-        trackAlias_.value(), groupId_.value(), subgroupId_.value(),
-        PublisherPriority(publisherPriority)};
-    messageHandler_(msg);
-    dataStreamHeader_ = msg;
+        auto msg =
+        StreamHeaderSubgroupMessage{ trackAlias_.value(), groupId_.value(),
+                                     subgroupId_.value(),
+                                     PublisherPriority(publisherPriority) };
+        messageHandler_(msg);
+        dataStreamHeader_ = msg;
 
-    state_ = DeserializerState::READING_SUBGROUP_OBJECT;
-    read_subgroup_object();
-  }
-
-  /*
-      {
-        Object ID = 0
-        Object Payload Length = 4
-        Payload = "abcd"
-      }
-  */
-  std::optional<ObjectId> subGroupObjectId_;
-  std::optional<std::uint64_t> subGroupObjectPayloadLength_;
-  void read_subgroup_object() {
-    if (!subGroupObjectId_.has_value()) {
-      std::uint64_t objectId = read_quic_var_int();
-      if (objectId == std::numeric_limits<std::uint64_t>::max())
-        return;
-      subGroupObjectId_ = ObjectId(objectId);
-    }
-
-    if (!subGroupObjectPayloadLength_.has_value()) {
-      std::uint64_t objectPayloadLength = read_quic_var_int();
-      if (objectPayloadLength == std::numeric_limits<std::uint64_t>::max())
-        return;
-      subGroupObjectPayloadLength_ = objectPayloadLength;
-    }
-
-    if (size() < subGroupObjectPayloadLength_)
-      return;
-
-    std::string payload;
-    payload.reserve(subGroupObjectPayloadLength_.value());
-    for (std::uint64_t i = 0; i < subGroupObjectPayloadLength_;) {
-      auto bytes = chunked_at(i);
-      i += bytes.size();
-      for (const auto &byte : bytes)
-        payload.push_back(byte);
-    }
-    bytes_deserialized_hook(subGroupObjectPayloadLength_.value());
-
-    auto msg = StreamHeaderSubgroupObject{subGroupObjectId_.value(),
-                                          std::move(payload)};
-    messageHandler_(std::move(msg));
-
-    subGroupObjectId_ = std::nullopt;
-    subGroupObjectPayloadLength_ = std::nullopt;
-
-    read_subgroup_object();
-  }
-
-  std::optional<ObjectStreamHeaderType> dataStreamHeaderId_;
-  void read_object_header() {
-    if (!dataStreamHeaderId_.has_value()) {
-      std::uint64_t headerIdInt = read_quic_var_int();
-      if (headerIdInt == std::numeric_limits<std::uint64_t>::max())
-        return;
-
-      dataStreamHeaderId_ = static_cast<ObjectStreamHeaderType>(headerIdInt);
-    }
-
-    switch (dataStreamHeaderId_.value()) {
-    case ObjectStreamHeaderType::STREAM_HEADER_SUBGROUP: {
-      read_subgroup_header();
-      break;
-    }
-    default: {
-      // TODO handle OBJECT_DATAGRAM_HEADER and FETCH_HEADER
-      utils::ASSERT_LOG_THROW(
-          false, "Invalid object header",
-          utils::to_underlying(dataStreamHeaderId_.value()));
-    }
-    }
-
-    if (std::holds_alternative<std::nullopt_t>(dataStreamHeader_))
-      // haven't read the object header yet
-      return;
-    else if (std::holds_alternative<StreamHeaderSubgroupMessage>(
-                 dataStreamHeader_))
-      // read the object header
-      state_ = DeserializerState::READING_SUBGROUP_OBJECT;
-    else
-      // TODO handle OBJECT_DATAGRAM_HEADER and FETCH_HEADER
-      utils::ASSERT_LOG_THROW(
-          false, "Invalid object header",
-          utils::to_underlying(dataStreamHeaderId_.value()));
-  }
-  ////////////////////////////////////////////////////////////////////////////
-
-  void process_state_machine_input() {
-    utils::ASSERT_LOG_THROW(quicBuffers_.size(),
-                            "Expected at least one buffer");
-
-    switch (type_) {
-    case DeserializerType::CONTROL_STREAM: {
-      if (state_ == DeserializerState::READING_MESSAGE_TYPE)
-        read_message_type();
-      else if (state_ == DeserializerState::READING_MESSAGE_LENGTH)
-        read_message_length();
-      else if (state_ == DeserializerState::READING_MESSAGE)
-        read_message();
-      else
-        utils::ASSERT_LOG_THROW(false, "Invalid state",
-                                utils::to_underlying(state_));
-      break;
-    }
-    case DeserializerType::DATA_STREAM: {
-      if (state_ == DeserializerState::READING_OBJECT_HEADER)
-        read_object_header();
-      else if (state_ == DeserializerState::READING_SUBGROUP_OBJECT)
+        state_ = DeserializerState::READING_SUBGROUP_OBJECT;
         read_subgroup_object();
-      else
-        // TOOD: implement reading OBJECT_DATAGRAM and and FETCH_HEADER
-        utils::ASSERT_LOG_THROW(false, "Invalid state",
-                                utils::to_underlying(state_));
-      break;
-    }
-    }
-  }
-
-  std::uint8_t &at(std::size_t index) const noexcept {
-    index += beginIndex_;
-    std::size_t bufferMaxIdx = quicBuffers_.front()->Length;
-    auto bufferIter = quicBuffers_.begin();
-    while (index >= bufferMaxIdx) {
-      ++bufferIter;
-      bufferMaxIdx += (*bufferIter)->Length;
     }
 
-    return (*bufferIter)->Buffer[index - bufferMaxIdx + (*bufferIter)->Length];
-  }
+    /*
+        {
+          Object ID = 0
+          Object Payload Length = 4
+          Payload = "abcd"
+        }
+    */
+    std::optional<ObjectId> subGroupObjectId_;
+    std::optional<std::uint64_t> subGroupObjectPayloadLength_;
+    void read_subgroup_object()
+    {
+        if (!subGroupObjectId_.has_value())
+        {
+            std::uint64_t objectId = read_quic_var_int();
+            if (objectId == std::numeric_limits<std::uint64_t>::max())
+                return;
+            subGroupObjectId_ = ObjectId(objectId);
+        }
 
-  std::span<const std::uint8_t> chunked_at(std::size_t index) const noexcept {
-    index += beginIndex_;
-    std::size_t bufferMaxIdx = quicBuffers_.front()->Length;
-    auto bufferIter = quicBuffers_.begin();
-    while (index >= bufferMaxIdx) {
-      ++bufferIter;
-      bufferMaxIdx += (*bufferIter)->Length;
+        if (!subGroupObjectPayloadLength_.has_value())
+        {
+            std::uint64_t objectPayloadLength = read_quic_var_int();
+            if (objectPayloadLength == std::numeric_limits<std::uint64_t>::max())
+                return;
+            subGroupObjectPayloadLength_ = objectPayloadLength;
+        }
+
+        if (size() < subGroupObjectPayloadLength_)
+            return;
+
+        std::string payload;
+        payload.reserve(subGroupObjectPayloadLength_.value());
+        for (std::uint64_t i = 0; i < subGroupObjectPayloadLength_;)
+        {
+            auto bytes = chunked_at(i);
+            i += bytes.size();
+            for (const auto& byte : bytes)
+                payload.push_back(byte);
+        }
+        bytes_deserialized_hook(subGroupObjectPayloadLength_.value());
+
+        auto msg =
+        StreamHeaderSubgroupObject{ subGroupObjectId_.value(), std::move(payload) };
+        messageHandler_(std::move(msg));
+
+        subGroupObjectId_ = std::nullopt;
+        subGroupObjectPayloadLength_ = std::nullopt;
+
+        read_subgroup_object();
     }
 
-    return {std::addressof(
-                (*bufferIter)
-                    ->Buffer[index - bufferMaxIdx + (*bufferIter)->Length]),
-            std::addressof((*bufferIter)->Buffer[(*bufferIter)->Length])};
-  }
+    std::optional<ObjectStreamHeaderType> dataStreamHeaderId_;
+    void read_object_header()
+    {
+        if (!dataStreamHeaderId_.has_value())
+        {
+            std::uint64_t headerIdInt = read_quic_var_int();
+            if (headerIdInt == std::numeric_limits<std::uint64_t>::max())
+                return;
 
-  // computing size is a relatively expensive operation, so we cache the size
-  mutable std::uint64_t cachedSize_;
-  std::uint64_t size() const noexcept {
-    if (cachedSize_ != std::numeric_limits<std::uint64_t>::max())
-      return cachedSize_;
+            dataStreamHeaderId_ = static_cast<ObjectStreamHeaderType>(headerIdInt);
+        }
 
-    std::uint64_t totalLen = 0;
-    for (const auto &buffer : quicBuffers_)
-      totalLen += buffer->Length;
+        switch (dataStreamHeaderId_.value())
+        {
+            case ObjectStreamHeaderType::STREAM_HEADER_SUBGROUP:
+            {
+                read_subgroup_header();
+                break;
+            }
+            default:
+            {
+                // TODO handle OBJECT_DATAGRAM_HEADER and FETCH_HEADER
+                utils::ASSERT_LOG_THROW(false, "Invalid object header",
+                                        utils::to_underlying(dataStreamHeaderId_.value()));
+            }
+        }
 
-    totalLen -= beginIndex_;
+        if (std::holds_alternative<std::nullopt_t>(dataStreamHeader_))
+            // haven't read the object header yet
+            return;
+        else if (std::holds_alternative<StreamHeaderSubgroupMessage>(dataStreamHeader_))
+            // read the object header
+            state_ = DeserializerState::READING_SUBGROUP_OBJECT;
+        else
+            // TODO handle OBJECT_DATAGRAM_HEADER and FETCH_HEADER
+            utils::ASSERT_LOG_THROW(false, "Invalid object header",
+                                    utils::to_underlying(dataStreamHeaderId_.value()));
+    }
+    ////////////////////////////////////////////////////////////////////////////
 
-    cachedSize_ = totalLen;
-    return totalLen;
-  }
+    void process_state_machine_input()
+    {
+        utils::ASSERT_LOG_THROW(quicBuffers_.size(),
+                                "Expected at least one buffer");
+
+        switch (type_)
+        {
+            case DeserializerType::CONTROL_STREAM:
+            {
+                if (state_ == DeserializerState::READING_MESSAGE_TYPE)
+                    read_message_type();
+                else if (state_ == DeserializerState::READING_MESSAGE_LENGTH)
+                    read_message_length();
+                else if (state_ == DeserializerState::READING_MESSAGE)
+                    read_message();
+                else
+                    utils::ASSERT_LOG_THROW(false, "Invalid state",
+                                            utils::to_underlying(state_));
+                break;
+            }
+            case DeserializerType::DATA_STREAM:
+            {
+                if (state_ == DeserializerState::READING_OBJECT_HEADER)
+                    read_object_header();
+                else if (state_ == DeserializerState::READING_SUBGROUP_OBJECT)
+                    read_subgroup_object();
+                else
+                    // TOOD: implement reading OBJECT_DATAGRAM and and FETCH_HEADER
+                    utils::ASSERT_LOG_THROW(false, "Invalid state",
+                                            utils::to_underlying(state_));
+                break;
+            }
+        }
+    }
+
+    std::uint8_t& at(std::size_t index) const noexcept
+    {
+        index += beginIndex_;
+        std::size_t bufferMaxIdx = quicBuffers_.front()->Length;
+        auto bufferIter = quicBuffers_.begin();
+        while (index >= bufferMaxIdx)
+        {
+            ++bufferIter;
+            bufferMaxIdx += (*bufferIter)->Length;
+        }
+
+        return (*bufferIter)->Buffer[index - bufferMaxIdx + (*bufferIter)->Length];
+    }
+
+    std::span<const std::uint8_t> chunked_at(std::size_t index) const noexcept
+    {
+        index += beginIndex_;
+        std::size_t bufferMaxIdx = quicBuffers_.front()->Length;
+        auto bufferIter = quicBuffers_.begin();
+        while (index >= bufferMaxIdx)
+        {
+            ++bufferIter;
+            bufferMaxIdx += (*bufferIter)->Length;
+        }
+
+        return { std::addressof(
+                 (*bufferIter)->Buffer[index - bufferMaxIdx + (*bufferIter)->Length]),
+                 std::addressof((*bufferIter)->Buffer[(*bufferIter)->Length]) };
+    }
+
+    // computing size is a relatively expensive operation, so we cache the size
+    mutable std::uint64_t cachedSize_;
+    std::uint64_t size() const noexcept
+    {
+        if (cachedSize_ != std::numeric_limits<std::uint64_t>::max())
+            return cachedSize_;
+
+        std::uint64_t totalLen = 0;
+        for (const auto& buffer : quicBuffers_)
+            totalLen += buffer->Length;
+
+        totalLen -= beginIndex_;
+
+        cachedSize_ = totalLen;
+        return totalLen;
+    }
 
 public:
-  std::uint64_t numBytesReceived;
-  Deserializer(bool isControlStream,
-               DeserializedMessageHandler messageHandler = {})
-      : messageHandler_(messageHandler), dataStreamHeader_(std::nullopt),
-        cachedSize_(std::numeric_limits<std::uint64_t>::max()),
-        numBytesReceived(0) {
-    if (isControlStream) {
-      type_ = DeserializerType::CONTROL_STREAM;
-      state_ = DeserializerState::READING_MESSAGE_TYPE;
-    } else {
-      type_ = DeserializerType::DATA_STREAM;
-      state_ = DeserializerState::READING_OBJECT_HEADER;
+    std::uint64_t numBytesReceived;
+    Deserializer(bool isControlStream, DeserializedMessageHandler messageHandler = {})
+    : messageHandler_(messageHandler), dataStreamHeader_(std::nullopt),
+      cachedSize_(std::numeric_limits<std::uint64_t>::max()), numBytesReceived(0)
+    {
+        if (isControlStream)
+        {
+            type_ = DeserializerType::CONTROL_STREAM;
+            state_ = DeserializerState::READING_MESSAGE_TYPE;
+        }
+        else
+        {
+            type_ = DeserializerType::DATA_STREAM;
+            state_ = DeserializerState::READING_OBJECT_HEADER;
+        }
     }
-  }
 
-  void append_buffer(UniqueQuicBuffer buffer) {
-    std::unique_lock<std::mutex> lock(quicBuffersMutex_);
-    if (cachedSize_ != std::numeric_limits<std::uint64_t>::max())
-      cachedSize_ += buffer->Length;
-    numBytesReceived += buffer->Length;
-    quicBuffers_.emplace_back(std::move(buffer));
+    void append_buffer(UniqueQuicBuffer buffer)
+    {
+        std::unique_lock<std::mutex> lock(quicBuffersMutex_);
+        if (cachedSize_ != std::numeric_limits<std::uint64_t>::max())
+            cachedSize_ += buffer->Length;
+        numBytesReceived += buffer->Length;
+        quicBuffers_.emplace_back(std::move(buffer));
 
-    process_state_machine_input();
-  }
+        process_state_machine_input();
+    }
 };
 } // namespace rvn::serialization

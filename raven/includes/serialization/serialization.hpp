@@ -12,7 +12,8 @@
 #include <utilities.hpp>
 ///////////////////////////////////
 
-namespace rvn::serialization {
+namespace rvn::serialization
+{
 
 /*
 x (L): -> std::uint8_t, std::uint16_t, std::uint32_t, std::uint64_t
@@ -55,27 +56,28 @@ Indicates that x holds an integer value using the variable-length encoding as
 described in ([RFC9000], Section 16)
 */
 // guesses 8 as possible size
-constexpr guess_size_t guess_size(const rvn::ds::quic_var_int &i) {
-  if (std::is_constant_evaluated())
-    return 8;
-  else
-    return i.size();
+constexpr guess_size_t guess_size(const rvn::ds::quic_var_int& i)
+{
+    if (std::is_constant_evaluated())
+        return 8;
+    else
+        return i.size();
 }
 
 // (..) form
-template <typename T>
-guess_size_t constexpr guess_size(const std::vector<T> &v) {
-  // we take a rough guess that generally there are 2 fields in the vector
-  if (std::is_constant_evaluated())
-    return guess_size(2 * std::declval<T>());
-  else
-    return guess_size(v.size() * std::declval<T>());
+template <typename T> guess_size_t constexpr guess_size(const std::vector<T>& v)
+{
+    // we take a rough guess that generally there are 2 fields in the vector
+    if (std::is_constant_evaluated())
+        return guess_size(2 * std::declval<T>());
+    else
+        return guess_size(v.size() * std::declval<T>());
 }
 
 // [ ] form
-template <typename T>
-guess_size_t constexpr guess_size(const std::optional<T> &) {
-  return guess_size(std::declval<T>());
+template <typename T> guess_size_t constexpr guess_size(const std::optional<T>&)
+{
+    return guess_size(std::declval<T>());
 }
 
 /*
@@ -83,27 +85,28 @@ x (b):
 Indicates that x consists of a variable length integer encoding as described in
 ([RFC9000], Section 16), followed by that many bytes of binary data
 */
-constexpr guess_size_t guess_size(const std::string &s) {
-  // We take a rough guess that generally the size of the string is 24 bytes
-  // and the size of the variable length integer encoding is 8 bytes
-  if (std::is_constant_evaluated())
-    return 24 + 8;
-  else
-    return s.size() + guess_size(rvn::ds::quic_var_int(s.size()));
+constexpr guess_size_t guess_size(const std::string& s)
+{
+    // We take a rough guess that generally the size of the string is 24 bytes
+    // and the size of the variable length integer encoding is 8 bytes
+    if (std::is_constant_evaluated())
+        return 24 + 8;
+    else
+        return s.size() + guess_size(rvn::ds::quic_var_int(s.size()));
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename... Args> QUIC_BUFFER *serialize(Args &&...args) {
-  ds::chunk c;
-  (detail::serialize(c, args), ...);
+template <typename... Args> QUIC_BUFFER* serialize(Args&&... args)
+{
+    ds::chunk c;
+    (detail::serialize(c, args), ...);
 
-  QUIC_BUFFER *quicBuffer =
-      static_cast<QUIC_BUFFER *>(malloc(sizeof(QUIC_BUFFER)));
+    QUIC_BUFFER* quicBuffer = static_cast<QUIC_BUFFER*>(malloc(sizeof(QUIC_BUFFER)));
 
-  auto [data, size] = c.release();
-  quicBuffer->Length = size;
-  quicBuffer->Buffer = data;
+    auto [data, size] = c.release();
+    quicBuffer->Length = size;
+    quicBuffer->Buffer = data;
 
-  return quicBuffer;
+    return quicBuffer;
 }
 } // namespace rvn::serialization
