@@ -83,13 +83,11 @@ template <typename... Args>
 static void
 ASSERT_LOG_THROW([[maybe_unused]] bool assertion, [[maybe_unused]] Args... args)
 {
-#ifdef RAVEN_ENABLE_ASSERTIONS
     if (!assertion)
     {
         print(std::cerr, args...);
         exit(1);
     }
-#endif
 }
 
 template <typename... Args>
