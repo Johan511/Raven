@@ -315,4 +315,15 @@ deserialize(rvn::SubscribeErrorMessage& subscribeErrorMessage, ConstSpan& span, 
     return deserializedBytes;
 }
 
+template <typename ConstSpan>
+static inline deserialize_return_t
+deserialize(rvn::UnsubscribeMessage& unsubscribeMessage, ConstSpan& span, NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(unsubscribeMessage.subscribeId_, span);
+
+    return deserializedBytes;
+}
 } // namespace rvn::serialization::detail

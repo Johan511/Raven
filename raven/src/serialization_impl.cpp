@@ -245,4 +245,24 @@ serialize(ds::chunk& c, const rvn::SubscribeErrorMessage& subscribeErrorMessage)
 
     return headerLen + msgLen;
 }
+
+serialize_return_t serialize(ds::chunk& c, const rvn::UnsubscribeMessage& unsubscribeMessage)
+{
+    std::uint64_t msgLen = 0;
+    // Calculate the length of the message
+    {
+        msgLen += mock_serialize<ds::quic_var_int>(unsubscribeMessage.subscribeId_);
+    }
+
+    std::uint64_t headerLen = 0;
+    // Header
+    headerLen +=
+    serialize<ds::quic_var_int>(c, utils::to_underlying(MoQtMessageType::UNSUBSCRIBE));
+    headerLen += serialize<ds::quic_var_int>(c, msgLen);
+
+    // Body
+    serialize<ds::quic_var_int>(c, unsubscribeMessage.subscribeId_);
+
+    return headerLen + msgLen;
+}
 } // namespace rvn::serialization::detail

@@ -337,9 +337,21 @@ struct SubscribeUpdateMessage
       Subscribe ID (i)
     }
 */
-struct UnsubscribeMessage
+struct UnsubscribeMessage : public ControlMessageBase<UnsubscribeMessage>
 {
-    iType subscribeId;
+    std::uint64_t subscribeId_;
+
+    UnsubscribeMessage() : ControlMessageBase(MoQtMessageType::UNSUBSCRIBE)
+    {
+    }
+
+    bool operator==(const UnsubscribeMessage& other) const = default;
+
+    friend inline std::ostream& operator<<(std::ostream& os, const UnsubscribeMessage& msg)
+    {
+        os << "SubscribeId: " << msg.subscribeId_;
+        return os;
+    }
 };
 
 /*

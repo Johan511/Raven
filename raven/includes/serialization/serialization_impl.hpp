@@ -1,5 +1,6 @@
 #pragma once
 
+#include "messages.hpp"
 #include <serialization/chunk.hpp>
 #include <serialization/endianness.hpp>
 #include <serialization/messages.hpp>
@@ -140,6 +141,8 @@ template <UnsignedInteger T>
  serialize_return_t serialize(ds::chunk& c, const StreamHeaderSubgroupMessage& msg);
  serialize_return_t serialize(ds::chunk& c, const StreamHeaderSubgroupObject& msg);
  serialize_return_t serialize(ds::chunk& c, const rvn::SubscribeErrorMessage& subscribeErrorMessage);
+ serialize_return_t serialize(ds::chunk& c, const rvn::UnsubscribeMessage& unsubscribeMessage);
+ serialize_return_t serialize(ds::chunk& c, const rvn::UnsubscribeMessage& unsubscribeMessage);
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // clang-format on
 } // namespace rvn::serialization::detail
