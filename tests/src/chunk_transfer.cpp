@@ -129,30 +129,14 @@ int main()
 
         moqtClient->subscribe(std::move(subMessage));
 
-        auto& dataStreams = moqtClient->dataStreamUserHandles_;
-
-        std::vector<std::thread> streamConsumerThreads;
-
-        for (std::uint8_t i = 0; i < numGroups; i++)
+        auto& objectMPMCQueue = moqtClient->receivedObjects_;
+        std::uint64_t numReceived = 0;
+        while (numReceived < numObjects * numGroups)
         {
-            auto dataStreamUserHandle = dataStreams.wait_dequeue_ret();
-            streamConsumerThreads.emplace_back(
-            [](MOQTClient::DataStreamUserHandle&& dataStreamUserHandle)
-            {
-                auto& objectQueue = dataStreamUserHandle.objectQueue_;
-
-                for (;;)
-                {
-                    auto streamHeaderSubgroupObject = objectQueue->wait_dequeue_ret();
-                    if (streamHeaderSubgroupObject.objectId_ == ObjectId(numObjects - 1))
-                        break;
-                }
-            },
-            std::move(dataStreamUserHandle));
+            auto enrichedObjectMessage = objectMPMCQueue.wait_dequeue_ret();
+            auto object = enrichedObjectMessage.object_;
+            std::cout << "Received object: " << object.payload_ << std::endl;
         }
-
-        for (auto& thread : streamConsumerThreads)
-            thread.join();
 
         {
             std::unique_lock lock(dataChild->mutex);

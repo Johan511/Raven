@@ -1,7 +1,5 @@
 #pragma once
 
-#include "definitions.hpp"
-#include <chrono>
 #include <contexts.hpp>
 #include <moqt.hpp>
 #include <msquic.h>
