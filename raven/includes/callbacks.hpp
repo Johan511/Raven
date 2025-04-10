@@ -108,11 +108,9 @@ static constexpr auto server_control_stream_callback =
                 // make a copy of the buffer, we do not need a copy, but there
                 // seems to be a bug in MsQuic with lifetime management of the
                 // buffers in MultiReceive Mode
-                QUIC_BUFFER* newBuffer =
-                (QUIC_BUFFER*)malloc(sizeof(QUIC_BUFFER) + buffer->Length);
+                QUIC_BUFFER* newBuffer = (QUIC_BUFFER*)malloc(sizeof(QUIC_BUFFER));
                 newBuffer->Length = buffer->Length;
-                newBuffer->Buffer = (uint8_t*)newBuffer + sizeof(QUIC_BUFFER);
-                std::memcpy(newBuffer->Buffer, buffer->Buffer, buffer->Length);
+                newBuffer->Buffer = buffer->Buffer;
 
                 deserializer->append_buffer(
                 UniqueQuicBuffer(newBuffer,
@@ -120,10 +118,7 @@ static constexpr auto server_control_stream_callback =
                                                          moqtObject.get_tbl()->StreamReceiveComplete)));
             }
 
-            // https://github.com/microsoft/msquic/blob/f96015560399d60cbdd8608b6fa2120560118500/docs/Streams.md#synchronous-vs-asynchronous
-            // we are consuming the buffer in the callback because we are making
-            // a copy
-            return QUIC_STATUS_SUCCESS;
+            return QUIC_STATUS_PENDING;
             break;
         }
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
@@ -214,11 +209,9 @@ static constexpr auto client_data_stream_callback =
                 // make a copy of the buffer, we do not need a copy, but there
                 // seems to be a bug in MsQuic with lifetime management of the
                 // buffers in MultiReceive Mode
-                QUIC_BUFFER* newBuffer =
-                (QUIC_BUFFER*)malloc(sizeof(QUIC_BUFFER) + buffer->Length);
+                QUIC_BUFFER* newBuffer = (QUIC_BUFFER*)malloc(sizeof(QUIC_BUFFER));
                 newBuffer->Length = buffer->Length;
-                newBuffer->Buffer = (uint8_t*)newBuffer + sizeof(QUIC_BUFFER);
-                std::memcpy(newBuffer->Buffer, buffer->Buffer, buffer->Length);
+                newBuffer->Buffer = buffer->Buffer;
 
                 streamContext->deserializer_->append_buffer(
                 UniqueQuicBuffer(newBuffer,
@@ -226,10 +219,7 @@ static constexpr auto client_data_stream_callback =
                                                          moqtObject.get_tbl()->StreamReceiveComplete)));
             }
 
-            // https://github.com/microsoft/msquic/blob/f96015560399d60cbdd8608b6fa2120560118500/docs/Streams.md#synchronous-vs-asynchronous
-            // we are consuming the buffer in the callback because we are making
-            // a copy
-            return QUIC_STATUS_SUCCESS;
+            return QUIC_STATUS_PENDING;
             break;
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
@@ -271,11 +261,9 @@ static constexpr auto client_control_stream_callback =
                 // make a copy of the buffer, we do not need a copy, but there
                 // seems to be a bug in MsQuic with lifetime management of the
                 // buffers in MultiReceive Mode
-                QUIC_BUFFER* newBuffer =
-                (QUIC_BUFFER*)malloc(sizeof(QUIC_BUFFER) + buffer->Length);
+                QUIC_BUFFER* newBuffer = (QUIC_BUFFER*)malloc(sizeof(QUIC_BUFFER));
                 newBuffer->Length = buffer->Length;
-                newBuffer->Buffer = (uint8_t*)newBuffer + sizeof(QUIC_BUFFER);
-                std::memcpy(newBuffer->Buffer, buffer->Buffer, buffer->Length);
+                newBuffer->Buffer = buffer->Buffer;
 
                 streamContext->deserializer_->append_buffer(
                 UniqueQuicBuffer(newBuffer,
@@ -283,10 +271,7 @@ static constexpr auto client_control_stream_callback =
                                                          moqtObject.get_tbl()->StreamReceiveComplete)));
             }
 
-            // https://github.com/microsoft/msquic/blob/f96015560399d60cbdd8608b6fa2120560118500/docs/Streams.md#synchronous-vs-asynchronous
-            // we are consuming the buffer in the callback because we are making
-            // a copy
-            return QUIC_STATUS_SUCCESS;
+            return QUIC_STATUS_PENDING;
             break;
         }
         case QUIC_STREAM_EVENT_SEND_COMPLETE:

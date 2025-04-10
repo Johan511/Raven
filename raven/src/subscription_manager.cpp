@@ -1,6 +1,5 @@
 /////////////////////////////////////////////
 #include <atomic>
-#include <bitset>
 #include <chrono>
 #include <memory>
 #include <optional>
