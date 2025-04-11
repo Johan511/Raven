@@ -39,9 +39,8 @@ void test1()
 
     utils::ASSERT_LOG_THROW(header.messageType_ == MoQtMessageType::TRACK_STATUS_REQUEST,
                             "Message type mismatch\n", "Expected: ",
-                            utils::to_underlying(MoQtMessageType::TRACK_STATUS_REQUEST),
-                            "\n", "Actual: ", utils::to_underlying(header.messageType_),
-                            "\n");
+                            utils::to_underlying(MoQtMessageType::TRACK_STATUS_REQUEST), "\n",
+                            "Actual: ", utils::to_underlying(header.messageType_), "\n");
 
     TrackStatusRequestMessage deserializedMsg;
     serialization::detail::deserialize(deserializedMsg, span);
