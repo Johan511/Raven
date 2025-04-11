@@ -30,9 +30,6 @@ struct InterprocessSynchronizationData
 
 namespace bip = boost::interprocess;
 
-// TODO: MsQuic issue for larget numObjects
-// https://github.com/microsoft/msquic/discussions/4813
-// We have solved the problem by making a copy of the buffer
 static constexpr std::uint64_t numObjects = 10'000;
 static constexpr std::uint8_t numGroups = 4;
 
@@ -94,7 +91,6 @@ int main()
         }
 
         std::cout << "Server done" << std::endl;
-        wait(NULL);
         exit(0);
     }
     else
@@ -129,35 +125,24 @@ int main()
 
         moqtClient->subscribe(std::move(subMessage));
 
-        auto& dataStreams = moqtClient->dataStreamUserHandles_;
-
-        std::vector<std::thread> streamConsumerThreads;
-
-        for (std::uint8_t i = 0; i < numGroups; i++)
+        auto& objectMPMCQueue = moqtClient->receivedObjects_;
+        std::uint64_t numReceived = 0;
+        while (numReceived < numObjects * numGroups)
         {
-            auto dataStreamUserHandle = dataStreams.wait_dequeue_ret();
-            streamConsumerThreads.emplace_back(
-            [](MOQTClient::DataStreamUserHandle&& dataStreamUserHandle)
-            {
-                auto& objectQueue = dataStreamUserHandle.objectQueue_;
-
-                for (;;)
-                {
-                    auto streamHeaderSubgroupObject = objectQueue->wait_dequeue_ret();
-                    if (streamHeaderSubgroupObject.objectId_ == ObjectId(numObjects - 1))
-                        break;
-                }
-            },
-            std::move(dataStreamUserHandle));
+            auto enrichedObjectMessage = objectMPMCQueue.wait_dequeue_ret();
+            auto object = enrichedObjectMessage.object_;
+            std::cout << "Received object: " << object.payload_ << std::endl;
+            numReceived++;
         }
 
-        for (auto& thread : streamConsumerThreads)
-            thread.join();
+        std::cout << "Received all objects" << std::endl;
 
         {
             std::unique_lock lock(dataChild->mutex);
             dataChild->clientDone = true;
         }
         std::cout << "Client done" << std::endl;
+
+        return 0;
     }
 }

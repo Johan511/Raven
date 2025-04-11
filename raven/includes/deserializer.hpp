@@ -46,9 +46,9 @@ template <typename DeserializedMessageHandler> class Deserializer
         READING_MESSAGE,
 
         // for data stream messages
-        READING_OBJECT_HEADER, // reading the header (first message on data stream)
-        // rest of the messages are on one of these formats
-        // (based on header)
+        READING_OBJECT_HEADER, // reading the header (first message on data
+                               // stream) rest of the messages are on one of
+                               // these formats (based on header)
         READING_OBJECT_DATAGRAM,
         READING_SUBGROUP_OBJECT,
         READING_FETCH_OBJECT
@@ -63,7 +63,7 @@ template <typename DeserializedMessageHandler> class Deserializer
     {
         utils::ASSERT_LOG_THROW(numBytes <= size(), "Deserialized more bytes than available",
                                 numBytes, ">", size());
-        // advance begin index
+
         beginIndex_ += numBytes;
         auto iter = quicBuffers_.begin();
         while (iter != quicBuffers_.end() && beginIndex_ >= (*iter)->Length)
@@ -284,9 +284,9 @@ template <typename DeserializedMessageHandler> class Deserializer
 
         std::string payload;
         payload.reserve(subGroupObjectPayloadLength_.value());
-        for (std::uint64_t i = 0; i < subGroupObjectPayloadLength_;)
+        for (std::uint64_t i = 0; i < *subGroupObjectPayloadLength_;)
         {
-            auto bytes = chunked_at(i);
+            auto bytes = chunked_at(i, *subGroupObjectPayloadLength_ - i);
             i += bytes.size();
             for (const auto& byte : bytes)
                 payload.push_back(byte);
@@ -392,7 +392,9 @@ template <typename DeserializedMessageHandler> class Deserializer
         return (*bufferIter)->Buffer[index - bufferMaxIdx + (*bufferIter)->Length];
     }
 
-    std::span<const std::uint8_t> chunked_at(std::size_t index) const noexcept
+    std::span<const std::uint8_t>
+    chunked_at(std::size_t index,
+               std::size_t maxSize = std::numeric_limits<std::size_t>::max()) const noexcept
     {
         index += beginIndex_;
         std::size_t bufferMaxIdx = quicBuffers_.front()->Length;
@@ -403,9 +405,13 @@ template <typename DeserializedMessageHandler> class Deserializer
             bufferMaxIdx += (*bufferIter)->Length;
         }
 
-        return { std::addressof(
-                 (*bufferIter)->Buffer[index - bufferMaxIdx + (*bufferIter)->Length]),
-                 std::addressof((*bufferIter)->Buffer[(*bufferIter)->Length]) };
+        std::size_t numBytesInTheChunk = bufferMaxIdx - index;
+        numBytesInTheChunk = std::min(numBytesInTheChunk, maxSize);
+
+        std::size_t chunkBeginIndex = index - bufferMaxIdx + (*bufferIter)->Length;
+
+        return { std::addressof((*bufferIter)->Buffer[chunkBeginIndex]),
+                 std::addressof((*bufferIter)->Buffer[chunkBeginIndex + numBytesInTheChunk]) };
     }
 
     // computing size is a relatively expensive operation, so we cache the size
