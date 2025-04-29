@@ -487,6 +487,7 @@ public:
     void operator()(const QUIC_BUFFER* buffer)
     {
         streamReceiveCompletefunction_(streamHandle_, buffer->Length);
+        delete const_cast<QUIC_BUFFER*>(buffer);
     }
 
     QUIC_BUFFERDeleter(HQUIC streamHandle, QUIC_STREAM_RECEIVE_COMPLETE_FN streamReceiveCompletefunction)

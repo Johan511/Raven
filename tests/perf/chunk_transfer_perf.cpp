@@ -43,8 +43,8 @@ struct InterprocessSynchronizationData
 namespace bip = boost::interprocess;
 namespace po = boost::program_options;
 ////////////////////////////////////////////////////////////////////
-constexpr std::uint16_t numMsQuicWorkersPerServer = 6;
-constexpr std::uint16_t numMsQuicWorkersPerClient = 3;
+constexpr std::uint16_t numMsQuicWorkersPerServer = 1;
+constexpr std::uint16_t numMsQuicWorkersPerClient = 1;
 std::uint16_t numProcessors = std::thread::hardware_concurrency();
 ////////////////////////////////////////////////////////////////////
 std::uint64_t numObjects;
@@ -54,18 +54,6 @@ constexpr ObjectGeneratorFactory::LayerGranularity layerGranularity =
 ObjectGeneratorFactory::TrackGranularity;
 ////////////////////////////////////////////////////////////////////
 
-std::string generate_object(std::uint64_t groupId, std::uint64_t objectId)
-{
-    std::uint64_t currTime = get_current_ms_timestamp();
-    std::string object((1 << 15) * (1 << groupId), 0);
-    std::memcpy(object.data(), reinterpret_cast<const char*>(&currTime), sizeof(currTime));
-    std::memcpy(object.data() + sizeof(std::uint64_t),
-                reinterpret_cast<const char*>(&groupId), sizeof(groupId));
-    std::memcpy(object.data() + 2 * sizeof(std::uint64_t),
-                reinterpret_cast<const char*>(&objectId), sizeof(objectId));
-
-    return object;
-}
 
 int main(int argc, char* argv[])
 {
@@ -76,7 +64,8 @@ int main(int argc, char* argv[])
         ("help,h", "help")
         ("objects,o", po::value<std::uint64_t>()->default_value(1'000), "Number of objects")
         ("loss_percentage,l", po::value<double>()->default_value(5), "Packet loss percentage")
-        ("bit_rate,b", po::value<double>()->default_value(4096), "Bit rate in kbits per second")
+        ("tc_bandwidth,t", po::value<double>()->default_value(8192), "NetEm bandwidth limitation")
+        ("base_bit_rate,b", po::value<double>()->default_value(1024), "Bit rate in kbits per second of Base layer")
         ("delay_ms,d", po::value<double>()->default_value(50), "Network delay in milliseconds")
         ("delay_jitter,j", po::value<double>()->default_value(10), "Network delay jitter in milliseconds")
         ("sample_time,s", po::value<std::uint64_t>()->default_value(250), "Milliseconds between objects");
@@ -146,7 +135,7 @@ int main(int argc, char* argv[])
         auto dataPublishers =
         objectGeneratorFactory.create(layerGranularity, numGroups, numObjects,
                                       std::chrono::milliseconds(msBetweenObjects),
-                                      vm["bit_rate"].as<double>() * 1000);
+                                      vm["base_bit_rate"].as<double>() * 1024.);
 
         {
             std::unique_lock lock(dataParent->mutex_);
@@ -171,13 +160,13 @@ int main(int argc, char* argv[])
         //////////////////////////////////////////////////////////////////////////
         // Setting up NetEm parameters
         double lossPercentage = vm["loss_percentage"].as<double>();
-        double bitRate = vm["bit_rate"].as<double>();
+        double tcBandwidth = vm["tc_bandwidth"].as<double>();
         double delayMs = vm["delay_ms"].as<double>();
         double delayJitter = vm["delay_jitter"].as<double>();
 
-        // NetemRAII netemRAII(lossPercentage, bitRate, delayMs, delayJitter);
+        NetemRAII netemRAII(lossPercentage, tcBandwidth, delayMs, delayJitter);
         lttng_ust_tracepoint(chunk_transfer_perf_lttng, netem, lossPercentage,
-                             bitRate, delayMs, delayJitter);
+                             tcBandwidth, delayMs, delayJitter);
         //////////////////////////////////////////////////////////////////////////
 
         //////////////////////////////////////////////////////////////////////////

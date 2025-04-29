@@ -27,13 +27,13 @@ MinorSubscriptionState::MinorSubscriptionState(SubscriptionState& subscriptionSt
 : subscriptionState_(std::addressof(subscriptionState)),
   objectToSend_(std::move(objectToSend)),
   lastObjectToBeSent_(std::move(lastObjectToBeSent)), mustBeSent_(mustBeSent),
-  subscribeDeliveryTimeout(deliveryTimeout)
+  subscribeDeliveryTimeout_(deliveryTimeout)
 {
 }
 
 bool MinorSubscriptionState::is_waiting_for_object()
 {
-    if (!objectWaitSignal_.has_value())
+    if (!objectWaitSignal_.has_value()) [[unlikely]]
         // not waiting on object to be ready
         return true;
 
@@ -48,7 +48,7 @@ bool MinorSubscriptionState::is_waiting_for_object()
 // returns true if fulfilling is done
 FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
 {
-    if (objectWaitSignal_.has_value())
+    if (objectWaitSignal_.has_value()) [[likely]]
     {
         // we have to reset the flag
         (*objectWaitSignal_)->load(std::memory_order_acquire);
@@ -77,14 +77,14 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
 
         if (!objectDeliveryTimeout)
             // now both have value, or neither has value
-            objectDeliveryTimeout = subscribeDeliveryTimeout;
+            objectDeliveryTimeout = subscribeDeliveryTimeout_;
 
         // need to check only one of them for value
-        if (subscribeDeliveryTimeout)
+        if (subscribeDeliveryTimeout_)
             // if subscriber and object both mention a delivery timeout, we need
             // to take the min of the 2
-            if (*objectDeliveryTimeout > *subscribeDeliveryTimeout)
-                *objectDeliveryTimeout = *subscribeDeliveryTimeout;
+            if (*objectDeliveryTimeout > *subscribeDeliveryTimeout_)
+                *objectDeliveryTimeout = *subscribeDeliveryTimeout_;
 
         QUIC_STATUS status =
         connectionStateSharedPtr->send_object(objectToSend_, quicBuffer, objectDeliveryTimeout);

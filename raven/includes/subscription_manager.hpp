@@ -39,7 +39,7 @@ class MinorSubscriptionState
     bool mustBeSent_;
     std::optional<ObjectWaitSignal> objectWaitSignal_;
 
-    std::optional<std::chrono::milliseconds> subscribeDeliveryTimeout;
+    std::optional<std::chrono::milliseconds> subscribeDeliveryTimeout_;
 
 public:
     MinorSubscriptionState(SubscriptionState& subscriptionState,

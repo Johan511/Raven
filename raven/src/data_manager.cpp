@@ -358,7 +358,10 @@ bool DataManager::store_object(std::shared_ptr<GroupHandle> groupHandleSharedPtr
     {
         auto iter = waitSignals.find(objectId);
         if (iter != waitSignals.end())
+        {
             iter->second->store(ObjectWaitStatus::Ready, std::memory_order_release);
+            waitSignals.erase(iter);
+        }
     });
     std::filesystem::rename(tempFilePath, pathString);
     return true;

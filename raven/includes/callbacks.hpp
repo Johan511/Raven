@@ -114,8 +114,7 @@ static constexpr auto server_control_stream_callback =
 
                 deserializer->append_buffer(
                 UniqueQuicBuffer(newBuffer,
-                                 rvn::QUIC_BUFFERDeleter(controlStream,
-                                                         moqtObject.get_tbl()->StreamReceiveComplete)));
+                                 { controlStream, moqtObject.get_tbl()->StreamReceiveComplete }));
             }
 
             return QUIC_STATUS_PENDING;
