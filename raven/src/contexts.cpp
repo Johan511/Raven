@@ -178,10 +178,12 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
         StreamSendContext* streamSendContext =
         new StreamSendContext(objectPayload, 1, iter->streamContext_);
 
-        return moqtObject_.get_tbl()->StreamSend(iter->stream.get(), objectPayload,
-                                                 1, QUIC_SEND_FLAG_PRIORITY_WORK,
-                                                 streamSendContext);
-        return QUIC_STATUS_SUCCESS;
+        std::cout << "Sending object: " << objectIdentifier << " "
+                  << objectPayload->Length << " on " << iter->stream.get() << std::endl;
+        auto streamSendRet =
+        moqtObject_.get_tbl()->StreamSend(iter->stream.get(), objectPayload, 1,
+                                          QUIC_SEND_FLAG_PRIORITY_WORK, streamSendContext);
+        return streamSendRet;
     };
 
     QUIC_STATUS trySendStatus = dataStreams.read(sendObjectLambda);

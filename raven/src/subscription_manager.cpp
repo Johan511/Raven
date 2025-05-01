@@ -130,6 +130,7 @@ FulfillSomeReturn SubscriptionState::fulfill_some()
         {
             if (std::get<bool>(fulfillReturn) == false)
             {
+                // not yet fulfilled
                 if (beginIter != traversalIter)
                     *beginIter = std::move(*traversalIter);
                 ++beginIter;

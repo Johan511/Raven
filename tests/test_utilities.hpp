@@ -92,6 +92,8 @@ server_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig =
     std::memset(&Settings, 0, sizeof(Settings));
     Settings.IdleTimeoutMs = IdleTimeoutMs;
     Settings.IsSet.IdleTimeoutMs = TRUE;
+    Settings.PeerUnidiStreamCount = (std::numeric_limits<std::uint16_t>::max());
+    Settings.IsSet.PeerUnidiStreamCount = TRUE;
     Settings.PeerBidiStreamCount = 1;
     Settings.IsSet.PeerBidiStreamCount = TRUE;
     Settings.IsSet.StreamMultiReceiveEnabled = TRUE;

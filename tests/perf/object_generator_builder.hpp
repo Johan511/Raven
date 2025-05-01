@@ -116,7 +116,6 @@ public:
                 std::this_thread::sleep_for(msBetweenObjects);
             }
         };
-
         for (std::size_t layerIdx = 0; auto& th : objectGenerators)
         {
             if (layerGranularity == LayerGranularity::TrackGranularity)

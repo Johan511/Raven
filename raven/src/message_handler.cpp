@@ -73,7 +73,7 @@ void MessageHandler::operator()(StreamHeaderSubgroupObject streamHeaderSubgroupO
 void MessageHandler::operator()(StreamHeaderSubgroupMessage streamHeaderSubgroupMessage)
 {
     // utils::LOG_EVENT(std::cout, "Stream Header Subgroup Message received: \n",
-    //  streamHeaderSubgroupMessage);
+    //  streamState_.stream.get(), streamHeaderSubgroupMessage);
 
     DataStreamState& dataStreamState = static_cast<DataStreamState&>(streamState_);
     dataStreamState.set_header(std::move(streamHeaderSubgroupMessage));

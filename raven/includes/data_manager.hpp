@@ -8,6 +8,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <shared_mutex>
 #include <stdexcept>
@@ -232,7 +233,7 @@ public:
     class DataManager& dataManager_;
 
     GroupHandle& operator=(const GroupHandle&) = delete;
-    GroupHandle& operator=(GroupHandle&&) = delete;
+    // GroupHandle& operator=(GroupHandle&&) = delete;
 
 private:
     struct Comparator
@@ -314,6 +315,7 @@ class TrackHandle : public std::enable_shared_from_this<TrackHandle>
 public:
     std::shared_mutex groupHandlesMtx_;
 
+    std::atomic<std::uint64_t> totalNumGroups_; // total number of groups including ethereal ones
     std::map<GroupId, std::shared_ptr<GroupHandle>> groupHandles_;
 
     // should be private because but want to use std::make_shared
@@ -324,16 +326,26 @@ public:
               PublisherPriority publisherPriority,
               std::optional<std::chrono::milliseconds> deliveryTimeout)
     {
+        return add_group(
+        std::make_shared<GroupHandle>(GroupIdentifier{ trackIdentifier_, groupId },
+                                      publisherPriority, deliveryTimeout, dataManager_));
+    }
+
+    std::weak_ptr<GroupHandle> add_group(std::shared_ptr<GroupHandle> groupHandle)
+    {
         // writer lock
         std::unique_lock<std::shared_mutex> l(groupHandlesMtx_);
 
         auto [iter, success] =
-        groupHandles_.try_emplace(groupId,
-                                  std::make_shared<GroupHandle>(GroupIdentifier(trackIdentifier_, groupId),
-                                                                publisherPriority, deliveryTimeout,
-                                                                dataManager_));
+        groupHandles_.try_emplace(groupHandle->groupIdentifier_.groupId_,
+                                  std::move(groupHandle));
 
         return iter->second->weak_from_this();
+    }
+
+    GroupId allot_group_id()
+    {
+        return GroupId(totalNumGroups_.fetch_add(1, std::memory_order_relaxed));
     }
 
     TrackHandle& operator=(const TrackHandle&) = delete;
@@ -367,6 +379,8 @@ public:
     std::weak_ptr<TrackHandle>
     add_track_identifier(std::vector<std::string> tracknamespace, std::string trackname)
     {
+        std::unique_lock l(objectHierarchyMtx_);
+
         TrackIdentifier trackIdentifier(std::move(tracknamespace), std::move(trackname));
 
         auto [iter, success] =

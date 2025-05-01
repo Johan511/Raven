@@ -49,7 +49,7 @@ std::uint16_t numProcessors = std::thread::hardware_concurrency();
 ////////////////////////////////////////////////////////////////////
 std::uint64_t numObjects;
 std::uint64_t msBetweenObjects;
-constexpr std::uint8_t numGroups = 5;
+constexpr std::uint8_t numLayers = 5;
 constexpr ObjectGeneratorFactory::LayerGranularity layerGranularity =
 ObjectGeneratorFactory::TrackGranularity;
 ////////////////////////////////////////////////////////////////////
@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
 
         ObjectGeneratorFactory objectGeneratorFactory(*dm);
         auto dataPublishers =
-        objectGeneratorFactory.create(layerGranularity, numGroups, numObjects,
+        objectGeneratorFactory.create(layerGranularity, numLayers, numObjects,
                                       std::chrono::milliseconds(msBetweenObjects),
                                       vm["base_bit_rate"].as<double>() * 1024.);
 
@@ -237,10 +237,10 @@ int main(int argc, char* argv[])
         BatchSubscribeMessage batchSubscribeMessage;
         batchSubscribeMessage.trackNamespacePrefix_ = { "namespace1", "namespace2", "namespace3" };
 
-        for (std::uint64_t groupId = 0; groupId < numGroups; ++groupId)
+        for (std::uint64_t layerId = 0; layerId < numLayers; ++layerId)
         {
-            subMessage.trackName_ = std::to_string(groupId);
-            subMessage.trackAlias_ = TrackAlias(groupId);
+            subMessage.trackName_ = std::to_string(layerId);
+            subMessage.trackAlias_ = TrackAlias(layerId);
             batchSubscribeMessage.subscriptions_.push_back(std::move(subMessage));
         }
 
@@ -251,7 +251,7 @@ int main(int argc, char* argv[])
         pid_t thisClientPid = getpid();
         while (true)
         {
-            if (numEndObjectsReceived == numGroups)
+            if (numEndObjectsReceived == numLayers)
                 break;
 
             auto enrichedObject = receivedObjectsQueue.wait_dequeue_ret();
@@ -265,8 +265,10 @@ int main(int argc, char* argv[])
             std::uint64_t* groupId = sentTimestamp + 1;
             std::uint64_t* objectId = groupId + 1;
 
-            std::cout << currTimestamp - *sentTimestamp << " " << *groupId
-                      << " " << *objectId << '\n';
+            std::cout << currTimestamp - *sentTimestamp << " "
+                      << "Track Alias: " << enrichedObject.header_->trackAlias_
+                      << " " << "Group Id: " << *groupId << " "
+                      << "Object Id: " << *objectId << '\n';
 
             lttng_ust_tracepoint(chunk_transfer_perf_lttng, object_recv, thisClientPid,
                                  currTimestamp - *sentTimestamp, *groupId, *objectId,
