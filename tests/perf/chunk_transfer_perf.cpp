@@ -25,8 +25,8 @@
 #include "serialization/messages.hpp"
 #include "strong_types.hpp"
 /////////////////////////////////////////////////////////
-#include "./chunk_transfer_perf_lttng.h"
-#include "./object_generator_builder.hpp"
+#include <chunk_transfer_perf_lttng.h>
+#include "../object_generator_builder.hpp"
 /////////////////////////////////////////////////////////
 
 using namespace rvn;

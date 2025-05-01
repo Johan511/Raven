@@ -18,14 +18,13 @@
 #include <utilities.hpp>
 /////////////////////////////////////////////////////////
 
-static const char* Target = "127.0.0.1";
-const std::uint16_t serverPort = 4567;
-
 static const char* CertFile = RAVEN_CERT_FILE_PATH;
 static const char* KeyFile = RAVEN_KEY_FILE_PATH;
 
 static inline std::unique_ptr<rvn::MOQTClient>
-client_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig = { nullptr, 0 })
+client_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig = { nullptr, 0 },
+             const char* Target = "127.0.0.1",
+             std::uint16_t serverPort = 4567)
 {
     std::unique_ptr<rvn::MOQTClient> moqtClient =
     std::make_unique<rvn::MOQTClient>(executionConfig);
@@ -65,11 +64,13 @@ client_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig =
 
     moqtClient->start_connection(QUIC_ADDRESS_FAMILY_UNSPEC, Target, serverPort);
 
+    std::cout << "Connecting to port " << serverPort << std::endl;
     return moqtClient;
 }
 
 static inline std::unique_ptr<rvn::MOQTServer>
-server_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig = { nullptr, 0 })
+server_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig = { nullptr, 0 },
+             std::uint16_t serverPort = 4567)
 {
     auto dm = std::make_shared<rvn::DataManager>();
     std::unique_ptr<rvn::MOQTServer> moqtServer =
@@ -121,6 +122,7 @@ server_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig =
 
     moqtServer->start_listener(&Address);
 
+    std::cout << "Server started on port " << serverPort << std::endl;
     return moqtServer;
 }
 

@@ -2,7 +2,7 @@
 #define LTTNG_UST_TRACEPOINT_PROVIDER chunk_transfer_perf_lttng
 
 #undef LTTNG_UST_TRACEPOINT_INCLUDE
-#define LTTNG_UST_TRACEPOINT_INCLUDE "./chunk_transfer_perf_lttng.h"
+#define LTTNG_UST_TRACEPOINT_INCLUDE "chunk_transfer_perf_lttng.h"
 
 #if !defined(_chunk_transfer_perf_lttng) || defined(LTTNG_UST_TRACEPOINT_HEADER_MULTI_READ)
 #define _chunk_transfer_perf_lttng
