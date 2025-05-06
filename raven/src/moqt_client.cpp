@@ -1,5 +1,6 @@
 #include <atomic>
 #include <contexts.hpp>
+#include <data_manager.hpp>
 #include <moqt.hpp>
 #include <msquic.h>
 #include <serialization/messages.hpp>

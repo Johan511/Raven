@@ -44,12 +44,27 @@ public:
 
     void subscribe(SubscribeMessage&& subscribeMessage)
     {
+        auto& connectionState = this->connectionState;
+        connectionState->add_track_alias({ subscribeMessage.trackNamespace_,
+                                           subscribeMessage.trackName_ },
+                                         subscribeMessage.trackAlias_);
         QUIC_BUFFER* quicBuffer = serialization::serialize(subscribeMessage);
         connectionState->send_control_buffer(quicBuffer);
     }
 
     void subscribe(BatchSubscribeMessage&& batchSubscribeMessage)
     {
+        auto& connectionState = this->connectionState;
+        // We only store the namespace suffixes, so when adding track aliases we need to construct the complete track identifier
+        // TODO: seems a bit hacky, check once
+        for (const auto& subscribeMessage : batchSubscribeMessage.subscriptions_)
+        {
+            std::vector<std::string> trackNamespace = batchSubscribeMessage.trackNamespacePrefix_;
+            for (auto&& ns : subscribeMessage.trackNamespace_)
+                trackNamespace.push_back(std::move(ns));
+            connectionState->add_track_alias({ trackNamespace, subscribeMessage.trackName_ },
+                                             subscribeMessage.trackAlias_);
+        }
         QUIC_BUFFER* quicBuffer = serialization::serialize(batchSubscribeMessage);
         connectionState->send_control_buffer(quicBuffer);
     }
