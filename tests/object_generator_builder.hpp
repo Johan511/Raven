@@ -26,16 +26,11 @@ class ObjectGeneratorFactory
         .count();
     }
 
-    static std::string
-    generate_object(std::uint64_t objectSize, std::uint64_t layerId, std::uint64_t objectId)
-    {
+    static std::string generate_object(std::uint64_t objectSize)
+    {   
         std::uint64_t currTime = get_current_ms_timestamp();
         std::string object(objectSize, 0);
         std::memcpy(object.data(), &currTime, sizeof(currTime));
-        std::memcpy(object.data() + sizeof(currTime), &layerId, sizeof(layerId));
-        std::memcpy(object.data() + sizeof(currTime) + sizeof(layerId),
-                    &objectId, sizeof(objectId));
-
         return object;
     }
 
@@ -86,7 +81,7 @@ public:
 
             for (std::uint64_t objectId = 0; objectId < numObjectsPerLayer; ++objectId)
             {
-                std::string object = generate_object(objectSize, layerIdx, objectId);
+                std::string object = generate_object(objectSize);
                 subGroupHandleOpt->add_object(std::move(object));
                 subGroupHandleOpt.emplace(subGroupHandleOpt->cap_and_next().value());
                 std::this_thread::sleep_for(msBetweenObjects);
@@ -110,7 +105,7 @@ public:
 
             for (std::uint64_t objectId = 0; objectId < numObjectsPerLayer; ++objectId)
             {
-                std::string object = generate_object(objectSize, layerIdx, objectId);
+                std::string object = generate_object(objectSize);
                 subGroupHandleOpt->add_object(std::move(object));
                 subGroupHandleOpt.emplace(subGroupHandleOpt->cap_and_next().value());
                 std::this_thread::sleep_for(msBetweenObjects);

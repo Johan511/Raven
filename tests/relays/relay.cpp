@@ -21,6 +21,7 @@
 #include <utilities.hpp>
 /////////////////////////////////////////////////////////
 #include "../test_utilities.hpp"
+#include "data_manager.hpp"
 #include "moqt_client.hpp"
 #include "serialization/messages.hpp"
 #include "strong_types.hpp"
@@ -30,7 +31,7 @@
 /////////////////////////////////////////////////////////
 
 using namespace rvn;
-constexpr std::uint8_t numNodes = 5;
+constexpr std::uint8_t numNodes = 8;
 constexpr std::uint16_t numMsQuicWorkersPerNode = 1;
 constexpr std::uint8_t numLayers = 5;
 constexpr std::uint16_t numObjects = 1'000;
@@ -272,6 +273,13 @@ int main(int argc, char* argv[])
                 }
 
                 auto dm = moqtServer->dataManager_;
+                // clang-format off
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "0").lock()->add_group(GroupId(0), PublisherPriority(4), {});
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "1").lock()->add_group(GroupId(0), PublisherPriority(3), {});
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "2").lock()->add_group(GroupId(0), PublisherPriority(2), {});
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "3").lock()->add_group(GroupId(0), PublisherPriority(1), {});
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "4").lock()->add_group(GroupId(0), PublisherPriority(0), {});
+                // clang-format on
 
                 const auto objectReceiver = [&]()
                 {
@@ -288,20 +296,24 @@ int main(int argc, char* argv[])
                         std::uint64_t currTimestamp = get_current_ms_timestamp();
                         std::uint64_t* sentTimestamp = reinterpret_cast<std::uint64_t*>(
                         enrichedObject.object_.payload_.data());
-                        std::uint64_t* groupId = sentTimestamp + 1;
-                        std::uint64_t* objectId = groupId + 1;
+                        std::uint64_t groupId = enrichedObject.header_->groupId_;
+                        std::uint64_t objectId = enrichedObject.object_.objectId_;
 
-                        std::cout << currTimestamp - *sentTimestamp << " "
-                                  << "Track Alias: " << enrichedObject.header_->trackAlias_
-                                  << " " << "Group Id: " << *groupId << " "
-                                  << "Object Id: " << *objectId << '\n';
+                        std::cout
+                        << getpid() << " " << currTimestamp - *sentTimestamp << " "
+                        << "Track Alias: " << enrichedObject.header_->trackAlias_
+                        << " " << "Group Id: " << groupId << " "
+                        << "Object Id: " << objectId << '\n';
 
-                        // TODO: deal with data manager
+                        ObjectIdentifier oid{ enrichedObject.trackIdentifier_.value(),
+                                              GroupId(groupId), ObjectId(objectId) };
 
                         lttng_ust_tracepoint(chunk_transfer_perf_lttng, object_recv,
                                              thisClientPid, currTimestamp - *sentTimestamp,
-                                             *groupId, *objectId,
+                                             groupId, objectId,
                                              enrichedObject.object_.payload_.size());
+
+                        dm->add_object(oid, std::move(enrichedObject.object_.payload_));
                     }
                 };
 
@@ -419,16 +431,17 @@ int main(int argc, char* argv[])
             std::uint64_t currTimestamp = get_current_ms_timestamp();
             std::uint64_t* sentTimestamp =
             reinterpret_cast<std::uint64_t*>(enrichedObject.object_.payload_.data());
-            std::uint64_t* groupId = sentTimestamp + 1;
-            std::uint64_t* objectId = groupId + 1;
+            std::uint64_t groupId = enrichedObject.header_->groupId_;
+            std::uint64_t objectId = enrichedObject.object_.objectId_;
 
-            std::cout << currTimestamp - *sentTimestamp << " "
+            std::cout << getpid() << currTimestamp - *sentTimestamp << " "
                       << "Track Alias: " << enrichedObject.header_->trackAlias_
-                      << " " << "Group Id: " << *groupId << " "
-                      << "Object Id: " << *objectId << '\n';
+                      << " " << "Group Id: " << groupId << " "
+                      << "Object Id: " << objectId << " "
+                      << enrichedObject.object_.payload_.size() << '\n';
 
             lttng_ust_tracepoint(chunk_transfer_perf_lttng, object_recv, thisClientPid,
-                                 currTimestamp - *sentTimestamp, *groupId, *objectId,
+                                 currTimestamp - *sentTimestamp, groupId, objectId,
                                  enrichedObject.object_.payload_.size());
         }
 
