@@ -177,7 +177,10 @@ public:
     WaitSignal updateSignal_;
 
     // should be private but want to use std::make_shared
-    TrackHandle(DataManager& dataManagerHandle, TrackIdentifier trackIdentifier);
+    TrackHandle(DataManager& dataManagerHandle,
+                TrackIdentifier trackIdentifier,
+                PublisherPriority publisherPriority,
+                std::optional<std::chrono::milliseconds> deliveryTimeout);
 
     TrackHandle& operator=(const TrackHandle&) = delete;
     TrackHandle& operator=(TrackHandle&&) = delete;
@@ -239,7 +242,10 @@ class DataManager
 
 public:
     std::weak_ptr<TrackHandle>
-    add_track_identifier(std::vector<std::string> tracknamespace, std::string trackname);
+    add_track_identifier(std::vector<std::string> tracknamespace,
+                         std::string trackname,
+                         PublisherPriority publisherPriority,
+                         std::optional<std::chrono::milliseconds> deliveryTimeout);
 
     std::variant<std::shared_ptr<TrackHandle>, WaitSignal>
     get_track_handle(const TrackIdentifier& trackIdentifier);

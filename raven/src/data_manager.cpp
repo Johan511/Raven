@@ -31,8 +31,12 @@ ObjectIdentifier::ObjectIdentifier(GroupIdentifier groupIdentifier, ObjectId obj
 {
 }
 
-TrackHandle::TrackHandle(DataManager& dataManagerHandle, TrackIdentifier trackIdentifier)
+TrackHandle::TrackHandle(DataManager& dataManagerHandle,
+                         TrackIdentifier trackIdentifier,
+                         PublisherPriority publisherPriority,
+                         std::optional<std::chrono::milliseconds> deliveryTimeout)
 : dataManager_(dataManagerHandle), trackIdentifier_(std::move(trackIdentifier)),
+  publisherPriority_(publisherPriority), deliveryTimeout_(deliveryTimeout),
   // no update yet, waiting for it
   updateSignal_(std::make_shared<std::atomic<WaitStatus>>(WaitStatus::Wait))
 {
@@ -114,7 +118,10 @@ std::string DataManager::get_path_string(const ObjectIdentifier& objectIdentifie
 }
 
 std::weak_ptr<TrackHandle>
-DataManager::add_track_identifier(std::vector<std::string> tracknamespace, std::string trackname)
+DataManager::add_track_identifier(std::vector<std::string> tracknamespace,
+                                  std::string trackname,
+                                  PublisherPriority publisherPriority,
+                                  std::optional<std::chrono::milliseconds> deliveryTimeout)
 {
     auto trackIdentifier =
     TrackIdentifier(std::move(tracknamespace), std::move(trackname));
@@ -123,7 +130,8 @@ DataManager::add_track_identifier(std::vector<std::string> tracknamespace, std::
     [&](auto& trackHandles)
     {
         return trackHandles.try_emplace(trackIdentifier,
-                                        std::make_shared<TrackHandle>(*this, trackIdentifier));
+                                        std::make_shared<TrackHandle>(*this, trackIdentifier, publisherPriority,
+                                                                      deliveryTimeout));
     });
 
     if (success)

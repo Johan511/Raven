@@ -64,14 +64,18 @@ public:
         const auto trackGranularityGeneratorTask =
         [this, baseBitRate, numObjectsPerLayer, msBetweenObjects](std::uint64_t layerIdx)
         {
-            auto trackHandle =
-            dataManager_
-            .add_track_identifier(trackNamespace, std::to_string(layerIdx))
-            .lock();
-
             std::uint64_t bitRate = baseBitRate << layerIdx;
             std::uint64_t objectSize = get_size_of_object(bitRate, msBetweenObjects);
-            rvn::PublisherPriority priority(layerIdx);
+            rvn::PublisherPriority priority(5 - layerIdx);
+            if (layerIdx == 0)
+                priority = rvn::PublisherPriority(-1);
+
+            auto trackHandle =
+            dataManager_
+            .add_track_identifier(trackNamespace, std::to_string(layerIdx),
+                                  priority, std::nullopt)
+            .lock();
+
 
             for (std::uint64_t objectId = 0; objectId < numObjectsPerLayer; ++objectId)
             {
@@ -88,9 +92,6 @@ public:
                 th = std::thread(trackGranularityGeneratorTask, layerIdx);
             else if (layerGranularity == LayerGranularity::GroupGranularity)
             {
-                static const std::string trackName = "track";
-                auto trackHandle =
-                dataManager_.add_track_identifier(trackNamespace, trackName).lock();
                 assert(false);
                 exit(1);
             }

@@ -74,21 +74,6 @@ target_include_directories(raven SYSTEM PUBLIC ${MSQUIC_INCLUDE_DIR} ${Boost_INC
 target_link_libraries(raven PUBLIC ${MSQUIC_LINK_LIBRARY} ${Boost_LIBRARIES})
 # -------------------------------------------------------------------------------
 
-# Add playground server
-add_executable(server server.cpp)
-# target_compile_options(server PRIVATE -Wall -Wextra -Werror -Wpedantic)
-target_include_directories(server PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(server SYSTEM PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR})
-target_link_libraries(server PUBLIC raven)
-
-# Add playground client
-add_executable(client client.cpp)
-# target_compile_options(client PRIVATE -Wall -Wextra -Werror -Wpedantic)
-target_include_directories(client PUBLIC ${RAVEN_INCLUDE_DIR})
-target_include_directories(client SYSTEM PUBLIC ${MSQUIC_INCLUDE_DIR} ${MOODY_CAMEL_INCLUDE_DIR})
-target_link_libraries(client PUBLIC raven)
-# -------------------------------------------------------------------------------
-
 add_subdirectory(tests)
 
 add_subdirectory(examples) #---adding a new examples directory

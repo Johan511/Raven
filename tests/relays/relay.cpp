@@ -31,7 +31,7 @@
 /////////////////////////////////////////////////////////
 
 using namespace rvn;
-constexpr std::uint8_t numNodes = 8;
+constexpr std::uint8_t numNodes = 2;
 constexpr std::uint16_t numMsQuicWorkersPerNode = 1;
 constexpr std::uint8_t numLayers = 5;
 constexpr std::uint16_t numObjects = 1'000;
@@ -275,11 +275,11 @@ int main(int argc, char* argv[])
                 auto dm = moqtServer->dataManager_;
                 std::array trackHandles = {
                     // clang-format off
-                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "0").lock(),
-                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "1").lock(),
-                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "2").lock(),
-                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "3").lock(),
-                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "4").lock()
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "0", PublisherPriority(-1), std::nullopt).lock(),
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "1", PublisherPriority(3), std::nullopt).lock(),
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "2", PublisherPriority(2), std::nullopt).lock(),
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "3", PublisherPriority(1), std::nullopt).lock(),
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "4", PublisherPriority(0), std::nullopt).lock()
                     // clang-format on
                 };
 
