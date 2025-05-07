@@ -88,7 +88,7 @@ public:
                 th = std::thread(trackGranularityGeneratorTask, layerIdx);
             else if (layerGranularity == LayerGranularity::GroupGranularity)
             {
-                static constexpr std::string trackName = "track";
+                static const std::string trackName = "track";
                 auto trackHandle =
                 dataManager_.add_track_identifier(trackNamespace, trackName).lock();
                 assert(false);
