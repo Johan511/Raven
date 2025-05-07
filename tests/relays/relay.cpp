@@ -218,7 +218,7 @@ int main(int argc, char* argv[])
                 subscriptionBuilder.set_track_alias(TrackAlias(0));
                 subscriptionBuilder.set_track_namespace({});
                 subscriptionBuilder.set_track_name("track");
-                subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestPerGroupInTrack);
+                subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestObject);
                 subscriptionBuilder.set_subscriber_priority(0);
                 subscriptionBuilder.set_group_order(0);
 
@@ -273,13 +273,15 @@ int main(int argc, char* argv[])
                 }
 
                 auto dm = moqtServer->dataManager_;
-                // clang-format off
-                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "0").lock()->add_group(GroupId(0), PublisherPriority(4), {});
-                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "1").lock()->add_group(GroupId(0), PublisherPriority(3), {});
-                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "2").lock()->add_group(GroupId(0), PublisherPriority(2), {});
-                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "3").lock()->add_group(GroupId(0), PublisherPriority(1), {});
-                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "4").lock()->add_group(GroupId(0), PublisherPriority(0), {});
-                // clang-format on
+                std::array trackHandles = {
+                    // clang-format off
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "0").lock(),
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "1").lock(),
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "2").lock(),
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "3").lock(),
+                dm->add_track_identifier({ "namespace1", "namespace2", "namespace3" }, "4").lock()
+                    // clang-format on
+                };
 
                 const auto objectReceiver = [&]()
                 {
@@ -298,6 +300,7 @@ int main(int argc, char* argv[])
                         enrichedObject.object_.payload_.data());
                         std::uint64_t groupId = enrichedObject.header_->groupId_;
                         std::uint64_t objectId = enrichedObject.object_.objectId_;
+                        TrackAlias trackAlias = enrichedObject.header_->trackAlias_;
 
                         std::cout
                         << getpid() << " " << currTimestamp - *sentTimestamp << " "
@@ -305,7 +308,10 @@ int main(int argc, char* argv[])
                         << " " << "Group Id: " << groupId << " "
                         << "Object Id: " << objectId << '\n';
 
-                        ObjectIdentifier oid{ enrichedObject.trackIdentifier_.value(),
+                        ObjectIdentifier oid{ moqtClient->connectionState
+                                              ->alias_to_identifier(
+                                              enrichedObject.header_->trackAlias_)
+                                              .value(),
                                               GroupId(groupId), ObjectId(objectId) };
 
                         lttng_ust_tracepoint(chunk_transfer_perf_lttng, object_recv,
@@ -313,7 +319,9 @@ int main(int argc, char* argv[])
                                              groupId, objectId,
                                              enrichedObject.object_.payload_.size());
 
-                        dm->add_object(oid, std::move(enrichedObject.object_.payload_));
+                        trackHandles[trackAlias]
+                        ->add_object(GroupId(groupId), ObjectId(objectId),
+                                     enrichedObject.object_.payload_);
                     }
                 };
 
@@ -397,7 +405,7 @@ int main(int argc, char* argv[])
         subscriptionBuilder.set_track_alias(TrackAlias(0));
         subscriptionBuilder.set_track_namespace({});
         subscriptionBuilder.set_track_name("track");
-        subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestPerGroupInTrack);
+        subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestObject);
         subscriptionBuilder.set_subscriber_priority(0);
         subscriptionBuilder.set_group_order(0);
 
@@ -434,7 +442,7 @@ int main(int argc, char* argv[])
             std::uint64_t groupId = enrichedObject.header_->groupId_;
             std::uint64_t objectId = enrichedObject.object_.objectId_;
 
-            std::cout << getpid() << currTimestamp - *sentTimestamp << " "
+            std::cout << currTimestamp - *sentTimestamp << " "
                       << "Track Alias: " << enrichedObject.header_->trackAlias_
                       << " " << "Group Id: " << groupId << " "
                       << "Object Id: " << objectId << " "

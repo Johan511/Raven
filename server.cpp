@@ -43,14 +43,12 @@ QUIC_CREDENTIAL_CONFIG* get_cred_config()
 int main()
 {
     auto dm = std::make_shared<DataManager>();
-    auto trackHandle = dm->add_track_identifier({}, "track");
-    auto groupHandle =
-    trackHandle.lock()->add_group(GroupId(0), PublisherPriority(0), {});
-    auto subgroupHandle = groupHandle.lock()->add_subgroup(ObjectId(1));
-    subgroupHandle.add_object("Hello World");
+    auto trackHandle = dm->add_track_identifier({}, "track").lock();
+    trackHandle->add_object(GroupId(0), ObjectId(0), "Hello World");
 
 
-    std::unique_ptr<MOQTServer> moqtServer = std::make_unique<MOQTServer>(dm);
+    std::unique_ptr<MOQTServer>
+    moqtServer = std::make_unique<MOQTServer>(dm);
 
     QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_TYPE_REAL_TIME };
     moqtServer->set_regConfig(&RegConfig);

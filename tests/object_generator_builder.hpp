@@ -27,7 +27,7 @@ class ObjectGeneratorFactory
     }
 
     static std::string generate_object(std::uint64_t objectSize)
-    {   
+    {
         std::uint64_t currTime = get_current_ms_timestamp();
         std::string object(objectSize, 0);
         std::memcpy(object.data(), &currTime, sizeof(currTime));
@@ -73,44 +73,15 @@ public:
             std::uint64_t objectSize = get_size_of_object(bitRate, msBetweenObjects);
             rvn::PublisherPriority priority(layerIdx);
 
-            auto groupHandle =
-            trackHandle->add_group(rvn::GroupId(0), priority, msBetweenObjects).lock();
-
-            std::optional<rvn::SubgroupHandle> subGroupHandleOpt =
-            groupHandle->add_open_ended_subgroup();
-
             for (std::uint64_t objectId = 0; objectId < numObjectsPerLayer; ++objectId)
             {
                 std::string object = generate_object(objectSize);
-                subGroupHandleOpt->add_object(std::move(object));
-                subGroupHandleOpt.emplace(subGroupHandleOpt->cap_and_next().value());
+                trackHandle->add_object(rvn::GroupId(layerIdx),
+                                        rvn::ObjectId(objectId), std::move(object));
                 std::this_thread::sleep_for(msBetweenObjects);
             }
         };
 
-        const auto groupGranularityGeneratorTask =
-        [baseBitRate, numObjectsPerLayer,
-         msBetweenObjects](std::shared_ptr<rvn::TrackHandle> trackHandle, std::uint64_t layerIdx)
-        {
-            std::uint64_t bitRate = baseBitRate << layerIdx;
-            std::uint64_t objectSize = get_size_of_object(bitRate, msBetweenObjects);
-            rvn::PublisherPriority priority(layerIdx);
-
-            auto groupHandle = trackHandle
-                               ->add_group(rvn::GroupId(layerIdx), priority, msBetweenObjects)
-                               .lock();
-
-            std::optional<rvn::SubgroupHandle> subGroupHandleOpt =
-            groupHandle->add_open_ended_subgroup();
-
-            for (std::uint64_t objectId = 0; objectId < numObjectsPerLayer; ++objectId)
-            {
-                std::string object = generate_object(objectSize);
-                subGroupHandleOpt->add_object(std::move(object));
-                subGroupHandleOpt.emplace(subGroupHandleOpt->cap_and_next().value());
-                std::this_thread::sleep_for(msBetweenObjects);
-            }
-        };
         for (std::size_t layerIdx = 0; auto& th : objectGenerators)
         {
             if (layerGranularity == LayerGranularity::TrackGranularity)
@@ -120,8 +91,8 @@ public:
                 static constexpr std::string trackName = "track";
                 auto trackHandle =
                 dataManager_.add_track_identifier(trackNamespace, trackName).lock();
-
-                th = std::thread(groupGranularityGeneratorTask, trackHandle, layerIdx);
+                assert(false);
+                exit(1);
             }
             else
                 throw std::invalid_argument("Invalid layer granularity");

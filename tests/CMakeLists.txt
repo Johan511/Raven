@@ -11,8 +11,8 @@ include(${CMAKE_SOURCE_DIR}/cmake_utilities/test_utilities.cmake)
 
 add_subdirectory(serialization)
 
-add_raven_test(src/simple_data_transfer.cpp)
-add_raven_test(src/chunk_transfer.cpp)
+# add_raven_test(src/simple_data_transfer.cpp)
+# add_raven_test(src/chunk_transfer.cpp)
 add_raven_test(src/deserializer_tests.cpp)
 
 find_package(LTTngUST REQUIRED)

@@ -158,6 +158,7 @@ StreamState& ConnectionState::establish_control_stream()
 
 QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifier,
                                          QUIC_BUFFER* objectPayload,
+                                         PublisherPriority publisherPriority,
                                          std::optional<std::chrono::milliseconds> timeoutDuration)
 {
     auto sendObjectLambda = [&](const StableContainer<DataStreamState>& dataStreams)
@@ -197,9 +198,7 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
         objectHeader.subgroupId_ = SubGroupId(0);
 
         // Get publisher priority from group
-        MOQTServer& moqtServer = static_cast<MOQTServer&>(moqtObject_);
-        objectHeader.publisherPriority_ =
-        moqtServer.dataManager_->get_publisher_priority(objectIdentifier).value();
+        objectHeader.publisherPriority_ = publisherPriority;
 
         QUIC_BUFFER* objectHeaderQuicBuffer = serialization::serialize(objectHeader);
 
@@ -258,7 +257,7 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
         if (QUIC_FAILED(status))
             return status;
 
-        return send_object(objectIdentifier, objectPayload, timeoutDuration);
+        return send_object(objectIdentifier, objectPayload, publisherPriority, timeoutDuration);
     }
 
     return trySendStatus;

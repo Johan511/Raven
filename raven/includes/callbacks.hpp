@@ -311,7 +311,6 @@ static constexpr auto client_connection_callback =
         case QUIC_CONNECTION_EVENT_CONNECTED:
         {
             // The handshake has completed for the connection.
-
             ConnectionState& connectionState = *moqtClient->connectionState;
             connectionState.establish_control_stream();
 

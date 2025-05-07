@@ -1,6 +1,9 @@
 /////////////////////////////////////////////
+#include "strong_types.hpp"
 #include <atomic>
+#include <bit>
 #include <chrono>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <unistd.h>
@@ -20,93 +23,123 @@ namespace rvn
 {
 
 MinorSubscriptionState::MinorSubscriptionState(SubscriptionState& subscriptionState,
-                                               ObjectIdentifier objectToSend,
+                                               NextOperation nextOperation,
                                                std::optional<ObjectIdentifier> lastObjectToBeSent,
-                                               bool mustBeSent,
+                                               PublisherPriority trackPublisherPriority,
                                                std::optional<std::chrono::milliseconds> deliveryTimeout)
 : subscriptionState_(std::addressof(subscriptionState)),
-  objectToSend_(std::move(objectToSend)),
-  lastObjectToBeSent_(std::move(lastObjectToBeSent)), mustBeSent_(mustBeSent),
+  nextOperation_(nextOperation), lastObjectToBeSent_(std::move(lastObjectToBeSent)),
+  trackPublisherPriority_(trackPublisherPriority),
+  mustBeSent_(std::countl_zero(trackPublisherPriority_.get()) == 0), // MSB is 1
   subscribeDeliveryTimeout_(deliveryTimeout)
 {
 }
 
 bool MinorSubscriptionState::is_waiting_for_object()
 {
-    if (!objectWaitSignal_.has_value()) [[unlikely]]
+    if (!waitSignal_.has_value()) [[unlikely]]
         // not waiting on object to be ready
         return true;
 
     // we wait on the flag, only is flag is ready, we do acquire operation
     // might have performance benefits on weaker memory models (ARM, POWERPC...)
-    return (*objectWaitSignal_)->load(std::memory_order_relaxed) == ObjectWaitStatus::Ready;
+    return (*waitSignal_)->load(std::memory_order_relaxed) == WaitStatus::Ready;
 
     // We only return that it is true, we have to reset the flag in the
     // fulfill_some_minor function and also have an acquire load on the flag
 }
 
 // returns true if fulfilling is done
+// called only when wait signal is set, wait signal never gets unset once set
 FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
 {
-    if (objectWaitSignal_.has_value()) [[likely]]
+    if (waitSignal_.has_value()) [[likely]]
     {
         // we have to reset the flag
-        (*objectWaitSignal_)->load(std::memory_order_acquire);
-        objectWaitSignal_.reset();
+        (*waitSignal_)->load(std::memory_order_acquire);
+        waitSignal_.reset();
     }
 
     auto connectionStateSharedPtr = subscriptionState_->connectionStateWeakPtr_.lock();
     if (!connectionStateSharedPtr)
-        return SubscriptionStateErr::ConnectionExpired{};
-
-    auto objectOrStatus = subscriptionState_->dataManager_->get_object(objectToSend_);
-
-    if (std::holds_alternative<DoesNotExist>(objectOrStatus))
-        return SubscriptionStateErr::ObjectDoesNotExist{};
-    else if (std::holds_alternative<ObjectWaitSignal>(objectOrStatus))
     {
-        objectWaitSignal_ = std::move(std::get<ObjectWaitSignal>(objectOrStatus));
+        return SubscriptionStateErr::ConnectionExpired{};
+    }
+
+    // monostate required as we do not want to default construct shit
+    EnrichedObjectOrWait objectInfoOrWait;
+    switch (nextOperation_)
+    {
+        case NextOperation::First:
+        {
+            objectInfoOrWait = subscriptionState_->trackHandle_->get_first_object();
+            if (!std::holds_alternative<WaitSignal>(objectInfoOrWait))
+                nextOperation_ = NextOperation::Next;
+            break;
+        }
+        case NextOperation::Next:
+        {
+            objectInfoOrWait =
+            subscriptionState_->trackHandle_->get_next_object(*previouslySentObject_);
+            break;
+        }
+        case NextOperation::Latest:
+        {
+            objectInfoOrWait =
+            subscriptionState_->trackHandle_->get_latest_object(previouslySentObject_);
+            break;
+        }
+    }
+
+
+    if (std::holds_alternative<WaitSignal>(objectInfoOrWait))
+    {
+        waitSignal_ = std::move(std::get<WaitSignal>(objectInfoOrWait));
         return false;
     }
     else
     {
-        auto [quicBuffer, objectDeliveryTimeout] = std::get<ObjectType>(objectOrStatus);
+
+        auto [groupId, objectId, object] = std::get<EnrichedObjectType>(objectInfoOrWait);
+
+        if (object.is_track_terminator())
+            return true;
+
+        if (lastObjectToBeSent_.has_value())
+        {
+            if (std::make_tuple(groupId, objectId) >
+                std::make_tuple(lastObjectToBeSent_->groupId_,
+                                lastObjectToBeSent_->objectId_))
+            {
+                // we fulfilled the subscription requirement
+                return true;
+            }
+        }
 
         if ((!mustBeSent_) && previouslySentObject_.has_value())
             connectionStateSharedPtr->abort_if_sending(*previouslySentObject_);
 
-        if (!objectDeliveryTimeout)
-            // now both have value, or neither has value
-            objectDeliveryTimeout = subscribeDeliveryTimeout_;
-
-        // need to check only one of them for value
-        if (subscribeDeliveryTimeout_)
-            // if subscriber and object both mention a delivery timeout, we need
-            // to take the min of the 2
-            if (*objectDeliveryTimeout > *subscribeDeliveryTimeout_)
-                *objectDeliveryTimeout = *subscribeDeliveryTimeout_;
-
-        QUIC_STATUS status =
-        connectionStateSharedPtr->send_object(objectToSend_, quicBuffer, objectDeliveryTimeout);
-        if (QUIC_FAILED(status))
-            return SubscriptionStateErr::ConnectionExpired{};
-
+        // TODO: object delivery timeout
         if (previouslySentObject_.has_value())
         {
             // we do not want to copy because copying track identifier is rather
             // expensive operation (seq cst atomic add of shared_ptr)
-            previouslySentObject_->groupId_ = objectToSend_.groupId_;
-            previouslySentObject_->objectId_ = objectToSend_.objectId_;
+            previouslySentObject_->groupId_ = groupId;
+            previouslySentObject_->objectId_ = objectId;
         }
         else
-            previouslySentObject_ = objectToSend_;
+            previouslySentObject_ =
+            ObjectIdentifier{ subscriptionState_->trackHandle_->trackIdentifier_,
+                              groupId, objectId };
 
-        bool canAdavance = subscriptionState_->dataManager_->next(objectToSend_);
-
-        if (!canAdavance)
-            return true;
-        return (lastObjectToBeSent_.has_value() && objectToSend_ == *lastObjectToBeSent_);
+        QUIC_STATUS status =
+        connectionStateSharedPtr->send_object(*previouslySentObject_, object.payload_,
+                                              trackPublisherPriority_, std::nullopt);
+        if (QUIC_FAILED(status))
+            return SubscriptionStateErr::ConnectionExpired{};
     }
+
+    return false;
 }
 
 // returns true if fulfilling is done
@@ -145,32 +178,6 @@ FulfillSomeReturn SubscriptionState::fulfill_some()
     return allFulfilled;
 }
 
-FulfillSomeReturn
-SubscriptionState::add_group_subscription(const GroupHandle& groupHandle,
-                                          bool mustBeSent,
-                                          std::optional<std::chrono::milliseconds> deliveryTimeout,
-                                          std::optional<ObjectId> beginObjectId,
-                                          std::optional<ObjectId> endObjectId)
-{
-    if (beginObjectId == std::nullopt)
-        beginObjectId = dataManager_->get_first_object(groupHandle.groupIdentifier_);
-    if (beginObjectId == std::nullopt)
-        return SubscriptionStateErr::ObjectDoesNotExist{};
-
-    if (endObjectId == std::nullopt)
-        endObjectId =
-        dataManager_->get_latest_registered_object(groupHandle.groupIdentifier_);
-    if (endObjectId == std::nullopt)
-        return SubscriptionStateErr::ObjectDoesNotExist{};
-
-    minorSubscriptionStates_
-    .emplace_back(*this, ObjectIdentifier(groupHandle.groupIdentifier_, *beginObjectId),
-                  ObjectIdentifier(groupHandle.groupIdentifier_, *endObjectId),
-                  mustBeSent, deliveryTimeout);
-
-    return false;
-}
-
 SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connectionState,
                                      DataManager& dataManager,
                                      SubscriptionManager& subscriptionManager,
@@ -198,171 +205,42 @@ SubscriptionState::SubscriptionState(std::weak_ptr<ConnectionState>&& connection
     if (deliveryTimeoutParamOpt.has_value())
         deliveryTimeoutOpt = deliveryTimeoutParamOpt->timeout_;
 
+    auto trackHandleOrStatus = dataManager_->get_track_handle(trackIdentifier);
+    if (std::holds_alternative<WaitSignal>(trackHandleOrStatus))
+    {
+        // TODO: Handle wait condition
+        utils::ASSERT_LOG_THROW(false, "Track is not ready", trackIdentifier);
+    }
+
+    trackHandle_ = std::get<std::shared_ptr<TrackHandle>>(std::move(trackHandleOrStatus));
+
     switch (filterType)
     {
-        case SubscribeFilterType::LatestGroup:
-        {
-            std::optional<GroupId> currGroupOpt =
-            connectionStateSharedPtr->get_current_group(subscriptionMessage_.trackAlias_);
-
-            if (!currGroupOpt.has_value())
-                currGroupOpt = dataManager_->get_first_group(trackIdentifier);
-
-            if (!currGroupOpt.has_value())
-            {
-                subscriptionManager_->notify_subscription_error(*this);
-                return;
-            }
-
-            std::weak_ptr<GroupHandle> groupHandle =
-            dataManager_->get_group_handle(GroupIdentifier(trackIdentifier, *currGroupOpt));
-
-            if (auto groupHandleSharedPtr = groupHandle.lock())
-                add_group_subscription(*groupHandleSharedPtr, true);
-            else
-            {
-                subscriptionManager_->notify_subscription_error(*this);
-                return;
-            }
-
-            break;
-        }
         case SubscribeFilterType::LatestObject:
         {
+            // TODO: check status of current group stuff in latest draft
             std::optional<GroupId> currGroupOpt =
-            connectionStateSharedPtr->get_current_group(subscriptionMessage_.trackAlias_);
+            connectionStateSharedPtr->get_current_group(trackIdentifier);
 
-            if (!currGroupOpt.has_value())
-                currGroupOpt = dataManager_->get_first_group(trackIdentifier);
+            if (!currGroupOpt)
+                currGroupOpt = GroupId(0);
 
-            if (!currGroupOpt.has_value())
-            {
-                subscriptionManager_->notify_subscription_error(*this);
-                return;
-            }
+            PublisherPriority trackPublisherPriority =
+            dataManager_->get_track_publisher_priority(trackIdentifier);
 
-            std::weak_ptr<GroupHandle> groupHandle =
-            dataManager_->get_group_handle(GroupIdentifier(trackIdentifier, *currGroupOpt));
-
-            if (auto groupHandleSharedPtr = groupHandle.lock())
-            {
-                auto latestObjectOpt = dataManager_->get_latest_registered_object(
-                groupHandleSharedPtr->groupIdentifier_);
-                if (!latestObjectOpt.has_value())
-                {
-                    subscriptionManager_->notify_subscription_error(*this);
-                    return;
-                }
-
-                add_group_subscription(*groupHandleSharedPtr, true,
-                                       deliveryTimeoutOpt, latestObjectOpt);
-            }
-            else
-            {
-                subscriptionManager_->notify_subscription_error(*this);
-                return;
-            }
+            minorSubscriptionStates_.emplace_back(*this, NextOperation::Latest,
+                                                  std::nullopt, trackPublisherPriority,
+                                                  deliveryTimeoutOpt);
 
             break;
         }
         case SubscribeFilterType::AbsoluteStart:
         {
-            std::weak_ptr<TrackHandle> trackHandle =
-            dataManager_->get_track_handle(trackIdentifier);
-
-            if (auto trackHandleSharedPtr = trackHandle.lock())
-            {
-                std::shared_lock l(trackHandleSharedPtr->groupHandlesMtx_);
-                auto groupHandleIter = trackHandleSharedPtr->groupHandles_.find(
-                subscriptionMessage_.start_->group_);
-
-                if (groupHandleIter == trackHandleSharedPtr->groupHandles_.end())
-                {
-                    subscriptionManager_->notify_subscription_error(*this);
-                    return;
-                }
-
-                add_group_subscription(*groupHandleIter->second, true, deliveryTimeoutOpt,
-                                       subscriptionMessage_.start_->object_);
-                ++groupHandleIter;
-                for (; groupHandleIter != trackHandleSharedPtr->groupHandles_.end(); ++groupHandleIter)
-                    add_group_subscription(*groupHandleIter->second, true);
-            }
-            else
-            {
-                subscriptionManager_->notify_subscription_error(*this);
-                return;
-            }
-            break;
+            // TODO
         }
         case SubscribeFilterType::AbsoluteRange:
         {
-            std::weak_ptr<TrackHandle> trackHandle =
-            dataManager_->get_track_handle(trackIdentifier);
-
-            if (auto trackHandleSharedPtr = trackHandle.lock())
-            {
-                std::shared_lock l(trackHandleSharedPtr->groupHandlesMtx_);
-
-                auto beginGroupHandleIter = trackHandleSharedPtr->groupHandles_.find(
-                subscriptionMessage_.start_->group_);
-                auto endGroupHandleIter = trackHandleSharedPtr->groupHandles_.find(
-                subscriptionMessage_.end_->group_);
-
-                if (beginGroupHandleIter == trackHandleSharedPtr->groupHandles_.end() ||
-                    endGroupHandleIter == trackHandleSharedPtr->groupHandles_.end())
-                {
-                    subscriptionManager_->notify_subscription_error(*this);
-                    return;
-                }
-
-                if (beginGroupHandleIter->first == endGroupHandleIter->first)
-                {
-                    add_group_subscription(*beginGroupHandleIter->second, true, deliveryTimeoutOpt,
-                                           subscriptionMessage_.start_->object_,
-                                           subscriptionMessage_.end_->object_);
-                    return;
-                }
-                else
-                {
-                    add_group_subscription(*beginGroupHandleIter->second, true, deliveryTimeoutOpt,
-                                           subscriptionMessage_.start_->object_);
-
-                    for (auto groupHandleIter = std::next(beginGroupHandleIter);
-                         groupHandleIter != endGroupHandleIter; ++groupHandleIter)
-                        add_group_subscription(*groupHandleIter->second, true);
-
-                    add_group_subscription(*endGroupHandleIter->second, true, std::nullopt,
-                                           subscriptionMessage_.end_->object_);
-                }
-            }
-            else
-            {
-                subscriptionManager_->notify_subscription_error(*this);
-                return;
-            }
-            break;
-        }
-        case SubscribeFilterType::LatestPerGroupInTrack:
-        {
-            std::weak_ptr<TrackHandle> trackHandle =
-            dataManager_->get_track_handle(trackIdentifier);
-
-            if (auto trackHandleSharedPtr = trackHandle.lock())
-            {
-                std::shared_lock l(trackHandleSharedPtr->groupHandlesMtx_);
-                for (auto& groupHandleIter : trackHandleSharedPtr->groupHandles_)
-                    // TODO: update it such that mustBeSent is true for base layers
-                    add_group_subscription(*groupHandleIter.second, false, deliveryTimeoutOpt,
-                                           dataManager_->get_latest_concrete_object(
-                                           groupHandleIter.second->groupIdentifier_));
-            }
-            else
-            {
-                subscriptionManager_->notify_subscription_error(*this);
-                return;
-            }
-            break;
+            // TODO
         }
         default:
         {
@@ -425,8 +303,6 @@ void ThreadLocalState::operator()()
             {
                 // Nothing to be done
             }
-            else if (std::holds_alternative<SubscriptionStateErr::ObjectDoesNotExist>(fulfillReturn))
-                subscriptionManager_.notify_subscription_error(*traversalIter);
             else
                 assert(false);
         }

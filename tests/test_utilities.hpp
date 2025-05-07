@@ -44,12 +44,12 @@ client_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig =
     Settings.SendBufferingEnabled = FALSE;
     Settings.IsSet.MaxAckDelayMs = TRUE;
     Settings.MaxAckDelayMs = 1;
-    Settings.IsSet.StreamRecvWindowDefault = TRUE;
-    Settings.StreamRecvWindowDefault = std::bit_floor(
-    std::numeric_limits<decltype(Settings.StreamRecvWindowDefault)>::max());
-    Settings.IsSet.StreamRecvBufferDefault = TRUE;
-    Settings.StreamRecvBufferDefault = std::bit_floor(
-    std::numeric_limits<decltype(Settings.StreamRecvBufferDefault)>::max());
+    // Settings.IsSet.StreamRecvWindowDefault = TRUE;
+    // Settings.StreamRecvWindowDefault = std::bit_floor(
+    // std::numeric_limits<decltype(Settings.StreamRecvWindowDefault)>::max());
+    // Settings.IsSet.StreamRecvBufferDefault = TRUE;
+    // Settings.StreamRecvBufferDefault = std::bit_floor(
+    // std::numeric_limits<decltype(Settings.StreamRecvBufferDefault)>::max());
     moqtClient->set_Settings(&Settings, sizeof(Settings));
 
     QUIC_CREDENTIAL_CONFIG credConfig;
@@ -107,12 +107,12 @@ server_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig =
     Settings.StreamMultiReceiveEnabled = TRUE;
     Settings.IsSet.SendBufferingEnabled = TRUE;
     Settings.SendBufferingEnabled = FALSE;
-    Settings.IsSet.StreamRecvWindowDefault = TRUE;
-    Settings.StreamRecvWindowDefault = std::bit_floor(
-    std::numeric_limits<decltype(Settings.StreamRecvWindowDefault)>::max());
-    Settings.IsSet.StreamRecvBufferDefault = TRUE;
-    Settings.StreamRecvBufferDefault = std::bit_floor(
-    std::numeric_limits<decltype(Settings.StreamRecvBufferDefault)>::max());
+    // Settings.IsSet.StreamRecvWindowDefault = TRUE;
+    // Settings.StreamRecvWindowDefault = std::bit_floor(
+    // std::numeric_limits<decltype(Settings.StreamRecvWindowDefault)>::max());
+    // Settings.IsSet.StreamRecvBufferDefault = TRUE;
+    // Settings.StreamRecvBufferDefault = std::bit_floor(
+    // std::numeric_limits<decltype(Settings.StreamRecvBufferDefault)>::max());
     moqtServer->set_Settings(&Settings, sizeof(Settings));
 
     // certificates

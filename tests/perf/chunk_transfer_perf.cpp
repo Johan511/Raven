@@ -164,7 +164,7 @@ int main(int argc, char* argv[])
         double delayMs = vm["delay_ms"].as<double>();
         double delayJitter = vm["delay_jitter"].as<double>();
 
-        NetemRAII netemRAII(lossPercentage, tcBandwidth, delayMs, delayJitter);
+        // NetemRAII netemRAII(lossPercentage, tcBandwidth, delayMs, delayJitter);
         lttng_ust_tracepoint(chunk_transfer_perf_lttng, netem, lossPercentage,
                              tcBandwidth, delayMs, delayJitter);
         //////////////////////////////////////////////////////////////////////////
@@ -177,8 +177,6 @@ int main(int argc, char* argv[])
         InterprocessSynchronizationData* dataChild =
         static_cast<InterprocessSynchronizationData*>(regionChild.get_address());
         //////////////////////////////////////////////////////////////////////////
-        std::string setNicenessString = "renice -20 -p " + std::to_string(getpid());
-        // std::system(setNicenessString.c_str());
 
         for (;;)
         {
@@ -228,7 +226,7 @@ int main(int argc, char* argv[])
         subscriptionBuilder.set_track_alias(TrackAlias(0));
         subscriptionBuilder.set_track_namespace({});
         subscriptionBuilder.set_track_name("track");
-        subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestPerGroupInTrack);
+        subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestObject);
         subscriptionBuilder.set_subscriber_priority(0);
         subscriptionBuilder.set_group_order(0);
 
@@ -262,16 +260,16 @@ int main(int argc, char* argv[])
             std::uint64_t currTimestamp = get_current_ms_timestamp();
             std::uint64_t* sentTimestamp =
             reinterpret_cast<std::uint64_t*>(enrichedObject.object_.payload_.data());
-            std::uint64_t* groupId = sentTimestamp + 1;
-            std::uint64_t* objectId = groupId + 1;
+            std::uint64_t groupId = enrichedObject.header_->groupId_;
+            std::uint64_t objectId = enrichedObject.object_.objectId_;
 
             std::cout << currTimestamp - *sentTimestamp << " "
                       << "Track Alias: " << enrichedObject.header_->trackAlias_
-                      << " " << "Group Id: " << *groupId << " "
-                      << "Object Id: " << *objectId << '\n';
+                      << " " << "Group Id: " << groupId << " "
+                      << "Object Id: " << objectId << '\n';
 
             lttng_ust_tracepoint(chunk_transfer_perf_lttng, object_recv, thisClientPid,
-                                 currTimestamp - *sentTimestamp, *groupId, *objectId,
+                                 currTimestamp - *sentTimestamp, groupId, objectId,
                                  enrichedObject.object_.payload_.size());
         }
 

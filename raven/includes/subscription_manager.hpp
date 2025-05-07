@@ -3,6 +3,7 @@
 #include <chrono>
 #include <data_manager.hpp>
 #include <definitions.hpp>
+#include <memory>
 #include <optional>
 #include <serialization/messages.hpp>
 #include <serialization/serialization.hpp>
@@ -18,34 +19,41 @@ struct SubscriptionStateErr
 {
     // clang-format off
     struct ConnectionExpired{};
-    struct ObjectDoesNotExist{};
     // clang-format on
 };
 
 // bool is true => subscription fulfilled
 // bool is false => continue to next object
-using FulfillSomeReturn =
-std::variant<bool, SubscriptionStateErr::ConnectionExpired, SubscriptionStateErr::ObjectDoesNotExist>;
+using FulfillSomeReturn = std::variant<bool, SubscriptionStateErr::ConnectionExpired>;
 
-// Each stream corresponds to one minor subscription state
+enum class NextOperation
+{
+    First,
+    Next,
+    Latest
+};
+
+// TODO: remove concept of minor subscription
 class MinorSubscriptionState
 {
     friend class SubscriptionState;
     class SubscriptionState* subscriptionState_;
     std::optional<ObjectIdentifier> previouslySentObject_;
-    ObjectIdentifier objectToSend_;
+
+    NextOperation nextOperation_;
     std::optional<ObjectIdentifier> lastObjectToBeSent_;
 
+    PublisherPriority trackPublisherPriority_;
     bool mustBeSent_;
-    std::optional<ObjectWaitSignal> objectWaitSignal_;
+    std::optional<WaitSignal> waitSignal_;
 
     std::optional<std::chrono::milliseconds> subscribeDeliveryTimeout_;
 
 public:
     MinorSubscriptionState(SubscriptionState& subscriptionState,
-                           ObjectIdentifier objectToSend,
+                           NextOperation nextOperation,
                            std::optional<ObjectIdentifier> lastObjectToBeSent,
-                           bool mustBeSent,
+                           PublisherPriority trackPublisherPriority,
                            std::optional<std::chrono::milliseconds> deliveryTimeout);
 
     // returs true if minor subscription state has been fulfilled
@@ -72,17 +80,10 @@ class SubscriptionState
     class SubscriptionManager* subscriptionManager_;
     SubscribeMessage subscriptionMessage_;
 
+    std::shared_ptr<TrackHandle> trackHandle_;
     std::vector<MinorSubscriptionState> minorSubscriptionStates_;
 
     void error_handler(SubscriptionStateErr::ConnectionExpired);
-    void error_handler(SubscriptionStateErr::ObjectDoesNotExist);
-
-    FulfillSomeReturn
-    add_group_subscription(const GroupHandle& groupHandle,
-                           bool mustBeSent,
-                           std::optional<std::chrono::milliseconds> deliveryTimeout = {},
-                           std::optional<ObjectId> beginObjectId = {},
-                           std::optional<ObjectId> endObjectId = {});
 
 public:
     bool cleanup_;
