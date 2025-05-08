@@ -431,10 +431,24 @@ struct AnnounceCancelMessage
       Track Name (b),
     }
 */
-struct TrackStatusRequestMessage
+struct TrackStatusRequestMessage : public ControlMessageBase<TrackStatusRequestMessage>
 {
-    BinaryBufferData trackNamespace;
-    BinaryBufferData trackName;
+    std::string trackNamespace_;
+    std::string trackName_;
+
+    TrackStatusRequestMessage()
+    : ControlMessageBase(MoQtMessageType::TRACK_STATUS_REQUEST)
+    {
+    }
+
+    bool operator==(const TrackStatusRequestMessage&) const = default;
+
+    friend inline std::ostream&
+    operator<<(std::ostream& os, const TrackStatusRequestMessage& msg)
+    {
+        os << "TrackNamespace: " << msg.trackNamespace_ << "TrackName: " << msg.trackName_;
+        return os;
+    }
 };
 
 enum class ObjectStatus : iType
