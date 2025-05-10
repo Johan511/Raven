@@ -306,4 +306,37 @@ serialize(ds::chunk& c, const rvn::BatchSubscribeMessage& batchSubscribeMessage)
 
     return headerLen + msgLen;
 }
+
+serialize_return_t
+serialize(ds::chunk& c, const rvn::SubscribeUpdateMessage& subscribeUpdateMessage)
+{
+    std::uint64_t msgLen = 0;
+    {
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeUpdateMessage.requestId_);
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeUpdateMessage.startLocation_.group_.get());
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeUpdateMessage.startLocation_.object_.get());
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeUpdateMessage.endGroup_);
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeUpdateMessage.subscriberPriority_);
+        msgLen += mock_serialize<std::uint8_t>(subscribeUpdateMessage.forward_);
+        msgLen += mock_serialize<ds::quic_var_int>(subscribeUpdateMessage.parameters_.size());
+        for (const auto& parameter : subscribeUpdateMessage.parameters_)
+            msgLen += mock_serialize(parameter);
+    }
+
+    std::uint64_t headerLen = 0;
+    headerLen +=
+    serialize<ds::quic_var_int>(c, utils::to_underlying(MoQtMessageType::SUBSCRIBE_UPDATE));
+    headerLen += serialize<ds::quic_var_int>(c, msgLen);
+
+    serialize<ds::quic_var_int>(c, subscribeUpdateMessage.requestId_);
+    serialize<ds::quic_var_int>(c, subscribeUpdateMessage.startLocation_.group_.get());
+    serialize<ds::quic_var_int>(c, subscribeUpdateMessage.startLocation_.object_.get());
+    serialize<ds::quic_var_int>(c, subscribeUpdateMessage.endGroup_);
+    serialize<std::uint8_t>(c, subscribeUpdateMessage.subscriberPriority_);
+    serialize<std::uint8_t>(c, subscribeUpdateMessage.forward_);
+    serialize<ds::quic_var_int>(c, subscribeUpdateMessage.parameters_.size());
+    for (const auto& parameter : subscribeUpdateMessage.parameters_)
+        serialize(c, parameter);
+    return headerLen + msgLen;
+}
 } // namespace rvn::serialization::detail
