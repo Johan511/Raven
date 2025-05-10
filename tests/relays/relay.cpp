@@ -31,7 +31,7 @@
 /////////////////////////////////////////////////////////
 
 using namespace rvn;
-constexpr std::uint8_t numNodes = 2;
+std::uint8_t numNodes;
 constexpr std::uint16_t numMsQuicWorkersPerNode = 1;
 constexpr std::uint8_t numLayers = 5;
 constexpr std::uint16_t numObjects = 1'000;
@@ -46,9 +46,14 @@ struct InterprocessSynchronizationData
 {
     boost::interprocess::interprocess_mutex mutex_{};
     // we do not care if client is setup
-    std::array<bool, numNodes - 1> nodeSetup_{};
+    std::vector<int> nodeSetup_{};
     bool clientDone_{};
     std::uint64_t processorIdBegin_{};
+
+    InterprocessSynchronizationData(std::uint8_t numNodes)
+    : nodeSetup_(numNodes, false)
+    {
+    }
 };
 ////////////////////////////////////////////////////////////////////
 namespace bip = boost::interprocess;
@@ -68,7 +73,8 @@ int main(int argc, char* argv[])
         ("base_bit_rate,b", po::value<double>()->default_value(1024), "Bit rate in kbits per second of Base layer")
         ("delay_ms,d", po::value<double>()->default_value(50), "Network delay in milliseconds")
         ("delay_jitter,j", po::value<double>()->default_value(10), "Network delay jitter in milliseconds")
-        ("sample_time,s", po::value<std::uint64_t>()->default_value(250), "Milliseconds between objects");
+        ("sample_time,s", po::value<std::uint64_t>()->default_value(250), "Milliseconds between objects")
+        ("num_nodes,s", po::value<std::uint8_t>()->default_value(2), "Number of nodes");
     // clang-format on
 
     po::variables_map vm;
@@ -81,6 +87,11 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+    ////////////////////////////////////////////////////////////
+    // assigning the program options
+    numNodes = vm["num_nodes"].as<std::uint8_t>();
+    ////////////////////////////////////////////////////////////
+
     std::string sharedMemoryName = "chunk_transfer_test_";
     sharedMemoryName += std::to_string(getpid());
 
@@ -89,7 +100,54 @@ int main(int argc, char* argv[])
     shmParent.truncate(sizeof(InterprocessSynchronizationData));
     bip::mapped_region regionParent(shmParent, bip::read_write);
     InterprocessSynchronizationData* dataParent =
-    new (regionParent.get_address()) InterprocessSynchronizationData();
+    new (regionParent.get_address()) InterprocessSynchronizationData(numNodes);
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // Apply NetEm rules
+    // reset any existing rules
+    std::system("tc qdisc del dev lo root 2> /dev/null || true");
+
+    // create qdisc (queueing discipline) with different queue for each node
+    std::system(std::format("tc qdisc add dev lo root handle 1: prio bands {}", numNodes - 1)
+                .c_str());
+
+    // netem rule for relay nodes
+    {
+        std::uint16_t nodeId = 0;
+        for (; nodeId < numNodes - 1; nodeId++)
+        {
+            std::system(std::format("tc qdisc add dev lo parent 1:{} handle "
+                                    "{}: netem loss {}% delay {}ms {}ms",
+                                    nodeId, nodeId, 0 /* loss percentage*/,
+                                    50 /* delay in ms */, 5 /* delay jitter */) // No bandwidth emulation
+                        .c_str());
+
+            std::system(std::format("tc filter add dev lo parent 1: protocol "
+                                    "ip prio {} handle {} fw classid 1:{}",
+                                    nodeId, nodeId, nodeId)
+                        .c_str());
+        }
+
+        std::system(
+        std::format("tc qdisc add dev lo parent 1:{} handle "
+                    "{}: netem loss {}% delay {}ms {}ms rate {}kbit",
+                    nodeId, nodeId, 2 /* loss percentage*/, 20, 2, // delay jitter
+                    16 /* bandwidth in kbit */)
+        .c_str());
+
+        std::system(std::format("tc filter add dev lo parent 1: protocol "
+                                "ip prio {} handle {} fw classid 1:{}",
+                                nodeId, nodeId, nodeId)
+                    .c_str());
+
+        /*
+            We have setup different queuing disciplines for each tag,
+            not we need to use iptables to tag each packet
+        */
+
+        // https://chatgpt.com/c/681bd070-602c-8013-93dd-86c4dbc4169e
+    }
+    ////////////////////////////////////////////////////////////////////////////////
 
     if (fork())
     {

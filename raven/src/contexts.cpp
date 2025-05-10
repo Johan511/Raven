@@ -181,7 +181,7 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
 
         auto streamSendRet =
         moqtObject_.get_tbl()->StreamSend(iter->stream.get(), objectPayload, 1,
-                                          QUIC_SEND_FLAG_PRIORITY_WORK, streamSendContext);
+                                          QUIC_SEND_FLAG_NONE, streamSendContext);
         return streamSendRet;
     };
 
@@ -210,7 +210,7 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
         rvn::unique_stream(moqtObject_.get_tbl(),
                            { connection_.get(), QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL,
                              moqtObject_.data_stream_cb_wrapper, streamContext },
-                           { QUIC_STREAM_START_FLAG_IMMEDIATE });
+                           { QUIC_STREAM_START_FLAG_NONE });
 
         QUIC_STATUS status = dataStreams.write(
         [&, streamIn = std::move(stream), this](StableContainer<DataStreamState>& dataStreams) mutable
@@ -234,8 +234,7 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
 
             return moqtObject_.get_tbl()->StreamSend(streamState.stream.get(),
                                                      objectHeaderQuicBuffer, 1,
-                                                     QUIC_SEND_FLAG_DELAY_SEND,
-                                                     streamSendContext);
+                                                     QUIC_SEND_FLAG_NONE, streamSendContext);
         });
 
         /*

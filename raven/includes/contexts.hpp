@@ -139,6 +139,9 @@ public:
 
 struct ConnectionState : std::enable_shared_from_this<ConnectionState>
 {
+    unique_connection connection_;
+    MOQT& moqtObject_;
+
     // StreamManager
     // //////////////////////////////////////////////////////////////
     std::shared_mutex trackAliasMtx_;
@@ -160,6 +163,8 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
 
     std::optional<StreamState> controlStream;
 
+    RWProtected<decltype(QUIC_CONNECTION_EVENT::NETWORK_STATISTICS)> networkStatistics_;
+
     void delete_data_stream(HQUIC streamHandle);
     void enqueue_data_buffer(QUIC_BUFFER* buffer);
 
@@ -171,15 +176,21 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
     void send_control_buffer(QUIC_BUFFER* buffer, QUIC_SEND_FLAGS flags = QUIC_SEND_FLAG_NONE);
     /////////////////////////////////////////////////////////////////////////////
 
-    unique_connection connection_;
-    MOQT& moqtObject_;
-
     std::string path;
-    // TODO: role
 
     ConnectionState(unique_connection&& connection, class MOQT& moqtObject)
     : connection_(std::move(connection)), moqtObject_(moqtObject)
     {
+        networkStatistics_.write(
+        [](auto& networkStatistics)
+        {
+            networkStatistics.BytesInFlight = 0;
+            networkStatistics.PostedBytes = 0;
+            networkStatistics.IdealBytes = 0;
+            networkStatistics.SmoothedRTT = 0;
+            networkStatistics.CongestionWindow = 0;
+            networkStatistics.Bandwidth = 0;
+        });
     }
 
     std::optional<StreamState>& get_control_stream();

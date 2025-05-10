@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
         ("base_bit_rate,b", po::value<double>()->default_value(1024), "Bit rate in kbits per second of Base layer")
         ("delay_ms,d", po::value<double>()->default_value(50), "Network delay in milliseconds")
         ("delay_jitter,j", po::value<double>()->default_value(10), "Network delay jitter in milliseconds")
-        ("sample_time,s", po::value<std::uint64_t>()->default_value(250), "Milliseconds between objects");
+        ("sample_time,s", po::value<std::uint64_t>()->default_value(100), "Milliseconds between objects");
     // clang-format on
 
     po::variables_map vm;
@@ -263,7 +263,7 @@ int main(int argc, char* argv[])
             std::uint64_t groupId = enrichedObject.header_->groupId_;
             std::uint64_t objectId = enrichedObject.object_.objectId_;
 
-            std::cout << currTimestamp - *sentTimestamp << " "
+            std::cerr << currTimestamp - *sentTimestamp << " "
                       << "Track Alias: " << enrichedObject.header_->trackAlias_
                       << " " << "Group Id: " << groupId << " "
                       << "Object Id: " << objectId << '\n';

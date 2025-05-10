@@ -1,5 +1,6 @@
 #pragma once
 ////////////////////////////////////////////
+#include <chrono>
 #include <msquic.h>
 ////////////////////////////////////////////
 #include <memory>
@@ -486,7 +487,7 @@ class QUIC_BUFFERDeleter
 public:
     void operator()(const QUIC_BUFFER* buffer)
     {
-        free(const_cast<QUIC_BUFFER*>(buffer));
+        streamReceiveCompletefunction_(streamHandle_, buffer->Length);
     }
 
     QUIC_BUFFERDeleter(HQUIC streamHandle, QUIC_STREAM_RECEIVE_COMPLETE_FN streamReceiveCompletefunction)

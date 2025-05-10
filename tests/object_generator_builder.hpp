@@ -76,12 +76,11 @@ public:
                                   priority, std::nullopt)
             .lock();
 
-
             for (std::uint64_t objectId = 0; objectId < numObjectsPerLayer; ++objectId)
             {
                 std::string object = generate_object(objectSize);
-                trackHandle->add_object(rvn::GroupId(layerIdx),
-                                        rvn::ObjectId(objectId), std::move(object));
+                trackHandle->add_object(rvn::GroupId(0), rvn::ObjectId(objectId),
+                                        std::move(object));
                 std::this_thread::sleep_for(msBetweenObjects);
             }
         };

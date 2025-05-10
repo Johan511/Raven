@@ -70,7 +70,20 @@ static constexpr auto server_connection_callback =
 
             break;
         }
-        case QUIC_CONNECTION_EVENT_RESUMED: break;
+        case QUIC_CONNECTION_EVENT_NETWORK_STATISTICS:
+        {
+            moqtServer->get_connectionState(connection)
+            ->networkStatistics_.write(
+            [&event](auto& networkStatistics)
+            {
+                networkStatistics.BytesInFlight = event->NETWORK_STATISTICS.BytesInFlight;
+                networkStatistics.PostedBytes = event->NETWORK_STATISTICS.PostedBytes;
+                networkStatistics.IdealBytes = event->NETWORK_STATISTICS.IdealBytes;
+                networkStatistics.SmoothedRTT = event->NETWORK_STATISTICS.SmoothedRTT;
+                networkStatistics.CongestionWindow = event->NETWORK_STATISTICS.CongestionWindow;
+                networkStatistics.Bandwidth = event->NETWORK_STATISTICS.Bandwidth;
+            });
+        }
         default: break;
     }
     return QUIC_STATUS_SUCCESS;
@@ -111,15 +124,14 @@ static constexpr auto server_control_stream_callback =
                 QUIC_BUFFER* newBuffer =
                 (QUIC_BUFFER*)malloc(sizeof(QUIC_BUFFER) + buffer->Length);
                 newBuffer->Length = buffer->Length;
-                newBuffer->Buffer = (std::uint8_t*)newBuffer + sizeof(QUIC_BUFFER);
-                std::memcpy(newBuffer->Buffer, buffer->Buffer, buffer->Length);
+                newBuffer->Buffer = buffer->Buffer;
 
                 deserializer->append_buffer(
                 UniqueQuicBuffer(newBuffer,
                                  { controlStream, moqtObject.get_tbl()->StreamReceiveComplete }));
             }
 
-            return QUIC_STATUS_SUCCESS;
+            return QUIC_STATUS_PENDING;
             break;
         }
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
@@ -174,6 +186,11 @@ static constexpr auto server_data_stream_callback =
             delete streamContext;
             break;
         }
+        case QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE:
+        {
+            std::cout << "Ideas Buffer Size "
+                      << event->IDEAL_SEND_BUFFER_SIZE.ByteCount << std::endl;
+        }
 
         default: break;
     }
@@ -213,8 +230,7 @@ static constexpr auto client_data_stream_callback =
                 QUIC_BUFFER* newBuffer =
                 (QUIC_BUFFER*)malloc(sizeof(QUIC_BUFFER) + buffer->Length);
                 newBuffer->Length = buffer->Length;
-                newBuffer->Buffer = (std::uint8_t*)newBuffer + sizeof(QUIC_BUFFER);
-                std::memcpy(newBuffer->Buffer, buffer->Buffer, buffer->Length);
+                newBuffer->Buffer = buffer->Buffer;
 
                 streamContext->deserializer_->append_buffer(
                 UniqueQuicBuffer(newBuffer,
@@ -222,7 +238,7 @@ static constexpr auto client_data_stream_callback =
                                                          moqtObject.get_tbl()->StreamReceiveComplete)));
             }
 
-            return QUIC_STATUS_SUCCESS;
+            return QUIC_STATUS_PENDING;
             break;
         }
         case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
@@ -267,8 +283,7 @@ static constexpr auto client_control_stream_callback =
                 QUIC_BUFFER* newBuffer =
                 (QUIC_BUFFER*)malloc(sizeof(QUIC_BUFFER) + buffer->Length);
                 newBuffer->Length = buffer->Length;
-                newBuffer->Buffer = (std::uint8_t*)newBuffer + sizeof(QUIC_BUFFER);
-                std::memcpy(newBuffer->Buffer, buffer->Buffer, buffer->Length);
+                newBuffer->Buffer = buffer->Buffer;
 
                 streamContext->deserializer_->append_buffer(
                 UniqueQuicBuffer(newBuffer,
@@ -276,7 +291,7 @@ static constexpr auto client_control_stream_callback =
                                                          moqtObject.get_tbl()->StreamReceiveComplete)));
             }
 
-            return QUIC_STATUS_SUCCESS;
+            return QUIC_STATUS_PENDING;
             break;
         }
         case QUIC_STREAM_EVENT_SEND_COMPLETE:
@@ -338,6 +353,20 @@ static constexpr auto client_connection_callback =
             moqtClient->accept_data_stream(event->PEER_STREAM_STARTED.Stream);
 
             break;
+        }
+        case QUIC_CONNECTION_EVENT_NETWORK_STATISTICS:
+        {
+            moqtClient->get_connectionState(connectionHandle)
+            ->networkStatistics_.write(
+            [&event](auto& networkStatistics)
+            {
+                networkStatistics.BytesInFlight = event->NETWORK_STATISTICS.BytesInFlight;
+                networkStatistics.PostedBytes = event->NETWORK_STATISTICS.PostedBytes;
+                networkStatistics.IdealBytes = event->NETWORK_STATISTICS.IdealBytes;
+                networkStatistics.SmoothedRTT = event->NETWORK_STATISTICS.SmoothedRTT;
+                networkStatistics.CongestionWindow = event->NETWORK_STATISTICS.CongestionWindow;
+                networkStatistics.Bandwidth = event->NETWORK_STATISTICS.Bandwidth;
+            });
         }
         default: break;
     }

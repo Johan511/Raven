@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <msquic.h>
 #include <string>
 #include <sys/wait.h>
 /////////////////////////////////////////////////////////
@@ -42,11 +43,13 @@ client_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig =
     Settings.StreamMultiReceiveEnabled = TRUE;
     Settings.IsSet.SendBufferingEnabled = TRUE;
     Settings.SendBufferingEnabled = FALSE;
-    Settings.IsSet.MaxAckDelayMs = TRUE;
-    Settings.MaxAckDelayMs = 1;
+    Settings.IsSet.CongestionControlAlgorithm = TRUE;
+    Settings.CongestionControlAlgorithm = QUIC_CONGESTION_CONTROL_ALGORITHM_BBR;
     Settings.IsSet.StreamRecvWindowDefault = TRUE;
     Settings.StreamRecvWindowDefault = std::bit_floor(
     std::numeric_limits<decltype(Settings.StreamRecvWindowDefault)>::max());
+    Settings.IsSet.NetStatsEventEnabled = TRUE;
+    Settings.NetStatsEventEnabled = TRUE;
     moqtClient->set_Settings(&Settings, sizeof(Settings));
 
     QUIC_CREDENTIAL_CONFIG credConfig;
@@ -104,9 +107,13 @@ server_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig =
     Settings.StreamMultiReceiveEnabled = TRUE;
     Settings.IsSet.SendBufferingEnabled = TRUE;
     Settings.SendBufferingEnabled = FALSE;
+    Settings.IsSet.CongestionControlAlgorithm = TRUE;
+    Settings.CongestionControlAlgorithm = QUIC_CONGESTION_CONTROL_ALGORITHM_BBR;
     Settings.IsSet.StreamRecvWindowDefault = TRUE;
     Settings.StreamRecvWindowDefault = std::bit_floor(
     std::numeric_limits<decltype(Settings.StreamRecvWindowDefault)>::max());
+    Settings.IsSet.NetStatsEventEnabled = TRUE;
+    Settings.NetStatsEventEnabled = TRUE;
     moqtServer->set_Settings(&Settings, sizeof(Settings));
 
     // certificates
