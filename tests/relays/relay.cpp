@@ -116,11 +116,21 @@ int main(int argc, char* argv[])
         std::uint16_t nodeId = 0;
         for (; nodeId < numNodes - 1; nodeId++)
         {
-            std::system(std::format("tc qdisc add dev lo parent 1:{} handle "
-                                    "{}: netem loss {}% delay {}ms {}ms",
-                                    nodeId, nodeId, 0 /* loss percentage*/,
-                                    50 /* delay in ms */, 5 /* delay jitter */) // No bandwidth emulation
-                        .c_str());
+            if (nodeId == numNodes - 2)
+                // emulation for the last link (last relay and the subscriber)
+                std::system(
+                std::format("tc qdisc add dev lo parent 1:{} handle "
+                            "{}: netem loss {}% delay {}ms {}ms rate {}kbit",
+                            nodeId, nodeId, 2 /* loss percentage*/, 20, 2, // delay jitter
+                            16 /* bandwidth in kbit */)
+                .c_str());
+            else
+                std::system(
+                std::format("tc qdisc add dev lo parent 1:{} handle "
+                            "{}: netem loss {}% delay {}ms {}ms",
+                            nodeId, nodeId, 0 /* loss percentage*/, 50 /* delay in ms */,
+                            5 /* delay jitter */) // No bandwidth emulation
+                .c_str());
 
             std::system(std::format("tc filter add dev lo parent 1: protocol "
                                     "ip prio {} handle {} fw classid 1:{}",
@@ -128,21 +138,10 @@ int main(int argc, char* argv[])
                         .c_str());
         }
 
-        std::system(
-        std::format("tc qdisc add dev lo parent 1:{} handle "
-                    "{}: netem loss {}% delay {}ms {}ms rate {}kbit",
-                    nodeId, nodeId, 2 /* loss percentage*/, 20, 2, // delay jitter
-                    16 /* bandwidth in kbit */)
-        .c_str());
-
-        std::system(std::format("tc filter add dev lo parent 1: protocol "
-                                "ip prio {} handle {} fw classid 1:{}",
-                                nodeId, nodeId, nodeId)
-                    .c_str());
 
         /*
             We have setup different queuing disciplines for each tag,
-            not we need to use iptables to tag each packet
+            now we need to use iptables to tag each packet
         */
 
         // https://chatgpt.com/c/681bd070-602c-8013-93dd-86c4dbc4169e
