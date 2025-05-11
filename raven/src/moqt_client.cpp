@@ -10,7 +10,7 @@
 
 namespace rvn
 {
-MOQTClient::MOQTClient(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> execConfigTuple)
+MOQTClient::MOQTClient(std::tuple<QUIC_GLOBAL_EXECUTION_CONFIG*, std::uint64_t> execConfigTuple)
 : MOQT(HostType::CLIENT)
 {
     auto [execConfig, execConfigLen] = execConfigTuple;

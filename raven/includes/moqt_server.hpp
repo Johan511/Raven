@@ -24,7 +24,8 @@ public:
     std::unordered_map<HQUIC, std::shared_ptr<ConnectionState>> connectionStateMap;
 
     MOQTServer(std::shared_ptr<DataManager> dataManager,
-               std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> execConfigTuple = { nullptr, 0 });
+               std::tuple<QUIC_GLOBAL_EXECUTION_CONFIG*, std::uint64_t> execConfigTuple = {
+               nullptr, 0 });
 
     void start_listener(QUIC_ADDR* LocalAddress);
 

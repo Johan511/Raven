@@ -69,7 +69,8 @@ public:
         connectionState->send_control_buffer(quicBuffer);
     }
 
-    MOQTClient(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> execConfigTuple = { nullptr, 0 });
+    MOQTClient(std::tuple<QUIC_GLOBAL_EXECUTION_CONFIG*, std::uint64_t> execConfigTuple = {
+               nullptr, 0 });
 
     void start_connection(QUIC_ADDRESS_FAMILY Family, const char* ServerName, uint16_t ServerPort);
 

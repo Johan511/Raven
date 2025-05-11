@@ -152,12 +152,12 @@ int main(int argc, char* argv[])
     {
         // parent process, data publisher
         // parent process, server
-        std::uint8_t rawServerConfig[sizeof(QUIC_EXECUTION_CONFIG) +
+        std::uint8_t rawServerConfig[sizeof(QUIC_GLOBAL_EXECUTION_CONFIG) +
                                      numMsQuicWorkersPerNode * sizeof(std::uint16_t)];
-        QUIC_EXECUTION_CONFIG* serverConfig =
-        reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawServerConfig);
+        QUIC_GLOBAL_EXECUTION_CONFIG* serverConfig =
+        reinterpret_cast<QUIC_GLOBAL_EXECUTION_CONFIG*>(rawServerConfig);
         serverConfig->ProcessorCount = numMsQuicWorkersPerNode;
-        serverConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
+        serverConfig->Flags = QUIC_GLOBAL_EXECUTION_CONFIG_FLAG_NONE;
         serverConfig->PollingIdleTimeoutUs = 50000;
 
         if (numProcessors < numMsQuicWorkersPerNode)
@@ -244,15 +244,15 @@ int main(int argc, char* argv[])
                 }
 
                 constexpr std::uint64_t execConfigLen =
-                sizeof(QUIC_EXECUTION_CONFIG) +
+                sizeof(QUIC_GLOBAL_EXECUTION_CONFIG) +
                 numMsQuicWorkersPerNode * sizeof(std::uint16_t);
 
                 std::uint8_t rawRelaySubscriberExecutionConfig[execConfigLen];
-                QUIC_EXECUTION_CONFIG* relaySubscriberExecutionConfig =
-                reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawRelaySubscriberExecutionConfig);
+                QUIC_GLOBAL_EXECUTION_CONFIG* relaySubscriberExecutionConfig =
+                reinterpret_cast<QUIC_GLOBAL_EXECUTION_CONFIG*>(rawRelaySubscriberExecutionConfig);
 
                 relaySubscriberExecutionConfig->ProcessorCount = numMsQuicWorkersPerNode;
-                relaySubscriberExecutionConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
+                relaySubscriberExecutionConfig->Flags = QUIC_GLOBAL_EXECUTION_CONFIG_FLAG_NONE;
                 relaySubscriberExecutionConfig->PollingIdleTimeoutUs = 50000;
 
                 for (std::uint16_t workerId = 0; workerId < numMsQuicWorkersPerNode; workerId++)
@@ -300,12 +300,12 @@ int main(int argc, char* argv[])
 
                 // relay-publisher setup
 
-                std::uint8_t rawRelayPublisherConfig[sizeof(QUIC_EXECUTION_CONFIG) +
+                std::uint8_t rawRelayPublisherConfig[sizeof(QUIC_GLOBAL_EXECUTION_CONFIG) +
                                                      numMsQuicWorkersPerNode * sizeof(std::uint16_t)];
-                QUIC_EXECUTION_CONFIG* relayPublisherConfig =
-                reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawRelayPublisherConfig);
+                QUIC_GLOBAL_EXECUTION_CONFIG* relayPublisherConfig =
+                reinterpret_cast<QUIC_GLOBAL_EXECUTION_CONFIG*>(rawRelayPublisherConfig);
                 relayPublisherConfig->ProcessorCount = numMsQuicWorkersPerNode;
-                relayPublisherConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
+                relayPublisherConfig->Flags = QUIC_GLOBAL_EXECUTION_CONFIG_FLAG_NONE;
                 relayPublisherConfig->PollingIdleTimeoutUs = 50000;
 
                 if (numProcessors < numMsQuicWorkersPerNode)
@@ -428,14 +428,15 @@ int main(int argc, char* argv[])
         }
 
         constexpr std::uint64_t execConfigLen =
-        sizeof(QUIC_EXECUTION_CONFIG) + numMsQuicWorkersPerNode * sizeof(std::uint16_t);
+        sizeof(QUIC_GLOBAL_EXECUTION_CONFIG) +
+        numMsQuicWorkersPerNode * sizeof(std::uint16_t);
 
         std::uint8_t rawExecutionConfig[execConfigLen];
-        QUIC_EXECUTION_CONFIG* executionConfig =
-        reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawExecutionConfig);
+        QUIC_GLOBAL_EXECUTION_CONFIG* executionConfig =
+        reinterpret_cast<QUIC_GLOBAL_EXECUTION_CONFIG*>(rawExecutionConfig);
 
         executionConfig->ProcessorCount = numMsQuicWorkersPerNode;
-        executionConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
+        executionConfig->Flags = QUIC_GLOBAL_EXECUTION_CONFIG_FLAG_NONE;
         executionConfig->PollingIdleTimeoutUs = 50000;
 
         /*

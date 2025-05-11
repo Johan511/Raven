@@ -104,12 +104,12 @@ int main(int argc, char* argv[])
     if (fork())
     {
         // parent process, server
-        std::uint8_t rawServerConfig[sizeof(QUIC_EXECUTION_CONFIG) +
+        std::uint8_t rawServerConfig[sizeof(QUIC_GLOBAL_EXECUTION_CONFIG) +
                                      numMsQuicWorkersPerServer * sizeof(std::uint16_t)];
-        QUIC_EXECUTION_CONFIG* serverConfig =
-        reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawServerConfig);
+        QUIC_GLOBAL_EXECUTION_CONFIG* serverConfig =
+        reinterpret_cast<QUIC_GLOBAL_EXECUTION_CONFIG*>(rawServerConfig);
         serverConfig->ProcessorCount = numMsQuicWorkersPerServer;
-        serverConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
+        serverConfig->Flags = QUIC_GLOBAL_EXECUTION_CONFIG_FLAG_NONE;
         serverConfig->PollingIdleTimeoutUs = 50000;
 
         if (numProcessors < numMsQuicWorkersPerServer)
@@ -193,14 +193,15 @@ int main(int argc, char* argv[])
         }
 
         constexpr std::uint64_t execConfigLen =
-        sizeof(QUIC_EXECUTION_CONFIG) + numMsQuicWorkersPerClient * sizeof(std::uint16_t);
+        sizeof(QUIC_GLOBAL_EXECUTION_CONFIG) +
+        numMsQuicWorkersPerClient * sizeof(std::uint16_t);
 
         std::uint8_t rawExecutionConfig[execConfigLen];
-        QUIC_EXECUTION_CONFIG* executionConfig =
-        reinterpret_cast<QUIC_EXECUTION_CONFIG*>(rawExecutionConfig);
+        QUIC_GLOBAL_EXECUTION_CONFIG* executionConfig =
+        reinterpret_cast<QUIC_GLOBAL_EXECUTION_CONFIG*>(rawExecutionConfig);
 
         executionConfig->ProcessorCount = numMsQuicWorkersPerClient;
-        executionConfig->Flags = QUIC_EXECUTION_CONFIG_FLAG_NONE;
+        executionConfig->Flags = QUIC_GLOBAL_EXECUTION_CONFIG_FLAG_NONE;
         executionConfig->PollingIdleTimeoutUs = 50000;
 
         /*

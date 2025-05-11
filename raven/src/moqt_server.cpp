@@ -8,7 +8,7 @@ namespace rvn
 {
 
 MOQTServer::MOQTServer(std::shared_ptr<DataManager> dataManager,
-                       std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> execConfigTuple)
+                       std::tuple<QUIC_GLOBAL_EXECUTION_CONFIG*, std::uint64_t> execConfigTuple)
 : MOQT(HostType::SERVER), dataManager_(dataManager),
   subscriptionManager_(std::make_shared<SubscriptionManager>(*dataManager_))
 {

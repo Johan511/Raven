@@ -23,7 +23,7 @@ static const char* CertFile = RAVEN_CERT_FILE_PATH;
 static const char* KeyFile = RAVEN_KEY_FILE_PATH;
 
 static inline std::unique_ptr<rvn::MOQTClient>
-client_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig = { nullptr, 0 },
+client_setup(std::tuple<QUIC_GLOBAL_EXECUTION_CONFIG*, std::uint64_t> executionConfig = { nullptr, 0 },
              const char* Target = "127.0.0.1",
              std::uint16_t serverPort = 4567)
 {
@@ -75,7 +75,7 @@ client_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig =
 }
 
 static inline std::unique_ptr<rvn::MOQTServer>
-server_setup(std::tuple<QUIC_EXECUTION_CONFIG*, std::uint64_t> executionConfig = { nullptr, 0 },
+server_setup(std::tuple<QUIC_GLOBAL_EXECUTION_CONFIG*, std::uint64_t> executionConfig = { nullptr, 0 },
              std::uint16_t serverPort = 4567)
 {
     auto dm = std::make_shared<rvn::DataManager>();
