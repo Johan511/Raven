@@ -306,4 +306,36 @@ serialize(ds::chunk& c, const rvn::BatchSubscribeMessage& batchSubscribeMessage)
 
     return headerLen + msgLen;
 }
+
+serialize_return_t
+serialize(ds::chunk& c, const rvn::TrackStatusRequestMessage& trackStatusRequestMessage)
+{
+    std::uint64_t msgLen = 0;
+    // we need to find out the length of the message we would be serializing
+    {
+        msgLen += mock_serialize<ds::quic_var_int>(
+        trackStatusRequestMessage.trackNamespace_.size());
+        msgLen += trackStatusRequestMessage.trackNamespace_.size();
+
+        msgLen +=
+        mock_serialize<ds::quic_var_int>(trackStatusRequestMessage.trackName_.size());
+        msgLen += trackStatusRequestMessage.trackName_.size();
+    }
+    // Header
+    std::uint64_t headerLen = 0;
+    headerLen +=
+    serialize<ds::quic_var_int>(c, utils::to_underlying(MoQtMessageType::TRACK_STATUS_REQUEST));
+    headerLen += serialize<ds::quic_var_int>(c, msgLen);
+
+    // Body
+    serialize<ds::quic_var_int>(c, trackStatusRequestMessage.trackNamespace_.size());
+    c.append(trackStatusRequestMessage.trackNamespace_.data(),
+             trackStatusRequestMessage.trackNamespace_.size());
+
+    serialize<ds::quic_var_int>(c, trackStatusRequestMessage.trackName_.size());
+    c.append(trackStatusRequestMessage.trackName_.data(),
+             trackStatusRequestMessage.trackName_.size());
+
+    return headerLen + msgLen;
+}
 } // namespace rvn::serialization::detail

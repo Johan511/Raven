@@ -348,4 +348,29 @@ deserialize(rvn::SubscribeErrorMessage& subscribeErrorMessage, ConstSpan& span, 
     return deserializedBytes;
 }
 
+template <typename ConstSpan>
+static inline deserialize_return_t
+deserialize(rvn::TrackStatusRequestMessage& trackStatusRequestMessage,
+            ConstSpan& span,
+            NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    std::uint64_t trackNameSpaceLength;
+    deserializedBytes += deserialize<ds::quic_var_int>(trackNameSpaceLength, span);
+
+    trackStatusRequestMessage.trackNamespace_ =
+    std::string(span.data(), span.data() + trackNameSpaceLength);
+    span.advance_begin(trackNameSpaceLength);
+
+    std::uint64_t trackNameLength;
+    deserializedBytes += deserialize<ds::quic_var_int>(trackNameLength, span);
+
+    trackStatusRequestMessage.trackName_ =
+    std::string(span.data(), span.data() + trackNameLength);
+    span.advance_begin(trackNameLength);
+
+    return deserializedBytes;
+}
+
 } // namespace rvn::serialization::detail
