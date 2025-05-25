@@ -1,6 +1,6 @@
 [submodule "submodules/msquic"]
 	path = submodules/msquic
-	url = https://github.com/microsoft/msquic
+	url = https://github.com/Johan511/msquic
 [submodule "submodules/moody_camel"]
 	path = submodules/moody_camel
 	url = https://github.com/cameron314/concurrentqueue

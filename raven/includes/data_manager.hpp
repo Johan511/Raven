@@ -10,6 +10,7 @@
 #include <map>
 #include <memory>
 #include <msquic.h>
+#include <optional>
 #include <string>
 #include <strong_types.hpp>
 #include <unordered_map>
@@ -115,21 +116,24 @@ class Object
     std::uint8_t flag_;
 
 public:
-    // clang-format off
-    struct GroupTerminator { static constexpr std::uint8_t flag_ = 1; };
-    struct TrackTerminator { static constexpr std::uint8_t flag_ = 3; };
-    // clang-format on
-
     // should be read only if flags_ == 0
     QUIC_BUFFER* payload_;
 
+    std::optional<std::chrono::milliseconds> deliveryTimeout_;
+
+
     // clang-format off
+    struct GroupTerminator { static constexpr std::uint8_t flag_ = 1; };
+    struct TrackTerminator { static constexpr std::uint8_t flag_ = 3; };
+
     bool is_group_terminator() const noexcept{ return std::countr_one(flag_) >= 1; }
     bool is_track_terminator() const noexcept{ return std::countr_one(flag_) >= 2; }
     bool is_valid_group() const noexcept{ return flag_ == 0;}
     // clang-format on
 
-    Object(QUIC_BUFFER* payload) : flag_(0), payload_(payload)
+    Object(QUIC_BUFFER* payload,
+           std::optional<std::chrono::milliseconds> deliveryTimeout = std::nullopt)
+    : flag_(0), payload_(payload), deliveryTimeout_(deliveryTimeout)
     {
     }
 

@@ -230,7 +230,6 @@ int main(int argc, char* argv[])
         subscriptionBuilder.set_data_range(SubscriptionBuilder::Filter::latestObject);
         subscriptionBuilder.set_subscriber_priority(0);
         subscriptionBuilder.set_group_order(0);
-
         auto subMessage = subscriptionBuilder.build();
 
         BatchSubscribeMessage batchSubscribeMessage;
@@ -240,6 +239,9 @@ int main(int argc, char* argv[])
         {
             subMessage.trackName_ = std::to_string(layerId);
             subMessage.trackAlias_ = TrackAlias(layerId);
+            if (layerId != 0)
+                subMessage.parameters_.emplace_back(DeliveryTimeoutParameter{
+                std::chrono::milliseconds{ msBetweenObjects } });
             batchSubscribeMessage.subscriptions_.push_back(std::move(subMessage));
         }
 

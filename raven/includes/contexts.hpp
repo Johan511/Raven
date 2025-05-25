@@ -29,7 +29,6 @@ enum class StreamType
 
 struct StreamContext
 {
-    TimePoint streamCreationTimePoint_;
     std::atomic_bool streamHasBeenConstructed{};
     class MOQT& moqtObject_;
     /*  We can not have reference to StreamState
@@ -45,12 +44,14 @@ struct StreamContext
         StreamState which requires rvn::unique_stream which requires StreamContext
     */
     std::optional<serialization::Deserializer<MessageHandler>> deserializer_;
-    StreamContext(MOQT& moqtObject, ConnectionState& connectionState)
-    : streamCreationTimePoint_(Clock::now()), moqtObject_(moqtObject),
-      connectionState_(connectionState) {};
 
-    // deserializer can not be constructed in the constructor and has to be done
-    // seperately
+    StreamContext(MOQT& moqtObject, ConnectionState& connectionState)
+    : moqtObject_(moqtObject), connectionState_(connectionState)
+    {
+    }
+
+    // deserializer can not be constructed in the constructor and has to be
+    // done seperately
     void construct_deserializer(StreamState& streamState, bool isControlStream);
 };
 
@@ -64,16 +65,14 @@ public:
     // non owning reference
     const StreamContext* streamContext;
 
-    std::function<void(StreamSendContext*)> sendCompleteCallback =
-    utils::NoOpVoid<StreamSendContext*>;
+    std::optional<TimePoint> timeout_;
 
     StreamSendContext(QUIC_BUFFER* buffer_,
                       const std::uint32_t bufferCount_,
                       const StreamContext* streamContext_,
-                      std::function<void(StreamSendContext*)> sendCompleteCallback_ =
-                      utils::NoOpVoid<StreamSendContext*>)
+                      std::optional<TimePoint> timeout)
     : buffer(buffer_), bufferCount(bufferCount_), streamContext(streamContext_),
-      sendCompleteCallback(sendCompleteCallback_)
+      timeout_(timeout)
     {
         utils::ASSERT_LOG_THROW(bufferCount == 1, "bufferCount should be 1", bufferCount);
     }
@@ -92,12 +91,6 @@ public:
         // We do nothing in destroy buffers as some part of the codebase uses 0
         // copy send
         // TODO: fix this
-    }
-
-    // callback called when the send is succsfull
-    void send_complete_cb()
-    {
-        sendCompleteCallback(this);
     }
 };
 
@@ -163,8 +156,6 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
 
     std::optional<StreamState> controlStream;
 
-    RWProtected<decltype(QUIC_CONNECTION_EVENT::NETWORK_STATISTICS)> networkStatistics_;
-
     void delete_data_stream(HQUIC streamHandle);
     void enqueue_data_buffer(QUIC_BUFFER* buffer);
 
@@ -181,16 +172,6 @@ struct ConnectionState : std::enable_shared_from_this<ConnectionState>
     ConnectionState(unique_connection&& connection, class MOQT& moqtObject)
     : connection_(std::move(connection)), moqtObject_(moqtObject)
     {
-        networkStatistics_.write(
-        [](auto& networkStatistics)
-        {
-            networkStatistics.BytesInFlight = 0;
-            networkStatistics.PostedBytes = 0;
-            networkStatistics.IdealBytes = 0;
-            networkStatistics.SmoothedRTT = 0;
-            networkStatistics.CongestionWindow = 0;
-            networkStatistics.Bandwidth = 0;
-        });
     }
 
     std::optional<StreamState>& get_control_stream();

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <contexts.hpp>
 #include <moqt.hpp>
 #include <msquic.h>
@@ -70,20 +71,6 @@ static constexpr auto server_connection_callback =
 
             break;
         }
-        case QUIC_CONNECTION_EVENT_NETWORK_STATISTICS:
-        {
-            moqtServer->get_connectionState(connection)
-            ->networkStatistics_.write(
-            [&event](auto& networkStatistics)
-            {
-                networkStatistics.BytesInFlight = event->NETWORK_STATISTICS.BytesInFlight;
-                networkStatistics.PostedBytes = event->NETWORK_STATISTICS.PostedBytes;
-                networkStatistics.IdealBytes = event->NETWORK_STATISTICS.IdealBytes;
-                networkStatistics.SmoothedRTT = event->NETWORK_STATISTICS.SmoothedRTT;
-                networkStatistics.CongestionWindow = event->NETWORK_STATISTICS.CongestionWindow;
-                networkStatistics.Bandwidth = event->NETWORK_STATISTICS.Bandwidth;
-            });
-        }
         default: break;
     }
     return QUIC_STATUS_SUCCESS;
@@ -143,7 +130,6 @@ static constexpr auto server_control_stream_callback =
             StreamSendContext* streamSendContext =
             static_cast<StreamSendContext*>(event->SEND_COMPLETE.ClientContext);
 
-            streamSendContext->send_complete_cb();
             delete streamSendContext;
             break;
         }
@@ -186,10 +172,60 @@ static constexpr auto server_data_stream_callback =
             delete streamContext;
             break;
         }
-        case QUIC_STREAM_EVENT_IDEAL_SEND_BUFFER_SIZE:
+        case QUIC_STREAM_EVENT_COPIED_TO_FRAME:
         {
-            std::cout << "Ideas Buffer Size "
-                      << event->IDEAL_SEND_BUFFER_SIZE.ByteCount << std::endl;
+            StreamSendContext& streamSendContext =
+            *static_cast<StreamSendContext*>(event->COPIED_TO_FRAME.ClientSendContext);
+
+            if (!streamSendContext.timeout_.has_value())
+                break;
+
+            HQUIC connectionHandle = streamContext->connectionState_.connection_.get();
+            auto* tbl = streamContext->moqtObject_.get_tbl();
+
+            NETWORK_STATISTICS networkStats;
+            {
+                std::uint32_t networkStatsSize = sizeof(networkStats);
+                tbl->GetParam(connectionHandle, QUIC_PARAM_CONN_NETWORK_STATISTICS,
+                              &networkStatsSize, &networkStats);
+            }
+
+            std::uint64_t totalLength = 0;
+            for (std::uint32_t i = 0; i < streamSendContext.bufferCount; i++)
+                totalLength += streamSendContext.buffer[i].Length;
+
+            totalLength += networkStats.BytesInFlight;
+
+            auto expectedBandwidth = networkStats.Bandwidth * 2;
+
+            auto timeLeftToSend = *streamSendContext.timeout_ - Clock::now();
+
+            double timeInMilliSecondsRequiredToSend =
+            static_cast<double>(totalLength) * 1e3 / expectedBandwidth;
+
+            if (timeInMilliSecondsRequiredToSend >
+                std::chrono::duration_cast<std::chrono::milliseconds>(timeLeftToSend)
+                .count())
+            {
+                streamContext->connectionState_.dataStreams.write(
+                [&, dataStream, event](auto& dataStreams)
+                {
+                    auto iter = std::find_if(dataStreams.begin(), dataStreams.end(),
+                                             [&](DataStreamState& streamState)
+                                             {
+                                                 return streamState.stream.get() == dataStream;
+                                             });
+                    if (iter != dataStreams.end())
+                    {
+                        *event->COPIED_TO_FRAME.BytesCopiedBeforeNextEvent =
+                        (uint64_t)-2;
+                        dataStreams.erase(iter);
+                    }
+                });
+            }
+
+
+            break;
         }
 
         default: break;
@@ -303,7 +339,6 @@ static constexpr auto client_control_stream_callback =
             StreamSendContext* streamSendContext =
             static_cast<StreamSendContext*>(event->SEND_COMPLETE.ClientContext);
 
-            streamSendContext->send_complete_cb();
             delete streamSendContext;
             break;
         }
@@ -353,20 +388,6 @@ static constexpr auto client_connection_callback =
             moqtClient->accept_data_stream(event->PEER_STREAM_STARTED.Stream);
 
             break;
-        }
-        case QUIC_CONNECTION_EVENT_NETWORK_STATISTICS:
-        {
-            moqtClient->get_connectionState(connectionHandle)
-            ->networkStatistics_.write(
-            [&event](auto& networkStatistics)
-            {
-                networkStatistics.BytesInFlight = event->NETWORK_STATISTICS.BytesInFlight;
-                networkStatistics.PostedBytes = event->NETWORK_STATISTICS.PostedBytes;
-                networkStatistics.IdealBytes = event->NETWORK_STATISTICS.IdealBytes;
-                networkStatistics.SmoothedRTT = event->NETWORK_STATISTICS.SmoothedRTT;
-                networkStatistics.CongestionWindow = event->NETWORK_STATISTICS.CongestionWindow;
-                networkStatistics.Bandwidth = event->NETWORK_STATISTICS.Bandwidth;
-            });
         }
         default: break;
     }

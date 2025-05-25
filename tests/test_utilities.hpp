@@ -48,8 +48,8 @@ client_setup(std::tuple<QUIC_GLOBAL_EXECUTION_CONFIG*, std::uint64_t> executionC
     Settings.IsSet.StreamRecvWindowDefault = TRUE;
     Settings.StreamRecvWindowDefault = std::bit_floor(
     std::numeric_limits<decltype(Settings.StreamRecvWindowDefault)>::max());
-    Settings.IsSet.NetStatsEventEnabled = TRUE;
-    Settings.NetStatsEventEnabled = TRUE;
+    Settings.IsSet.MaxAckDelayMs = TRUE;
+    Settings.MaxAckDelayMs = 0;
     moqtClient->set_Settings(&Settings, sizeof(Settings));
 
     QUIC_CREDENTIAL_CONFIG credConfig;
@@ -112,8 +112,6 @@ server_setup(std::tuple<QUIC_GLOBAL_EXECUTION_CONFIG*, std::uint64_t> executionC
     Settings.IsSet.StreamRecvWindowDefault = TRUE;
     Settings.StreamRecvWindowDefault = std::bit_floor(
     std::numeric_limits<decltype(Settings.StreamRecvWindowDefault)>::max());
-    Settings.IsSet.NetStatsEventEnabled = TRUE;
-    Settings.NetStatsEventEnabled = TRUE;
     moqtServer->set_Settings(&Settings, sizeof(Settings));
 
     // certificates

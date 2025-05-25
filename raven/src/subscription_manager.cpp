@@ -62,9 +62,7 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
 
     auto connectionStateSharedPtr = subscriptionState_->connectionStateWeakPtr_.lock();
     if (!connectionStateSharedPtr)
-    {
         return SubscriptionStateErr::ConnectionExpired{};
-    }
 
     // monostate required as we do not want to default construct shit
     EnrichedObjectOrWait objectInfoOrWait;
@@ -99,7 +97,6 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
     }
     else
     {
-
         auto [groupId, objectId, object] = std::get<EnrichedObjectType>(objectInfoOrWait);
 
         if (object.is_track_terminator())
@@ -116,10 +113,6 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
             }
         }
 
-        if ((!mustBeSent_) && previouslySentObject_.has_value())
-            connectionStateSharedPtr->abort_if_sending(*previouslySentObject_);
-
-        // TODO: object delivery timeout
         if (previouslySentObject_.has_value())
         {
             // we do not want to copy because copying track identifier is rather
@@ -132,9 +125,19 @@ FulfillSomeReturn MinorSubscriptionState::fulfill_some_minor()
             ObjectIdentifier{ subscriptionState_->trackHandle_->trackIdentifier_,
                               groupId, objectId };
 
+        std::optional<std::chrono::milliseconds> timeoutDuration = subscribeDeliveryTimeout_;
+
+        if (object.deliveryTimeout_)
+        {
+            if (timeoutDuration)
+                timeoutDuration = std::min(*timeoutDuration, *object.deliveryTimeout_);
+            else
+                timeoutDuration = object.deliveryTimeout_;
+        }
+
         QUIC_STATUS status =
         connectionStateSharedPtr->send_object(*previouslySentObject_, object.payload_,
-                                              trackPublisherPriority_, std::nullopt);
+                                              trackPublisherPriority_, timeoutDuration);
         if (QUIC_FAILED(status))
             return SubscriptionStateErr::ConnectionExpired{};
     }

@@ -40,19 +40,22 @@ constexpr std::uint16_t basePort = 5000;
 std::uint16_t numProcessors = std::thread::hardware_concurrency();
 constexpr ObjectGeneratorFactory::LayerGranularity layerGranularity =
 ObjectGeneratorFactory::TrackGranularity;
-constexpr std::uint64_t msBetweenObjects = 250;
+std::uint64_t msBetweenObjects = 250;
 ////////////////////////////////////////////////////////////////////
 struct InterprocessSynchronizationData
 {
     boost::interprocess::interprocess_mutex mutex_{};
     // we do not care if client is setup
-    std::vector<int> nodeSetup_{};
+    std::array<int, 10> nodeSetup_{};
     bool clientDone_{};
     std::uint64_t processorIdBegin_{};
 
     InterprocessSynchronizationData(std::uint8_t numNodes)
-    : nodeSetup_(numNodes, false)
     {
+        // We can not use vector as this is interprocess communication,
+        // need to specialize the vector allocator for it to work
+        if (numNodes > 10)
+            exit(1);
     }
 };
 ////////////////////////////////////////////////////////////////////
@@ -74,7 +77,7 @@ int main(int argc, char* argv[])
         ("delay_ms,d", po::value<double>()->default_value(50), "Network delay in milliseconds")
         ("delay_jitter,j", po::value<double>()->default_value(10), "Network delay jitter in milliseconds")
         ("sample_time,s", po::value<std::uint64_t>()->default_value(250), "Milliseconds between objects")
-        ("num_nodes,s", po::value<std::uint8_t>()->default_value(2), "Number of nodes");
+        ("num_nodes,n", po::value<std::uint8_t>()->default_value(5), "Number of nodes");
     // clang-format on
 
     po::variables_map vm;
@@ -90,6 +93,7 @@ int main(int argc, char* argv[])
     ////////////////////////////////////////////////////////////
     // assigning the program options
     numNodes = vm["num_nodes"].as<std::uint8_t>();
+    msBetweenObjects = vm["sample_time"].as<std::uint64_t>();
     ////////////////////////////////////////////////////////////
 
     std::string sharedMemoryName = "chunk_transfer_test_";
@@ -360,7 +364,7 @@ int main(int argc, char* argv[])
                         TrackAlias trackAlias = enrichedObject.header_->trackAlias_;
 
                         std::cout
-                        << getpid() << " " << currTimestamp - *sentTimestamp << " "
+                        << nodeIdx << " " << currTimestamp - *sentTimestamp << " "
                         << "Track Alias: " << enrichedObject.header_->trackAlias_
                         << " " << "Group Id: " << groupId << " "
                         << "Object Id: " << objectId << '\n';
@@ -419,6 +423,8 @@ int main(int argc, char* argv[])
             if (dataChild->nodeSetup_[numNodes - 2])
                 break;
         }
+
+        std::cout << "Subscriber has been setup" << std::endl;
 
         std::uint16_t clientFirstProcessorId;
         {
@@ -500,7 +506,7 @@ int main(int argc, char* argv[])
             std::uint64_t groupId = enrichedObject.header_->groupId_;
             std::uint64_t objectId = enrichedObject.object_.objectId_;
 
-            std::cout << currTimestamp - *sentTimestamp << " "
+            std::cout << numNodes - 1 << " " << currTimestamp - *sentTimestamp << " "
                       << "Track Alias: " << enrichedObject.header_->trackAlias_
                       << " " << "Group Id: " << groupId << " "
                       << "Object Id: " << objectId << " "

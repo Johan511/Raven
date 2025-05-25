@@ -72,7 +72,8 @@ void test1()
     generate_quic_buffers({ clientSetupMessageChunk, serverSetupMessageChunk });
 
     const auto visitor =
-    overloads{ [](...) { std::cout << "Unexpected Message\n"; }, [](const ClientSetupMessage&)
+    overloads{ [](auto&&) { std::cout << "Unexpected Message\n"; },
+               [](const ClientSetupMessage&)
                { std::cout << "Received ClientSetupMessage\n"; },
                [](const ServerSetupMessage&)
                { std::cout << "Received ServerSetupMessage\n"; } };
@@ -112,16 +113,14 @@ void test2()
 
     auto quicBuffers = generate_quic_buffers(chunks);
 
-    const auto visitor =
-    overloads{ [](...) { std::cout << "Unexpected Message\n"; },
-               [](const StreamHeaderSubgroupMessage& h)
-               {
-                   std::cout << "Received Subgroup Header Message\n"
-                             << h << "\n";
-               },
-               [](const StreamHeaderSubgroupObject& o)
-               { std::cout << "Received Subgroup Object\n"
-                           << o << "\n"; } };
+    const auto visitor = overloads{
+        [](auto&&) { std::cout << "Unexpected Message\n"; }, [](StreamHeaderSubgroupMessage h)
+        { std::cout << "Received Subgroup Header Message\n"
+                    << h << "\n"; },
+        [](StreamHeaderSubgroupObject o)
+        { std::cout << "Received Subgroup Object\n"
+                    << o << "\n"; }
+    };
 
     Deserializer deserializer(false, visitor);
     for (auto&& quicBuffer : quicBuffers)

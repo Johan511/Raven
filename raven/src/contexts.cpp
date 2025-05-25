@@ -80,7 +80,7 @@ void ConnectionState::send_control_buffer(QUIC_BUFFER* buffer, QUIC_SEND_FLAGS f
     HQUIC streamHandle = streamState->stream.get();
 
     StreamSendContext* streamSendContext =
-    new StreamSendContext(buffer, 1, streamState->streamContext_);
+    new StreamSendContext(buffer, 1, streamState->streamContext_, std::nullopt);
 
     QUIC_STATUS status =
     moqtObject_.get_tbl()->StreamSend(streamHandle, buffer, 1, flags, streamSendContext);
@@ -176,12 +176,19 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
         if (iter == dataStreams.end())
             return QUIC_STATUS_ALPN_NEG_FAILURE;
 
+
+        std::optional<TimePoint> timeoutTimePoint;
+
+        if (timeoutDuration.has_value())
+            timeoutTimePoint = Clock::now() + *timeoutDuration;
+
         StreamSendContext* streamSendContext =
-        new StreamSendContext(objectPayload, 1, iter->streamContext_);
+        new StreamSendContext(objectPayload, 1, iter->streamContext_, timeoutTimePoint);
 
         auto streamSendRet =
         moqtObject_.get_tbl()->StreamSend(iter->stream.get(), objectPayload, 1,
-                                          QUIC_SEND_FLAG_NONE, streamSendContext);
+                                          QUIC_SEND_FLAG_EVENT_ON_FIRST_COPY_TO_FRAME,
+                                          streamSendContext);
         return streamSendRet;
     };
 
@@ -212,7 +219,7 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
                              moqtObject_.data_stream_cb_wrapper, streamContext },
                            { QUIC_STREAM_START_FLAG_NONE });
 
-        QUIC_STATUS status = dataStreams.write(
+        auto [streamHandle, streamSendContext] = dataStreams.write(
         [&, streamIn = std::move(stream), this](StableContainer<DataStreamState>& dataStreams) mutable
         {
             dataStreams.emplace_back(std::move(streamIn), *this);
@@ -224,18 +231,21 @@ QUIC_STATUS ConnectionState::send_object(const ObjectIdentifier& objectIdentifie
             // messages on this stream
 
             StreamSendContext* streamSendContext =
-            new StreamSendContext(objectHeaderQuicBuffer, 1, streamState.streamContext_);
+            new StreamSendContext(objectHeaderQuicBuffer, 1,
+                                  streamState.streamContext_, std::nullopt);
 
-            // Set priority of stream to indicate the priority of the group
-            // MsQuic uses uint16_t stream priority, unlike moqt which uses 8 bit
-            std::uint16_t streamPriority = objectHeader.publisherPriority_;
-            moqtObject_.get_tbl()->SetParam(streamState.stream.get(), QUIC_PARAM_STREAM_PRIORITY,
-                                            sizeof(std::uint16_t), &streamPriority);
-
-            return moqtObject_.get_tbl()->StreamSend(streamState.stream.get(),
-                                                     objectHeaderQuicBuffer, 1,
-                                                     QUIC_SEND_FLAG_NONE, streamSendContext);
+            return std::make_tuple(streamState.stream.get(), streamSendContext);
         });
+
+        // Set priority of stream to indicate the priority of the group
+        // MsQuic uses uint16_t stream priority, unlike moqt which uses 8 bit
+        std::uint16_t streamPriority = objectHeader.publisherPriority_;
+        moqtObject_.get_tbl()->SetParam(streamHandle, QUIC_PARAM_STREAM_PRIORITY,
+                                        sizeof(std::uint16_t), &streamPriority);
+
+        QUIC_STATUS status =
+        moqtObject_.get_tbl()->StreamSend(streamHandle, objectHeaderQuicBuffer, 1,
+                                          QUIC_SEND_FLAG_NONE, streamSendContext);
 
         /*
             Draft specifies that timeout should start from when it receives the
