@@ -348,4 +348,30 @@ deserialize(rvn::SubscribeErrorMessage& subscribeErrorMessage, ConstSpan& span, 
     return deserializedBytes;
 }
 
+template <typename ConstSpan>
+static inline deserialize_return_t
+deserialize(rvn::SubscribeUpdateMessage& subscribeUpdateMessage, ConstSpan& span, NetworkEndian = network_endian)
+{
+    std::uint64_t deserializedBytes = 0;
+
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeUpdateMessage.requestId_, span);
+
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeUpdateMessage.startLocation_.group_.get(), span);
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeUpdateMessage.startLocation_.object_.get(), span);
+
+    deserializedBytes +=
+    deserialize<ds::quic_var_int>(subscribeUpdateMessage.endGroup_, span);
+    deserializedBytes +=
+    deserialize_trivial<std::uint8_t>(subscribeUpdateMessage.subscriberPriority_, span);
+    deserializedBytes +=
+    deserialize_trivial<std::uint8_t>(subscribeUpdateMessage.forward_, span);
+
+    deserializedBytes += deserialize_params(subscribeUpdateMessage.parameters_, span);
+
+    return deserializedBytes;
+}
+
 } // namespace rvn::serialization::detail
